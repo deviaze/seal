@@ -44,18 +44,18 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
 }
 
 // wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
-fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
+pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
     Ok(LuaValue::Table(t?))
 }
 
-fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
+pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::Function(luau.create_function(f)?))
 }
 
 fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
     match path.as_str() {
         "@std/fs" => ok_table(std_fs::create(luau)),
-        "@std/fs/path" => ok_table(std_fs_pathlib::create(luau)),
+        "@std/fs/path" => ok_table(std_fs::pathlib::create(luau)),
         "@std/env" => ok_table(std_env::create(luau)),
 
         "@std/io" => ok_table(std_io::create(luau)),

@@ -139,6 +139,16 @@ fn fs_path_child(luau: &Lua, path: LuaValue) -> LuaValueResult {
     }
 }
 
+fn fs_path_home(luau: &Lua, _value: LuaValue) -> LuaValueResult {
+    #[allow(deprecated)] // env::home_dir() is undeprecated now
+    if let Some(home_dir) = std::env::home_dir() {
+        let home_dir = home_dir.to_string_lossy().to_string();
+        Ok(LuaValue::String(luau.create_string(&home_dir)?))
+    } else {
+        Ok(LuaNil)
+    }
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("join", fs_path_join)?
@@ -147,5 +157,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("absolutize", fs_path_absolutize)?
         .with_function("parent", fs_path_parent)?
         .with_function("child", fs_path_child)?
+        .with_function("home", fs_path_home)?
         .build_readonly()
 }

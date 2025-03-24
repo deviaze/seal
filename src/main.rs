@@ -6,7 +6,6 @@ use std::io;
 mod table_helpers;
 mod std_io_output;
 mod std_fs;
-mod std_fs_pathlib;
 mod std_process;
 mod std_env;
 mod std_json;
@@ -33,6 +32,7 @@ use include_dir::{include_dir, Dir};
 const TYPEDEFS_DIR: Dir = include_dir!(".typedefs");
 
 type LuaValueResult = LuaResult<LuaValue>;
+type LuaEmptyResult = LuaResult<()>;
 
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();

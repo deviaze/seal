@@ -32,6 +32,8 @@ export type PathLib = {
 	parent: (path: string, n: number?) -> string?,
 	--- the farthest child/leaf/node of the path, ex. `path.child("./src/main.luau") == "main.luau"`
 	child: (path: string) -> string?,
+	--- returns the user's home directory
+	home: () -> string,
 }
 
 return {} :: PathLib
