@@ -57,6 +57,16 @@ local function retryfile()
 	fs.removefile(newscriptpath)
 end
 
+local function fsfile__call()
+	assert(fs.file("./src/main.rs") ~= nil, "__call can't find main.rs")
+	assert(fs.file("./src/meow.rs") == nil, "why do we have a meow.rs")
+end
+
+local function fsdir__call()
+	assert(fs.dir("./src") ~= nil, "__call can't find ./src? where'd it go?")
+	assert(fs.dir("./meow") == nil, "why do we have a ./meow dir")
+end
+
 findfile()
 finddir()
 nonexistentfile()
@@ -64,3 +74,5 @@ nonexistentdir()
 unwrapfile()
 unwrapdir()
 retryfile()
+fsfile__call()
+fsdir__call()

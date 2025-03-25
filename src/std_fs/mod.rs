@@ -612,6 +612,38 @@ fn fs_file_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn create_filelib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_file_from)?
+        .with_metatable(TableBuilder::create(luau)?
+            .with_function("__call", {
+                | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "fs.file:__call(path: string)";
+                    let Some(LuaValue::Table(_filelib)) = multivalue.pop_front() else {
+                        return wrap_err!("{}: somehow called without self (or where self isn't a table)? this is impossible", function_name);
+                    };
+                    let file_path = match multivalue.pop_front() {
+                        Some(LuaValue::String(path)) => {
+                            validate_path(&path, function_name)?
+                        },
+                        Some(other) => {
+                            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+                        },
+                        None => {
+                            return wrap_err!("{} expected path to be a string, got nothing", function_name);
+                        }
+                    };
+                    let LuaValue::Table(find_result) = fs_find(luau, file_path.into_lua_multi(luau)?)? else {
+                        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
+                    };
+                    match find_result.raw_get("file")? {
+                        LuaValue::Table(t) => ok_table(Ok(t)),
+                        LuaNil => Ok(LuaNil),
+                        other => {
+                            wrap_err!("[Internal error]: {}: find_result.file returned smth that isn't a table nor nil: {:?}", function_name, other)
+                        }
+                    }
+                }
+            })?
+            .build_readonly()?
+        )?
         .build_readonly()
 }
 
@@ -628,6 +660,38 @@ fn fs_dir_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn create_dirlib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_dir_from)?
+        .with_metatable(TableBuilder::create(luau)?
+            .with_function("__call", {
+                | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "fs.dir:__call(path: string)";
+                    let Some(LuaValue::Table(_filelib)) = multivalue.pop_front() else {
+                        return wrap_err!("{}: somehow called without self (or where self isn't a table)? this is impossible", function_name);
+                    };
+                    let file_path = match multivalue.pop_front() {
+                        Some(LuaValue::String(path)) => {
+                            validate_path(&path, function_name)?
+                        },
+                        Some(other) => {
+                            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+                        },
+                        None => {
+                            return wrap_err!("{} expected path to be a string, got nothing", function_name);
+                        }
+                    };
+                    let LuaValue::Table(find_result) = fs_find(luau, file_path.into_lua_multi(luau)?)? else {
+                        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
+                    };
+                    match find_result.raw_get("dir")? {
+                        LuaValue::Table(t) => ok_table(Ok(t)),
+                        LuaNil => Ok(LuaNil),
+                        other => {
+                            wrap_err!("[Internal error]: {}: find_result.dir returned smth that isn't a table nor nil: {:?}", function_name, other)
+                        }
+                    }
+                }
+            })?
+            .build_readonly()?
+        )?
         .build_readonly()
 }
 
@@ -644,9 +708,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("removetree", fs_removetree)?
         .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?
-        // .with_function("file", fs_find_file)?
-        // .with_function("dir", fs_find_dir)?
-        // .with_function("create", fs_create)?
         .with_function("exists", fs_exists)?
         .with_value("path", pathlib::create(luau)?)?
         .with_value("file", create_filelib(luau)?)?
