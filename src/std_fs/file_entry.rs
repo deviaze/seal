@@ -105,7 +105,7 @@ pub fn read_file_into_buffer(_luau: &Lua, entry_path: &str, mut multivalue: LuaM
     };
 
     if (buffer_offset + count) > buffer_size {
-        return wrap_err!("{}: target buffer too small! buffer_offset + count is {}, which is larger than the provided buffer ({})", function_name_and_args, buffer_offset + count, count);
+        return wrap_err!("{}: target buffer too small! buffer_offset + count is {}, which is larger than the provided buffer ({})", function_name_and_args, buffer_offset + count, buffer_size);
     } else if (file_offset + count) > file_size {
         return wrap_err!("{}: file_offset + count ({}) is greater than the file size ({})", function_name_and_args, file_offset + count, file_size);
     }
