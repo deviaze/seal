@@ -2,9 +2,6 @@
 	"luau-lsp.fflags.enableNewSolver": true,
 	"luau-lsp.fflags.override": {
 		"LuauSolverV2": "true",
-		"LuauTypeSolverRelease": "652",
-		"LuauNewSolverPopulateTableLocations": "true",
-		"LuauNewSolverPrePopulateClasses": "true"
 	},
 	"luau-lsp.platform.type": "standard",
 	"luau-lsp.completion.imports.suggestRequires": true,
