@@ -126,11 +126,17 @@ fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {
     let require_resolver = include_str!("./scripts/require_resolver.luau");
     let r: LuaFunction = luau.load(require_resolver).eval()?;
     match r.call::<LuaValue>(path.to_owned()) {
-        Ok(LuaValue::String(path)) => Ok(path.to_string_lossy()),
-        Ok(LuaValue::Table(err_table)) => {
-            let err_message: LuaString = err_table.raw_get("err")?;
-            let err_message = err_message.to_string_lossy();
-            wrap_err!("require: {}", err_message)
+        // Ok(LuaValue::String(path)) => Ok(path.to_string_lossy()),
+        Ok(LuaValue::Table(result_table)) => {
+            let ok: bool = result_table.raw_get("ok")?;
+            if ok {
+                let resolved_path: LuaString = result_table.raw_get("resolved_path")?;
+                Ok(resolved_path.to_string_lossy())
+            } else {
+                let err_message: LuaString = result_table.raw_get("err")?;
+                let err_message = err_message.to_string_lossy();
+                wrap_err!("require: {}", err_message)
+            }
         },
         Ok(_other) => {
             panic!("require: ./scripts/require_resolver.luau returned something that isn't a string or err table; this shouldn't be possible");

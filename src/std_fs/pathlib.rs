@@ -6,6 +6,7 @@ use crate::{colors, LuaValueResult, wrap_err, table_helpers::TableBuilder, std_f
 
 fn fs_path_join(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let mut path = PathBuf::new();
+    let mut index = 0;
     while let Some(component) = multivalue.pop_front() {
         let component = match component {
             LuaValue::String(component) => {
@@ -14,7 +15,12 @@ fn fs_path_join(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
                 // this strips any of those for better ux
                 let separators_to_trim = ['/', '\\']; 
                 let component = component.to_string_lossy();
-                component.trim_start_matches(separators_to_trim).to_string()
+                if index > 0 { // dont remove / from absolute paths that start in / on purpose
+                    index += 1;
+                    component.trim_start_matches(separators_to_trim).to_string()
+                } else {
+                    component
+                }
             },
             other => {
                 return wrap_err!("path.join expected path to be a string, got: {:#?}", other);

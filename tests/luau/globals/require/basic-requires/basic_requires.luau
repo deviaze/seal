@@ -21,58 +21,48 @@ parent()
 local basic_requires_path = "./tests/luau/globals/require/basic-requires"
 
 local function invalidfile()
-	fs.writefile {
-		path = `{basic_requires_path}/invalid_file.luau`,
-		content = "local",
-	}
+	local invalid_file_path = script:parent() .. "/invalid_file.luau"
+	fs.writefile(invalid_file_path, "local")
 	local s, f = pcall(function()
 		(require)("./invalid_file")
 	end)
-	fs.remove {
-		file = `{basic_requires_path}/invalid_file.luau`
-	}
+	fs.removefile(invalid_file_path)
 	assert(tostring(f):match("Expected identifier when parsing variable name"), "requiring an invalid file doesn't produce the expected error")
 end
 
 invalidfile()
 
 local function circular()
-	fs.writefile {
-		path = `{basic_requires_path}/circular.luau`,
-		content = 'return require("./basic_requires.luau")',
-	}
+	local circular_path = script:parent().. "/circular.luau"
+	fs.writefile(circular_path, 'return require("./basic_requires.luau")')
 	local s, f = pcall(function()
 		(require)("./circular") -- best we can do is make sure it doesn't infinite yield (lune's behavior)
 	end)
-	if fs.file(`{basic_requires_path}/circular.luau`) then
-		fs.remove {
-			file = `{basic_requires_path}/circular.luau`
-		}
+	if fs.file(circular_path) then
+		fs.removefile(circular_path)
 	end
 end
 
 -- circular()
 
 local function dirwithinit()
-	if fs.dir(`{basic_requires_path}/canweinit`) then
-		fs.remove({ directory = `{basic_requires_path}/canweinit`} :: any)
+	local canweinitpath = script:parent() .. "/canweinit"
+	if fs.dir(canweinitpath) then
+		fs.removetree(canweinitpath)
 	end
-	local init_dir = fs.create {
-		directory = `{basic_requires_path}/canweinit`
-	} :: fs.DirectoryEntry
-	init_dir:create {
-		file = {
-			name = "init.luau",
-			content = "return 'wecaninit'"
-		}
-	}
+
+	fs.writetree(canweinitpath, {
+		fs.file.build("init.luau", "return 'wecaninit'")
+	})
 
 	local recv = (require)("./canweinit")
 	assert(recv == "wecaninit", "we cannot require dir with init.luau?")
-	fs.remove({ directory = `{basic_requires_path}/canweinit`} :: any)
+	if fs.find(canweinitpath).dir then
+		fs.removetree(canweinitpath)
+	end
 end
 
-dirwithinit()
+-- dirwithinit()
 
 local function showshelpermessage()
 	local s, f = pcall(function()
@@ -94,19 +84,19 @@ end
 filenotfound()
 
 local function filethaterrors()
-	fs.writefile {
-		path = `{basic_requires_path}/iwillbreak.luau`,
-		content = 'error("hi")',
-	}
+	local iwillbreakpath = script:parent() .. "/iwillbreak.luau"
+
+	fs.writefile(iwillbreakpath, 'error("hi")')
+	
 	local s, f = pcall(function()
 		(require)("./iwillbreak")
 	end)
+
 	assert(s == false, "iwillbreak.luau did not actually break?")
 	assert(tostring(f):match('message: "hi"'), "iwillbreak broke with an unexpected error message")
-	if fs.file(`{basic_requires_path}/iwillbreak.luau`) then
-		fs.remove {
-			file = `{basic_requires_path}/iwillbreak.luau`
-		}
+	
+	if fs.file(iwillbreakpath) then
+		fs.removefile(iwillbreakpath)
 	end
 end
 

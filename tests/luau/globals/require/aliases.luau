@@ -13,7 +13,7 @@ local function unabletoextractalias()
 		local impossible = (require)("@/hi")
 	end)
 	assert(s == false, "extracting alias was not supposed to succeed")
-	assert(tostring(f):match("unable to extract alias"), "received different error when trying to extract alias")
+	assert(tostring(f):match("couldn't extract require alias"), "received different error when trying to extract alias")
 end
 
 unabletoextractalias()
