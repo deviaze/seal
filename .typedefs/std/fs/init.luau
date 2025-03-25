@@ -1,7 +1,7 @@
 local pathlib = require("./path")
 local datetime = require("@std/time/datetime")
 
-export type Fs = {
+export type fs = {
 	readfile: (path: string) -> string,
 	readbytes: (path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number) -> (),
 	readlines: (path: string) -> () -> (number, string),
@@ -116,13 +116,4 @@ export type DirectoryTree = {
 	FileBuilder | DirectoryBuilder
 }
 
-local fs = {} :: Fs
-
-local file = fs.find("./src/require.rs"):unwrap_file()
-for path, entry in fs.entries("./src") do
-	if entry.type == "File" then
-		local content = entry:read()
-	end
-end
-
-return {} :: Fs
+return {} :: fs
