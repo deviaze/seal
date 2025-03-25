@@ -1,5 +1,7 @@
 use entry::{wrap_io_read_errors, wrap_io_read_errors_empty};
 use mlua::prelude::*;
+use regex::SubCaptureMatches;
+use std::path::{Path, PathBuf};
 use std::{fs, io};
 use crate::require::ok_table;
 use crate::{table_helpers::TableBuilder, LuaValueResult};
@@ -195,8 +197,135 @@ fn _fs_readtree(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
 }
 
 /// fs.writetree(path: string, tree: DirectoryTree): ()
-fn _fs_writetree(_luau: &Lua, _value: LuaValue) -> LuaEmptyResult {
-    todo!()
+fn fs_writetree(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let function_name = "fs.writetree(path: string, tree: DirectoryTree)";
+    let path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path, got nothing", function_name);
+        }
+    };
+    let tree = match multivalue.pop_front() {
+        Some(LuaValue::Table(tree)) => {
+            match tree.raw_get("type")? {
+                LuaValue::String(_) => {
+                    return wrap_err!("{} expected tree to be an array-like table which contains entries from fs.dir.build or fs.file.build; did you accidentally pass fs.dir.build to fs.writetree directly?", function_name);
+                },
+                LuaNil => {},
+                _other => {
+                    return wrap_err!("{} expected tree to be an array-like table, got an invalid table", function_name);
+                }
+            };
+            match tree.raw_get(1)? {
+                LuaValue::Table(_) => tree,
+                other => {
+                    return wrap_err!("{} expected tree to be an array-like table (that contains entries from fs.file.build or fs.dir.build), got: {:?}", function_name, other);
+                }
+            }
+        },
+        Some(LuaNil) | None => {
+            return wrap_err!("{} expected tree, got nothing or nil; to create an empty directory, use fs.makedir or pass an empty table as tree", function_name);
+        }
+        Some(other) => {
+            return wrap_err!("{} expected tree to be a DirectoryTree (use fs.dir.build to create DirectoryTrees), got: {:?}", function_name, other);
+        },
+    };
+
+    match fs::create_dir(&path) {
+        Ok(_) => {},
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::AlreadyExists => {
+                    return wrap_err!("{}: unable to create top-level directory at '{}' because it already exists", function_name, &path);
+                },
+                _ => {
+                    return wrap_err!("{}: unable to create top-level directory at requested path '{}' due to err: {}", function_name, &path, err);
+                }
+            }
+        }
+    };
+
+    let path = PathBuf::from(&path);
+
+    write_tree_rec(path, tree, None, function_name)
+}
+
+fn write_tree_rec(current_path: PathBuf, tree: LuaTable, depth: Option<i32>, function_name: &str) -> LuaEmptyResult {
+    for pair in tree.pairs() {
+        let (i, value): (LuaValue, LuaValue) = pair?;
+        let LuaValue::Integer(index) = i else {
+            return wrap_err!("{} expected tree to be an array-like table, got a non array-like table (non-integer key)", function_name);
+        };
+        let LuaValue::Table(value) = value else {
+            return wrap_err!("{} expected tree to be an array-like table with values being Builders from fs.file.build or fs.dir.build, got a non-table value", function_name);
+        };
+
+        let entry_name = match value.raw_get("name")? {
+            LuaValue::String(name) => name.to_str()?.to_string(),
+            other => {
+                return wrap_err!("{}: when evaluating children of path '{}', expected field 'name' of table at index {} to be a string, got: {:?}", function_name, current_path.display(), index, other);
+            }
+        };
+
+        let build_type = match value.raw_get("type")? {
+            LuaValue::String(ty) => {
+                match ty.to_str()?.to_string().as_str() {
+                    "File" => "File",
+                    "Directory" => "Directory",
+                    other => {
+                        return wrap_err!("{}: when evaluating children of path '{}', expected field 'type' of table at index {} to be either \"File\" or \"Directory\", got: \"{}\"", function_name, current_path.display(), index, other);
+                    }
+                }
+            },
+            other => {
+                return wrap_err!("{}: when evaluating children of path '{}', expected field 'type' of table at index {} to be a string, got: {:?}", function_name, current_path.display(), index, other);
+            }
+        };
+
+        let new_entry_pathbuf = Path::join(&current_path, &entry_name);
+
+        if build_type == "File" {
+            let content= match value.raw_get("content")? {
+                LuaValue::String(content) => {
+                    content.as_bytes().to_vec()
+                },
+                LuaValue::Buffer(buffy) => {
+                    buffy.to_vec()
+                },
+                other => {
+                    return wrap_err!("{}: when evaluating content to write to file '{}', expected field 'content' of table to be string (or buffer), got: {:?}", function_name, new_entry_pathbuf.display(), other);
+                }
+            };
+
+            match fs::write(&new_entry_pathbuf, content) {
+                Ok(_) => {},
+                Err(err) => {
+                    return wrap_err!("{}: error writing to file at '{}': {}", function_name, new_entry_pathbuf.display(), err);
+                }
+            }
+        } else {
+            let subtree = match value.raw_get("children")? {
+                LuaValue::Table(subtree) => subtree,
+                other => {
+                    return wrap_err!("{}: when evaluating children of new subtree '{}', expected field 'children' to be a table (array-like, values being returns from fs.dir.build or fs.file.build), got: {:?}", function_name, new_entry_pathbuf.display(), other);
+                }
+            };
+            let depth = depth.unwrap_or(0);
+            match fs::create_dir(&new_entry_pathbuf) {
+                Ok(_) => {},
+                Err(err) => {
+                    return wrap_err!("{} unable to create directory at '{}' due to err: {}", function_name, current_path.display(), err);
+                }
+            };
+            write_tree_rec(new_entry_pathbuf, subtree, Some(depth + 1), function_name)?;
+        }
+    }
+    Ok(())
 }
 
 /// fs.removetree(path: string)
@@ -346,8 +475,12 @@ fn get_search_path(mut multivalue: LuaMultiValue, function_name: &str) -> LuaRes
 }
 
 /// fs.find(path: string, follow_symlinks: boolean?): FindResult
-pub fn fs_find(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+fn fs_find(luau: &Lua, multivalue: LuaMultiValue) -> LuaValueResult {
     let function_name = "fs.find(path: string, follow_symlinks: boolean?)";
+    find(luau, multivalue, function_name)
+}
+
+pub fn find(luau: &Lua, mut multivalue: LuaMultiValue, function_name: &str) -> LuaValueResult {
     let search_path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
             validate_path(&path, function_name)?
@@ -609,9 +742,37 @@ fn fs_file_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
     ok_table(file_entry::create(luau, &path))
 }
 
+fn fs_file_build(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let file_name = match multivalue.pop_front() {
+        Some(LuaValue::String(name)) => name,
+        Some(other) => {
+            return wrap_err!("fs.file.build(name: string, content: string) expected name to be a string, got: {:?}", other);
+        },
+        None => {
+            return wrap_err!("fs.file.build(name: string, content: string) expected name, got nothing");
+        }
+    };
+    let file_content = match multivalue.pop_front() {
+        Some(LuaValue::String(content)) => content,
+        Some(other) => {
+            return wrap_err!("fs.file.build(name: string, content: string) expected content to be a string, got: {:?}", other);
+        },
+        None => {
+            return wrap_err!("fs.file.build(name: string, content: string) expected content, got nothing");
+        }
+    };
+    ok_table(TableBuilder::create(luau)?
+        .with_value("type", "File")?
+        .with_value("name", file_name)?
+        .with_value("content", file_content)?
+        .build()
+    )
+}
+
 pub fn create_filelib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_file_from)?
+        .with_function("build", fs_file_build)?
         .with_metatable(TableBuilder::create(luau)?
             .with_function("__call", {
                 | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
@@ -657,9 +818,37 @@ fn fs_dir_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
     ok_table(directory_entry::create(luau, &path))
 }
 
+fn fs_dir_build(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let dir_name = match multivalue.pop_front() {
+        Some(LuaValue::String(name)) => name,
+        Some(other) => {
+            return wrap_err!("fs.dir.build(name: string, children: DirectoryTree) expected name to be a string, got: {:?}", other);
+        },
+        None => {
+            return wrap_err!("fs.dir.build(name: string, children: DirectoryTree) expected name, got nothing");
+        }
+    };
+    let children = match multivalue.pop_front() {
+        Some(LuaValue::Table(children)) => children,
+        Some(other) => {
+            return wrap_err!("fs.dir.build(name: string, children: DirectoryTree) expected children to be a DirectoryTree table (an array-like-table of tables from fs.file.build or fs.dir.build), got: {:?}", other);
+        },
+        None => {
+            return wrap_err!("fs.dir.build(name: string, children: DirectoryTree) expected children, got nothing");
+        }
+    };
+    ok_table(TableBuilder::create(luau)?
+        .with_value("type", "Directory")?
+        .with_value("name", dir_name)?
+        .with_value("children", children)?
+        .build()
+    )
+}
+
 pub fn create_dirlib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_dir_from)?
+        .with_function("build", fs_dir_build)?
         .with_metatable(TableBuilder::create(luau)?
             .with_function("__call", {
                 | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
@@ -705,6 +894,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("removefile", fs_removefile) ?
         .with_function("listdir", fs_listdir)?
         .with_function("makedir", fs_makedir)?
+        .with_function("writetree", fs_writetree)?
         .with_function("removetree", fs_removetree)?
         .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?
