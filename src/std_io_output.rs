@@ -166,6 +166,11 @@ pub fn format_output(luau: &Lua, value: LuaValue) -> LuaResult<String> {
     Ok(result)
 }
 
+pub fn output_format(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let formatted = format_output(luau, value)?;
+    Ok(LuaValue::String(luau.create_string(formatted)?))
+}
+
 pub fn strip_newlines_and_colors(input: &str) -> String {
     let re_colors = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
     let without_colors = re_colors.replace_all(input, "");
@@ -242,7 +247,7 @@ pub fn output_ewrite(_luau: &Lua, value: LuaValue) -> LuaValueResult {
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
-        .with_function("format", format_output)?
+        .with_function("format", output_format)?
         .with_function("clear", output_clear)?
         .with_function("write", output_write)?
         .with_function("ewrite", output_ewrite)?

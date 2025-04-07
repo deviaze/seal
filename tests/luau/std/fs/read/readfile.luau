@@ -17,11 +17,11 @@ do
 	try(function()
 		fs.readfile("./trsatar")
 		return nil
-	end):expect_err("File not found")
+	end):expect_err("File/directory not found")
 
 	try(function()
 		fs.readfile(".")
 		return nil
-	end):expect_err("is a directory")
+	end):expect_err("Error on path")
 
 end

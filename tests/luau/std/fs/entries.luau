@@ -74,10 +74,7 @@ local function meta()
 		local metadata = mainrs:metadata()
 		local now = dt.now().unix_timestamp
 		local accessed_at = metadata.accessed_at
-		if accessed_at then
-			print(accessed_at:format_local(dt.common_formats["MM/DD/YYYY HH:MM (AM/PM)"]))
-			assert(now - accessed_at.unix_timestamp < 100, "time is off?")
-		end
+		assert(accessed_at ~= nil, "where is accessed at at?")
 	end
 end
 

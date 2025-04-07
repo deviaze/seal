@@ -15,6 +15,11 @@ repeat
 	print("hm")
 until t == 20
 
-handle:join()
+local s, f = pcall(function()
+	handle:join()
+end)
+
+assert(s == false, "thread.spawn should have errored")
+
 
 print("two")

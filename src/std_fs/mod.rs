@@ -120,7 +120,7 @@ pub fn fs_writefile(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResul
                     // if we dont special-case this, it results in an "fs.writefile: File not found {newfilepath}"
                     // error that's like... duh, of course it's not found.. i'm trying to make the file there??
                     // turns out we get NotFounds on fs::write if any of the parent directories don't exist
-                    wrap_err!("fs.writefile: path to '{}' doesn't exist, are all directories present and does the path start with '/', './', or '../'?")
+                    wrap_err!("fs.writefile: path to '{}' doesn't exist, are all directories present and does the path start with '/', './', or '../'?", file_path)
                 },
                 _ => {
                     entry::wrap_io_read_errors_empty(err, "fs.writefile", &file_path)

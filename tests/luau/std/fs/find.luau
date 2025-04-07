@@ -46,8 +46,7 @@ local function unwrapdir()
 end
 
 local function retryfile()
-	-- TODO: fix path.join it's still borkey
-	local newscriptpath = "/" .. fs.path.join(script:parent(), "newscript.luau")
+	local newscriptpath = fs.path.join(script:parent(), "newscript.luau")
 	local newscript = fs.find(newscriptpath)
 	assert(newscript.file == nil and newscript:exists() == false, "it's not made yet or is it??")
 	fs.writefile(newscriptpath, `print("hi from seal")`)

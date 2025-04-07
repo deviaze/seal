@@ -44,7 +44,7 @@ if env.os ~= "Windows" then
 	
 		local slashes_are_bad = `/{path.join("project", "src", "ui")}/someplace.html`
 		local slashed = path.join("home", slashes_are_bad)
-		assert(slashed == "home/project/src/ui/someplace.html", "Leading slashes not stripped (if not first arg)")
+		assert(slashed == "home/project/src/ui/someplace.html", `Leading slashes not stripped (if not first arg)?: '{slashed}'`)
 	end
 	
 	appendingpaths()
