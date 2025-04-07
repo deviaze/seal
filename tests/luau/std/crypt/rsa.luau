@@ -3,18 +3,11 @@ local rsa = require("@std/crypt/rsa")
 
 local keys = rsa.generatekeys()
 
-fs.writefile { 
-	path = "./tests/data/public.key",
-	content = keys.public,
-}
-
-fs.writefile {
-	path = "./tests/data/private.key",
-	content = keys.private,
-}
+local data_dir = fs.dir.from("./tests/data")
+	:add_file("public.key", keys.public)
+	:add_file("private.key", keys.private)
 
 local encrypted = rsa.encrypt("whoami", keys.public)
-
 local decrypted = rsa.decrypt(encrypted, keys.private)
 
 assert(decrypted == "whoami", "rsa plaintext doesnt match")

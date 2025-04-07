@@ -51,9 +51,9 @@ local function dirwithinit()
 		fs.removetree(canweinitpath)
 	end
 
-	fs.writetree(canweinitpath, {
-		fs.file.build("init.luau", "return 'wecaninit'")
-	})
+	fs.writetree(canweinitpath, fs.tree()
+		:with_file("init.luau", 'return "wecaninit"')
+	)
 
 	local recv = (require)("./canweinit")
 	assert(recv == "wecaninit", "we cannot require dir with init.luau?")
@@ -101,3 +101,5 @@ local function filethaterrors()
 end
 
 filethaterrors()
+
+return {}
