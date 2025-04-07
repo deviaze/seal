@@ -8,13 +8,13 @@ if old_movetrees then
 end
 
 datadir:add_tree("movetrees", fs.tree()
-	:with_dir("start", fs.tree()
+	:with_tree("start", fs.tree()
 		:with_file("move1", "moveme")
-		:with_dir("movefolder", fs.tree()
+		:with_tree("movefolder", fs.tree()
 			:with_file("hi", "hi")
 		)
 	)
-	:with_dir("finish", fs.tree())
+	:with_tree("finish", fs.tree())
 )
 
 fs.move(

@@ -483,8 +483,8 @@ fn fs_treebuilder_with_file(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaVal
 
 /// TreeBuilder:with_dir(name: string, builder: TreeBuilder)
 /// used to construct trees with builder pattern by appending the inner of the passed builder to the TreeBuilder's inner
-fn fs_treebuilder_with_dir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let function_name = "TreeBuilder:with_dir(name: string, builder: TreeBuilder)";
+fn fs_treebuilder_with_tree(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "TreeBuilder:with_tree(name: string, builder: TreeBuilder)";
     let treebuilder = match multivalue.pop_front() {
         Some(LuaValue::Table(treebuilder)) => treebuilder,
         Some(other) => {
@@ -539,7 +539,7 @@ fn fs_tree(luau: &Lua, _value: LuaValue) -> LuaValueResult {
     ok_table(TableBuilder::create(luau)?
         .with_value("inner", luau.create_table()?)?
         .with_function("with_file", fs_treebuilder_with_file)?
-        .with_function("with_dir", fs_treebuilder_with_dir)?
+        .with_function("with_tree", fs_treebuilder_with_tree)?
         .build_readonly()
     )
 }

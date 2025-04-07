@@ -9,7 +9,7 @@ local copytree = fs.dir.create("./tests/data/copytree")
 copytree
 	:add_file("regularfile", "regularcontent")
 	:add_tree("atree", fs.tree()
-		:with_dir("subdir", fs.tree()
+		:with_tree("subdir", fs.tree()
 			:with_file("hi", "bye")
 		)
 		:with_file("otherfile", "other")

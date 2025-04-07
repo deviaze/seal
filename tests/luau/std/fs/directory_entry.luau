@@ -6,7 +6,7 @@ local data_dir = fs.dir.from(data_path)
 
 local function addingandchaining()
 	local dirents = data_dir:add_tree("dirents", fs.tree()
-		:with_dir("hi", fs.tree()
+		:with_tree("hi", fs.tree()
 			:with_file("veryentry.txt", "hi")
 			:with_file("init.luau", "return function() end")
 		)

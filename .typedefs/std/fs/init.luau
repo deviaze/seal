@@ -46,7 +46,7 @@ export type fs = {
 export type TreeBuilder = {
     inner: DirectoryTree,
     with_file: (self: TreeBuilder, name: string, content: string) -> TreeBuilder,
-    with_dir: (self: TreeBuilder, name: string, builder: TreeBuilder) -> TreeBuilder,
+    with_tree: (self: TreeBuilder, name: string, builder: TreeBuilder) -> TreeBuilder,
 }
 
 export type FileEntry = {
