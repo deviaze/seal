@@ -11,3 +11,5 @@ local encrypted = rsa.encrypt("whoami", keys.public)
 local decrypted = rsa.decrypt(encrypted, keys.private)
 
 assert(decrypted == "whoami", "rsa plaintext doesnt match")
+
+data_dir:expect_file("private.key"):remove() -- so git guardian doesn't angery

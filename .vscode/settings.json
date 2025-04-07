@@ -7,7 +7,7 @@
 	"luau-lsp.completion.imports.suggestRequires": true,
 	"luau-lsp.types.definitionFiles": ["./.typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
-		"luau": "cargo build && ./target/debug/seal ",
+		"luau": "cargo build && ./target/debug/seal $fullFileName",
 	},
 	"rust-analyzer.check.command": "clippy",
 	"stylua.targetReleaseVersion": "latest",

@@ -86,12 +86,17 @@ pub fn metadata(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let permissions = {
         let builder = TableBuilder::create(luau)?
             .with_value("readonly", metadata.permissions().readonly())?;
-        if cfg!(unix) {
+        
+        #[cfg(unix)]
+        {
             let permissions_mode = metadata.permissions().mode();
             builder
                 .with_value("unix_mode", permissions_mode)?
                 .build_readonly()?
-        } else {
+        }
+        
+        #[cfg(not(unix))]
+        {
             builder.build_readonly()?
         }
     };

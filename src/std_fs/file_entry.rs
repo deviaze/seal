@@ -125,17 +125,21 @@ pub fn read_file_into_buffer(luau: &Lua, entry_path: &str, mut multivalue: LuaMu
     };
 
     let mut rust_buffer = vec![0; count];
-    if cfg!(unix) {
+    #[cfg(unix)]
+    {
         if let Err(err) = file.read_at(&mut rust_buffer, file_offset) {
             return wrap_err!("{}: error reading file: {}", function_name_and_args, err);
         }
-    } else if cfg!(windows) {
+    }
+
+    #[cfg(windows)]
+    {
         use std::io::SeekFrom;
 
         if let Err(err) = file.seek(SeekFrom::Start(file_offset)) {
             return wrap_err!("{}: error seeking file: {}", function_name_and_args, err);
         }
-    
+
         if let Err(err) = file.read(&mut rust_buffer) {
             return wrap_err!("{}: error reading file: {}", function_name_and_args, err);
         }
