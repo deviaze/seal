@@ -1,6 +1,7 @@
 use std::fs;
 use std::io;
 use std::io::ErrorKind;
+use std::path::Path;
 use std::path::PathBuf;
 use mlua::prelude::*;
 use crate::{std_time, require::ok_table};
@@ -29,26 +30,28 @@ pub fn get_path_from_entry(entry: &LuaValue, function_name: &str) -> LuaResult<S
     }
 }
 
-pub fn wrap_io_read_errors(err: std::io::Error, function_name: &str, file_path: &str) -> LuaValueResult {
+pub fn wrap_io_read_errors<P: AsRef<Path>>(err: std::io::Error, function_name: &str, path: P) -> LuaValueResult {
+    let path = path.as_ref().to_string_lossy(); // convert path into smth that implements Display
     match err.kind() {
         io::ErrorKind::NotFound =>
-            wrap_err!("{}: File not found: {}", function_name, file_path),
+            wrap_err!("{}: File/directory not found: '{}'", function_name, path),
         io::ErrorKind::PermissionDenied =>
-            wrap_err!("{}: Permission denied: {}", function_name, file_path),
+            wrap_err!("{}: Permission denied: '{}'", function_name, path),
         other => {
-            wrap_err!("{}: Error reading file: {}", function_name, other)
+            wrap_err!("{}: Error reading path: '{}'", function_name, other)
         }
     }
 }
 
-pub fn wrap_io_read_errors_empty(err: std::io::Error, function_name: &str, file_path: &str) -> LuaEmptyResult {
+pub fn wrap_io_read_errors_empty<P: AsRef<Path>>(err: std::io::Error, function_name: &str, path: P) -> LuaEmptyResult {
+    let path = path.as_ref().to_string_lossy(); // make sure it implements Display
     match err.kind() {
         io::ErrorKind::NotFound =>
-            wrap_err!("{}: File not found: {}", function_name, file_path),
+            wrap_err!("{}: File/directory not found: '{}'", function_name, path),
         io::ErrorKind::PermissionDenied =>
-            wrap_err!("{}: Permission denied: {}", function_name, file_path),
+            wrap_err!("{}: Permission denied: '{}'", function_name, path),
         other => {
-            wrap_err!("{}: Error reading file: {}", function_name, other)
+            wrap_err!("{}: Error reading path: '{}'", function_name, other)
         }
     }
 }

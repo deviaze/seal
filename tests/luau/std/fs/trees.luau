@@ -9,16 +9,16 @@ if fs.dir(writetreesdir) then
     fs.removetree(writetreesdir)
 end
 
-fs.writetree(writetreesdir, {
-    fs.file.build("name", "content"),
-    fs.file.build("main.luau", "return 'hi'"),
-    fs.dir.build("mymodule", {
-        fs.file.build("init.luau", "return 'mymodule'"),
-        fs.dir.build("meow", {
-            fs.file.build("child.json", "{}")
-        })
-    })
-})
+fs.writetree(writetreesdir, fs.tree()
+    :with_file("name", "content")
+    :with_file("main.luau", 'return "hi"')
+    :with_dir("mymodule", fs.tree()
+        :with_file("init.luau", 'return "mymodule"')
+        :with_dir("meow", fs.tree()
+            :with_file("child.json", "{}")
+        )
+    )
+)
 
 local path = require("@std/fs/path")
 
@@ -31,3 +31,13 @@ assert(path.exists(path.join(mymoduledir, "meow")), "where mymodule/meow/")
 assert(path.exists(path.join(mymoduledir, "meow", "child.json")), "where mymodule/meow/child.json")
 
 fs.removetree(writetreesdir)
+
+local dot_typedefs = fs.readtree("./.typedefs")
+local typedefs_clone_dir = path.join(datadir, ".typedefs")
+if fs.find(typedefs_clone_dir):exists() then
+    fs.removetree(typedefs_clone_dir)
+end
+
+fs.writetree(typedefs_clone_dir, dot_typedefs)
+assert(path.exists(path.join(typedefs_clone_dir, "std", "fs")), "expected datadir/.typedefs/std/fs to exist")
+fs.removetree(typedefs_clone_dir)

@@ -1,6 +1,6 @@
 use entry::{wrap_io_read_errors, wrap_io_read_errors_empty};
 use mlua::prelude::*;
-use regex::SubCaptureMatches;
+use std::fs::OpenOptions;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
 use crate::require::ok_table;
@@ -11,6 +11,7 @@ pub mod entry;
 pub mod pathlib;
 pub mod file_entry;
 pub mod directory_entry;
+pub mod find;
 
 pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String> {
     let Ok(path) = path.to_str() else {
@@ -189,16 +190,43 @@ pub fn fs_move(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     }
 }
 
+const READ_TREE_SRC: &str = include_str!("./read_tree.luau");
 /// fs.readtree(path: string): DirectoryTree
 /// not called readdir because it's uglier + we want dir/tree stuff to autocomplete after file
 /// so we want fs.readfile to autocomplete first and i'm assuming it's alphabetical
-fn _fs_readtree(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
-    todo!()
+fn fs_readtree(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "fs.readtree(path: string)";
+    let path = match value {
+        LuaValue::String(path) => {
+            validate_path(&path, function_name)?
+        },
+        other => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        }
+    };
+    let read_tree_fn: LuaFunction = luau.load(READ_TREE_SRC).eval()?;
+    let result = match read_tree_fn.call::<LuaValue>(path) {
+        Ok(LuaValue::Table(t)) => t,
+        Ok(other) => {
+            return wrap_err!("{} [INTERNAL]: read_tree_fn returned something that isn't a table: {:?}", function_name, other);
+        }
+        Err(err) => {
+            return wrap_err!("{}: hit error calling readtree: {}", function_name, err);
+        }
+    };
+    if let LuaValue::Table(directory_tree) = result.raw_get("tree")? {
+        Ok(LuaValue::Table(directory_tree))
+    } else if let LuaValue::String(err) = result.raw_get("err")? {
+        let err = err.to_string_lossy();
+        wrap_err!("{}: {}", function_name, err)
+    } else {
+        wrap_err!("{} [INTERNAL]: read_tree_fn should have returned a table with 'tree' or 'err'???")
+    }
 }
 
-/// fs.writetree(path: string, tree: DirectoryTree): ()
-fn fs_writetree(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
-    let function_name = "fs.writetree(path: string, tree: DirectoryTree)";
+/// fs.writetree(path: string, tree: TreeBuilder | DirectoryTree): ()
+fn fs_writetree(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let function_name = "fs.writetree(path: string, tree: TreeBuilder | DirectoryTree)";
     let path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
             validate_path(&path, function_name)?
@@ -211,29 +239,43 @@ fn fs_writetree(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
         }
     };
     let tree = match multivalue.pop_front() {
-        Some(LuaValue::Table(tree)) => {
-            match tree.raw_get("type")? {
-                LuaValue::String(_) => {
-                    return wrap_err!("{} expected tree to be an array-like table which contains entries from fs.dir.build or fs.file.build; did you accidentally pass fs.dir.build to fs.writetree directly?", function_name);
-                },
-                LuaNil => {},
-                _other => {
-                    return wrap_err!("{} expected tree to be an array-like table, got an invalid table", function_name);
-                }
-            };
-            match tree.raw_get(1)? {
-                LuaValue::Table(_) => tree,
-                other => {
-                    return wrap_err!("{} expected tree to be an array-like table (that contains entries from fs.file.build or fs.dir.build), got: {:?}", function_name, other);
-                }
-            }
-        },
+        Some(LuaValue::Table(tree)) => tree,
         Some(LuaNil) | None => {
             return wrap_err!("{} expected tree, got nothing or nil; to create an empty directory, use fs.makedir or pass an empty table as tree", function_name);
         }
         Some(other) => {
             return wrap_err!("{} expected tree to be a DirectoryTree (use fs.dir.build to create DirectoryTrees), got: {:?}", function_name, other);
         },
+    };
+
+    writetree(luau, path, tree, function_name)
+}
+
+pub fn writetree(_luau: &Lua, path: String, tree: LuaTable, function_name: &str) -> LuaEmptyResult {
+    let tree = {
+        // shadow tree if TableBuilder passed instead of DirectoryTree
+        let tree = match tree.raw_get("inner")? {
+            LuaValue::Table(inner) => inner,
+            LuaNil => tree,
+            other => {
+                return wrap_err!("{} expected tree to be a TreeBuilder (passed table has key 'inner') but 'inner' is not a table and unexpectedly {:?}", function_name, other);
+            }
+        };
+        match tree.raw_get("type")? {
+            LuaValue::String(_) => {
+                return wrap_err!("{} expected tree to be a TreeBuilder, or an array-like table which contains entries from fs.dir.build or fs.file.build; did you accidentally pass fs.dir.build to fs.writetree directly?", function_name);
+            },
+            LuaNil => {},
+            _other => {
+                return wrap_err!("{} expected tree to be a TreeBuilder or an array-like table, got an invalid table", function_name);
+            }
+        };
+        match tree.raw_get(1)? {
+            LuaValue::Table(_) => tree,
+            other => {
+                return wrap_err!("{} expected tree to be an array-like table (that contains entries from fs.file.build or fs.dir.build), got: {:?}", function_name, other);
+            }
+        }
     };
 
     match fs::create_dir(&path) {
@@ -251,7 +293,6 @@ fn fs_writetree(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     };
 
     let path = PathBuf::from(&path);
-
     write_tree_rec(path, tree, None, function_name)
 }
 
@@ -326,6 +367,115 @@ fn write_tree_rec(current_path: PathBuf, tree: LuaTable, depth: Option<i32>, fun
         }
     }
     Ok(())
+}
+
+
+fn fs_treebuilder_with_file(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "TreeBuilder:with_file(name: string, content: string)";
+    let treebuilder = match multivalue.pop_front() {
+        Some(LuaValue::Table(treebuilder)) => treebuilder,
+        Some(other) => {
+            return wrap_err!("{} expected self to be a TreeBuilder, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected to be called with self (methodcall syntax); did you forget a ':'?", function_name);
+        }
+    };
+    let name = match multivalue.pop_front() {
+        Some(LuaValue::String(name)) => name,
+        Some(other) => {
+            return wrap_err!("{} expected name to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected name, got nothing", function_name);
+        }
+    };
+    let content = match multivalue.pop_front() {
+        Some(LuaValue::String(content)) => content,
+        Some(other) => {
+            return wrap_err!("{} expected content to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected content, got nothing", function_name);
+        }
+    };
+    let inner = match treebuilder.raw_get("inner")? {
+        LuaValue::Table(t) => t,
+        other => {
+            return wrap_err!("{}: expected self.inner to be a table, got: {:?}; why did you modify it??", function_name, other);
+        }
+    };
+    let filebuilder = TableBuilder::create(luau)?
+        .with_value("type", "File")?
+        .with_value("name", name)?
+        .with_value("content", content)?
+        .build_readonly()?;
+    inner.raw_push(filebuilder)?;
+
+    Ok(LuaValue::Table(treebuilder))
+}
+
+/// TreeBuilder:with_dir(name: string, builder: TreeBuilder)
+/// used to construct trees with builder pattern by appending the inner of the passed builder to the TreeBuilder's inner
+fn fs_treebuilder_with_dir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "TreeBuilder:with_dir(name: string, builder: TreeBuilder)";
+    let treebuilder = match multivalue.pop_front() {
+        Some(LuaValue::Table(treebuilder)) => treebuilder,
+        Some(other) => {
+            return wrap_err!("{} expected self to be a TreeBuilder, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected to be called with self (methodcall syntax); did you forget a ':'?", function_name);
+        }
+    };
+    let name = match multivalue.pop_front() {
+        Some(LuaValue::String(name)) => name,
+        Some(other) => {
+            return wrap_err!("{} expected name to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected name, got nothing", function_name);
+        }
+    };
+    let subtree_inner = match multivalue.pop_front() {
+        Some(LuaValue::Table(builder)) => {
+            match builder.raw_get("inner")? {
+                LuaValue::Table(inner) => inner,
+                other => {
+                    return wrap_err!("{} expected builder to be a TreeBuilder from fs.tree(), got: {:?}; did you pass an unrelated table instead?", function_name, other);
+                }
+            }
+        },
+        Some(other) => {
+            return wrap_err!("{} expected builder to be a table (a TableBuilder from fs.tree()), got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected builder to be a table (a TableBuilder from fs.tree()), got nothing");
+        }
+    };
+    let inner = match treebuilder.raw_get("inner")? {
+        LuaValue::Table(t) => t,
+        other => {
+            return wrap_err!("{}: expected self.inner to be a table, got: {:?}; why did you modify it??", function_name, other);
+        }
+    };
+    let directory_builder = TableBuilder::create(luau)?
+        .with_value("type", "Directory")?
+        .with_value("name", name)?
+        .with_value("children", subtree_inner)?
+        .build_readonly()?;
+    inner.raw_push(directory_builder)?;
+
+    Ok(LuaValue::Table(treebuilder))
+}
+
+fn fs_tree(luau: &Lua, _value: LuaValue) -> LuaValueResult {
+    ok_table(TableBuilder::create(luau)?
+        .with_value("inner", luau.create_table()?)?
+        .with_function("with_file", fs_treebuilder_with_file)?
+        .with_function("with_dir", fs_treebuilder_with_dir)?
+        .build_readonly()
+    )
 }
 
 /// fs.removetree(path: string)
@@ -424,6 +574,10 @@ fn fs_makedir(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
 
 fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let function_name = "fs.entries(directory: string)";
+    entries(luau, value, function_name)
+}
+
+pub fn entries(luau: &Lua, value: LuaValue, function_name: &str) -> LuaValueResult {
     let directory_path = match value {
         LuaValue::String(path) => {
             validate_path(&path, function_name)?
@@ -458,254 +612,10 @@ fn fs_entries(luau: &Lua, value: LuaValue) -> LuaValueResult {
     )
 }
 
-/// helper function for fs_find
-fn get_search_path(mut multivalue: LuaMultiValue, function_name: &str) -> LuaResult<String> {
-    match multivalue.pop_front() {
-        Some(LuaValue::Table(find_result)) => {
-            let search_path: LuaString = find_result.raw_get("path")?;
-            validate_path(&search_path, function_name)
-        },
-        Some(other) => {
-            wrap_err!("FindResult:{}(): expected self to be a FindResult (table), got: {:?}", function_name, other)
-        },
-        None => {
-            wrap_err!("FindResult{}(): expected self to be a FindResult, got nothing", function_name)
-        }
-    }
-}
-
 /// fs.find(path: string, follow_symlinks: boolean?): FindResult
 fn fs_find(luau: &Lua, multivalue: LuaMultiValue) -> LuaValueResult {
     let function_name = "fs.find(path: string, follow_symlinks: boolean?)";
-    find(luau, multivalue, function_name)
-}
-
-pub fn find(luau: &Lua, mut multivalue: LuaMultiValue, function_name: &str) -> LuaValueResult {
-    let search_path = match multivalue.pop_front() {
-        Some(LuaValue::String(path)) => {
-            validate_path(&path, function_name)?
-        },
-        Some(other) => {
-            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
-        },
-        None => {
-            return wrap_err!("{} expected path to be a string, got nothing", function_name);
-        }
-    };
-    let follow_symlinks = match multivalue.pop_front() {
-        Some(LuaValue::Boolean(follow)) => follow,
-        Some(LuaNil) => true,
-        Some(other) => {
-            return wrap_err!("{} expected follow_symlinks to be a boolean or nil (or left unspecified), got: {:?}", function_name, other);
-        },
-        None => true,
-    };
-
-    let mut permission_denied = false;
-
-    let metadata = {
-        match if follow_symlinks { 
-            fs::metadata(&search_path) 
-        } else { 
-            fs::symlink_metadata(&search_path) 
-        } {
-            Ok(metadata) => Some(metadata),
-            Err(err) => {
-                match err.kind() {
-                    io::ErrorKind::NotFound => None,
-                    io::ErrorKind::PermissionDenied => {
-                        // return wrap_err!("{}: Permission denied at path '{}'", function_name, &search_path);
-                        permission_denied = true;
-                        None
-                    },
-                    _ => {
-                        return wrap_err!("{}: unable to get metadata due to error: {}", function_name, err);
-                    }
-                }
-            }
-        }
-    };
-
-    let search_path_to_check_existence = search_path.clone();
-    
-    let check_exists = move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
-        match fs::exists(&search_path_to_check_existence) {
-            Ok(bool) => Ok(LuaValue::Boolean(bool)),
-            Err(err) => wrap_io_read_errors(err, "FindResult:exists()", &search_path_to_check_existence)
-        }
-    };
-
-    if permission_denied {
-        ok_table(TableBuilder::create(luau)?
-            .with_value("ok", false)?
-            .with_value("err", "PermissionDenied")?
-            .with_function("exists", check_exists)?
-            .with_function("retry_file", {
-                | _luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
-                    let search_path = get_search_path(multivalue, "retry_file")?;
-                    wrap_err!("FindResult:retry_file(): Permission denied at '{}'", search_path)
-                }
-            })?
-            .with_function("retry_dir", {
-                | _luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
-                    let search_path = get_search_path(multivalue, "retry_dir")?;
-                    wrap_err!("FindResult:retry_dir(): Permission denied at '{}'", search_path)
-                }
-            })?
-            .with_function("unwrap_file", {
-                | _luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
-                    let search_path = get_search_path(multivalue, "unwrap_file")?;
-                    wrap_err!("FindResult:unwrap_file(): Permission denied at '{}'", search_path)
-                }
-            })?
-            .with_function("unwrap_dir", {
-                | _luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
-                    let search_path = get_search_path(multivalue, "unwrap_dir")?;
-                    wrap_err!("FindResult:unwrap_dir(): Permission denied at '{}'", search_path)
-                }
-            })?
-            .build_readonly()
-        )
-    } else {
-        let search_path_clone = search_path.clone();
-        let find_result = TableBuilder::create(luau)?
-            .with_value("ok", true)?
-            .with_value("path", search_path_clone)?
-            .with_function("exists", check_exists)?
-            .with_function("unwrap_file", {
-                | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    match multivalue.pop_front() {
-                        Some(LuaValue::Table(find_result)) => {
-                            if let Ok(LuaValue::Table(file)) = find_result.raw_get("file") {
-                                ok_table(Ok(file))
-                            } else {
-                                wrap_err!("Attempt to :unwrap_file() a non-file FindResult")
-                            }
-                        },
-                        Some(other) => {
-                            wrap_err!("FindResult:unwrap_file(): expected self to be a FindResult, got: {:?}", other)
-                        },
-                        None => {
-                            wrap_err!("FindResult:unwrap_file() incorrectly called without self")
-                        }
-                    }
-                }
-            })?
-            .with_function("unwrap_dir", {
-                | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    match multivalue.pop_front() {
-                        Some(LuaValue::Table(find_result)) => {
-                            if let Ok(LuaValue::Table(dir)) = find_result.raw_get("dir") {
-                                ok_table(Ok(dir))
-                            } else {
-                                wrap_err!("Attempt to :unwrap_dir() a non-dir FindResult")
-                            }
-                        },
-                        Some(other) => {
-                            wrap_err!("FindResult:unwrap_dir(): expected self to be a FindResult, got: {:?}", other)
-                        },
-                        None => {
-                            wrap_err!("FindResult:unwrap_dir() incorrectly called without self")
-                        }
-                    }
-                }
-            })?
-            .with_function("retry_file", {
-                | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    let find_result = match multivalue.pop_front() {
-                        Some(LuaValue::Table(entry)) => entry,
-                        Some(other) => {
-                            return wrap_err!("FindResult:retry_file() expected self to be a FindResult, got: {:?}", other);
-                        },
-                        None => {
-                            return wrap_err!("FindResult:retry_file() incorrectly called without self");
-                        }
-                    };
-                    let entry_path: String = find_result.raw_get("path")?;
-                    let exists = match fs::exists(&entry_path) {
-                        Ok(exists) => exists,
-                        Err(err) => {
-                            return wrap_io_read_errors(err, "FindResult:retry_file()", &entry_path);
-                        }
-                    };
-                    if exists {
-                        let metadata = match fs::metadata(&entry_path) {
-                            Ok(metadata) => metadata,
-                            Err(err) => {
-                                return wrap_io_read_errors(err, "FindResult:retry_file()", &entry_path);
-                            }
-                        };
-                        if metadata.is_file() {
-                            let new_entry = entry::create(luau, &entry_path, "FindResult:retry_file()")?;
-                            find_result.raw_set("file", new_entry)?;
-                            let new_entry: LuaValue = find_result.raw_get("file")?;
-                            Ok(new_entry)
-                        } else {
-                            Ok(LuaNil)
-                        }
-                    } else {
-                        Ok(LuaNil)
-                    }
-                }
-            })?
-            .with_function("retry_dir", {
-                | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    let find_result = match multivalue.pop_front() {
-                        Some(LuaValue::Table(entry)) => entry,
-                        Some(other) => {
-                            return wrap_err!("FindResult:retry_dir() expected self to be a FindResult, got: {:?}", other);
-                        },
-                        None => {
-                            return wrap_err!("FindResult:retry_dir() incorrectly called without self");
-                        }
-                    };
-                    let entry_path: String = find_result.raw_get("path")?;
-                    let exists = match fs::exists(&entry_path) {
-                        Ok(exists) => exists,
-                        Err(err) => {
-                            return wrap_io_read_errors(err, "FindResult:retry_dir()", &entry_path);
-                        }
-                    };
-                    if exists {
-                        let metadata = match fs::metadata(&entry_path) {
-                            Ok(metadata) => metadata,
-                            Err(err) => {
-                                return wrap_io_read_errors(err, "FindResult:retry_dir()", &entry_path);
-                            }
-                        };
-                        if metadata.is_dir() {
-                            let new_entry = entry::create(luau, &entry_path, "FindResult:retry_dir()")?;
-                            find_result.raw_set("dir", new_entry)?;
-                            let new_entry: LuaValue = find_result.raw_get("dir")?;
-                            Ok(new_entry)
-                        } else {
-                            Ok(LuaNil)
-                        }
-                    } else {
-                        Ok(LuaNil)
-                    }
-                }
-            })?
-            .build()?;
-
-        let entry = entry::create(luau, &search_path, function_name)?;
-        match metadata {
-            Some(metadata) if metadata.is_file() => {
-                find_result.raw_set("file", entry)?;
-            },
-            Some(metadata) if metadata.is_dir() => {
-                find_result.raw_set("dir", entry)?;
-            },
-            Some(_metadata) => {
-                todo!("handle symlinks")
-            },
-            None => {
-
-            }
-        }
-
-        ok_table(Ok(find_result))
-    }
+    find::find(luau, multivalue, function_name)
 }
 
 pub fn fs_exists(_luau: &Lua, path: LuaValue) -> LuaValueResult {
@@ -769,40 +679,68 @@ fn fs_file_build(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     )
 }
 
+fn fs_file_call(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.file:__call(path: string)";
+    let Some(LuaValue::Table(_filelib)) = multivalue.pop_front() else {
+        return wrap_err!("{}: somehow called without self (or where self isn't a table)? this is impossible", function_name);
+    };
+    let file_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path to be a string, got nothing", function_name);
+        }
+    };
+    let LuaValue::Table(find_result) = fs_find(luau, file_path.into_lua_multi(luau)?)? else {
+        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
+    };
+    match find_result.raw_get("file")? {
+        LuaValue::Table(t) => ok_table(Ok(t)),
+        LuaNil => Ok(LuaNil),
+        other => {
+            wrap_err!("[Internal error]: {}: find_result.file returned smth that isn't a table nor nil: {:?}", function_name, other)
+        }
+    }
+}
+
+/// fs.file.create(path: string): FileEntry
+/// Creates a new file at path in a TOCTOU (Time of Check to Time Of Use)-compliant manner,
+/// note that ONLY the file creation is TOCTOU safe, using the result FileEntry is 100% not TOCTOU safe
+fn fs_file_create(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "fs.file.create(path: string)";
+    let path = match value {
+        LuaValue::String(path) => {
+            validate_path(&path, function_name)?
+        },
+        other => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        }
+    };
+    match OpenOptions::new()
+        .write(true)
+        .create_new(true) // ensure new file is created (TOCTOU)
+        .open(&path)
+    {
+        Ok(_file) => {
+            entry::create(luau, &path, function_name)
+        },
+        Err(err) => {
+            wrap_io_read_errors(err, function_name, &path)
+        }
+    }
+}
+
 pub fn create_filelib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_file_from)?
         .with_function("build", fs_file_build)?
+        .with_function("create", fs_file_create)?
         .with_metatable(TableBuilder::create(luau)?
-            .with_function("__call", {
-                | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    let function_name = "fs.file:__call(path: string)";
-                    let Some(LuaValue::Table(_filelib)) = multivalue.pop_front() else {
-                        return wrap_err!("{}: somehow called without self (or where self isn't a table)? this is impossible", function_name);
-                    };
-                    let file_path = match multivalue.pop_front() {
-                        Some(LuaValue::String(path)) => {
-                            validate_path(&path, function_name)?
-                        },
-                        Some(other) => {
-                            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
-                        },
-                        None => {
-                            return wrap_err!("{} expected path to be a string, got nothing", function_name);
-                        }
-                    };
-                    let LuaValue::Table(find_result) = fs_find(luau, file_path.into_lua_multi(luau)?)? else {
-                        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
-                    };
-                    match find_result.raw_get("file")? {
-                        LuaValue::Table(t) => ok_table(Ok(t)),
-                        LuaNil => Ok(LuaNil),
-                        other => {
-                            wrap_err!("[Internal error]: {}: find_result.file returned smth that isn't a table nor nil: {:?}", function_name, other)
-                        }
-                    }
-                }
-            })?
+            .with_function("__call", fs_file_call)?
             .build_readonly()?
         )?
         .build_readonly()
@@ -845,40 +783,61 @@ fn fs_dir_build(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     )
 }
 
+fn fs_dir_call(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.dir:__call(path: string)";
+    let Some(LuaValue::Table(_filelib)) = multivalue.pop_front() else {
+        return wrap_err!("{}: somehow called without self (or where self isn't a table)? this is impossible", function_name);
+    };
+    let dir_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path to be a string, got nothing", function_name);
+        }
+    };
+    let LuaValue::Table(find_result) = fs_find(luau, dir_path.into_lua_multi(luau)?)? else {
+        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
+    };
+    match find_result.raw_get("dir")? {
+        LuaValue::Table(t) => ok_table(Ok(t)),
+        LuaNil => Ok(LuaNil),
+        other => {
+            wrap_err!("[Internal error]: {}: find_result.dir returned smth that isn't a table nor nil: {:?}", function_name, other)
+        }
+    }
+}
+
+fn fs_dir_create(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "fs.dir.create(path: string)";
+    let path = match value {
+        LuaValue::String(path) => {
+            validate_path(&path, function_name)?
+        },
+        other => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        }
+    };
+    match fs::create_dir(&path) {
+        Ok(_) => {
+            entry::create(luau, &path, function_name)
+        },
+        Err(err) => {
+            wrap_io_read_errors(err, function_name, &path)
+        }
+    }
+}
+
 pub fn create_dirlib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_dir_from)?
         .with_function("build", fs_dir_build)?
+        .with_function("create", fs_dir_create)?
         .with_metatable(TableBuilder::create(luau)?
-            .with_function("__call", {
-                | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    let function_name = "fs.dir:__call(path: string)";
-                    let Some(LuaValue::Table(_filelib)) = multivalue.pop_front() else {
-                        return wrap_err!("{}: somehow called without self (or where self isn't a table)? this is impossible", function_name);
-                    };
-                    let file_path = match multivalue.pop_front() {
-                        Some(LuaValue::String(path)) => {
-                            validate_path(&path, function_name)?
-                        },
-                        Some(other) => {
-                            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
-                        },
-                        None => {
-                            return wrap_err!("{} expected path to be a string, got nothing", function_name);
-                        }
-                    };
-                    let LuaValue::Table(find_result) = fs_find(luau, file_path.into_lua_multi(luau)?)? else {
-                        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
-                    };
-                    match find_result.raw_get("dir")? {
-                        LuaValue::Table(t) => ok_table(Ok(t)),
-                        LuaNil => Ok(LuaNil),
-                        other => {
-                            wrap_err!("[Internal error]: {}: find_result.dir returned smth that isn't a table nor nil: {:?}", function_name, other)
-                        }
-                    }
-                }
-            })?
+            .with_function("__call", fs_dir_call)?
             .build_readonly()?
         )?
         .build_readonly()
@@ -894,6 +853,8 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("removefile", fs_removefile) ?
         .with_function("listdir", fs_listdir)?
         .with_function("makedir", fs_makedir)?
+        .with_function("readtree", fs_readtree)?
+        .with_function("tree", fs_tree)?
         .with_function("writetree", fs_writetree)?
         .with_function("removetree", fs_removetree)?
         .with_function("entries", fs_entries)?

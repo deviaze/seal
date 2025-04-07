@@ -289,7 +289,7 @@ fn file_is_valid_utf8(_luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn create(luau: &Lua, path: &str) -> LuaResult<LuaTable> {
     let original_path = path;
     let path = PathBuf::from(path);
-    if !path.exists() {
+    if !path.exists() || !path.is_file() {
         return wrap_err!("File not found: '{}'", path.display());
     }
     let base_name = match path.file_name() {

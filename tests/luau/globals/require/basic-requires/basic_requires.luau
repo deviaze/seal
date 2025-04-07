@@ -36,7 +36,7 @@ local function circular()
 	local circular_path = script:parent().. "/circular.luau"
 	fs.writefile(circular_path, 'return require("./basic_requires.luau")')
 	local s, f = pcall(function()
-		(require)("./circular") -- best we can do is make sure it doesn't infinite yield (lune's behavior)
+		(require)("./tests/luau/globals/require/basic-requires/circular.luau") -- best we can do is make sure it doesn't infinite yield (lune's behavior)
 	end)
 	if fs.file(circular_path) then
 		fs.removefile(circular_path)
@@ -62,7 +62,7 @@ local function dirwithinit()
 	end
 end
 
--- dirwithinit()
+dirwithinit()
 
 local function showshelpermessage()
 	local s, f = pcall(function()

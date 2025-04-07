@@ -58,8 +58,8 @@ local function resolve_require_path(requested_path: string): ResolveResult
                     luaurc_path = possible_luaurc_path
                     break
                 else
-                    local parent_dir: string? = fs.path.parent(current_dir)
-                    if parent_dir then
+                    local parent_dir = fs.path.parent(current_dir)
+                    if parent_dir ~= nil then
                         current_dir = parent_dir
                     else
                         return {
@@ -145,9 +145,8 @@ local function resolve_require_path(requested_path: string): ResolveResult
     -- now that we've resolved a current_path, let's check if it's a dir w/ init.luau
     local resolved_dir = fs.find(current_path).dir
     if resolved_dir then
-        local init_luau = resolved_dir:find("init.luau").file
-        if init_luau then
-            current_path = init_luau.path
+        if resolved_dir:find("init.luau").file then
+            current_path = fs.path.join(current_path, "init")
         else
             return {
                 ok = false,

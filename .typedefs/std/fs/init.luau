@@ -4,13 +4,16 @@ local datetime = require("@std/time/datetime")
 export type fs = {
 	readfile: (path: string) -> string,
 	readbytes: (path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number) -> (),
+	-- readbytes: 
+	-- 	| (path: string, file_offset: number, count: number) -> buffer
+	-- 	| (path: string, file_offset: number, count: number, target_buffer: buffer, buffer_offset: number?) -> (),
 	readlines: (path: string) -> () -> (number, string),
 
 	writefile: (path: string, content: string | buffer) -> (),
 	removefile: (path: string) -> (),
 
 	readtree: (path: string) -> DirectoryTree,
-	writetree: (path: string, children: DirectoryTree) -> (),
+	writetree: (path: string, tree: TreeBuilder | DirectoryTree) -> (),
 	removetree: (path: string) -> (),
 
 	makedir: (path: string, create_missing: boolean?) -> (),
@@ -32,13 +35,21 @@ export type fs = {
 
 	dir: setmetatable<{
 		from: (path: string) -> DirectoryEntry,
-		build: (name: string, children: DirectoryTree) -> DirectoryBuilder,
+		build: (name: string, tree: DirectoryTree) -> DirectoryBuilder,
 		create: (path: string) -> DirectoryEntry,
 	}, {
 		__call: (self: any, path: string) -> DirectoryEntry?,
 	}>,
 
+	tree: () -> TreeBuilder,
+
 	path: pathlib.PathLib,
+}
+
+export type TreeBuilder = {
+    inner: DirectoryTree,
+    with_file: (self: TreeBuilder, name: string, content: string) -> TreeBuilder,
+    with_dir: (self: TreeBuilder, name: string, builder: TreeBuilder) -> TreeBuilder,
 }
 
 export type FileEntry = {
@@ -67,7 +78,8 @@ export type DirectoryEntry = {
 	entries: (self: DirectoryEntry) -> { [string]: Entry },
 	expect_file: (self: DirectoryEntry, name: string) -> FileEntry,
 	expect_dir: (self: DirectoryEntry, name: string) -> DirectoryEntry,
-	write_children: (self: DirectoryEntry, children: DirectoryTree) -> (),
+	add_file: (self: DirectoryEntry, name: string, content: string) -> DirectoryEntry,
+	add_tree: (self: DirectoryEntry, name: string, builder: TreeBuilder) -> DirectoryEntry,
 	metadata: (self: DirectoryEntry) -> FsMetadata,
 	copy_to: (self: DirectoryEntry, to: string) -> (),
 	move_to: (self: DirectoryEntry, to: string) -> (),
@@ -100,13 +112,13 @@ export type FindResult = { -- can't make this type more accurate w/ unions bc it
 	err: "PermissionDenied"?,
 }
 
-type FileBuilder = {
+export type FileBuilder = {
 	name: string,
 	type: "File",
 	content: string,
 }
 
-type DirectoryBuilder = {
+export type DirectoryBuilder = {
 	name: string,
 	type: "Directory",
 	children: DirectoryTree,
