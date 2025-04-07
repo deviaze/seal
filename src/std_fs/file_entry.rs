@@ -22,18 +22,8 @@ fn file_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
 }
 
 /// helper function for fs.readbytes and FileEntry:readbytes(); expects multivalue like
-/// readbytes(target_buffer: buffer, buffer_offset: number, file_offset: number, count: number)
-pub fn read_file_into_buffer(_luau: &Lua, entry_path: &str, mut multivalue: LuaMultiValue, function_name_and_args: &str) -> LuaValueResult {
-    let target_buffer = match multivalue.pop_front() {
-        Some(LuaValue::Buffer(buffy)) => buffy,
-        Some(other) => {
-            return wrap_err!("{} expected target_buffer to be a buffer, got: {:#?}", function_name_and_args, other)
-        },
-        None => {
-            return wrap_err!("{} expected target_buffer, got nothing", function_name_and_args);
-        }
-    };
-
+/// (file_offset: number?, count: number?, target_buffer: buffer?, buffer_offset: number?)
+pub fn read_file_into_buffer(luau: &Lua, entry_path: &str, mut multivalue: LuaMultiValue, function_name_and_args: &str) -> LuaValueResult {
     let try_truncate_f64 = | f: f64, context: &str | -> LuaResult<i32> {
         let truncated_f = f.trunc();
         if truncated_f != f {
@@ -43,42 +33,39 @@ pub fn read_file_into_buffer(_luau: &Lua, entry_path: &str, mut multivalue: LuaM
         }
     };
 
-    let buffer_offset = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => n,
-        Some(LuaValue::Number(f)) => try_truncate_f64(f, "buffer_offset")?,
-        Some(LuaNil) => 0,
-        Some(other) => {
-            return wrap_err!("{} expected buffer_offset to be a number (integer), got: {:#?}", function_name_and_args, other);
-        },
-        None => {
-            return wrap_err!("{} expected buffer_offset, got nothing (not even nil)");
-        }
-    };
-
     let file_offset = match multivalue.pop_front() {
         Some(LuaValue::Integer(n)) => n,
         Some(LuaValue::Number(f)) => try_truncate_f64(f, "file_offset")?,
-        Some(LuaNil) => 0,
+        Some(LuaNil) | None => 0,
         Some(other) => {
             return wrap_err!("{} expected file_offset to be a number (integer), got: {:#?}", function_name_and_args, other);
         },
-        None => {
-            return wrap_err!("{} expected file_offset, got nothing (not even nil)", function_name_and_args);
-        }
     };
 
     let count = match multivalue.pop_front() {
-        Some(LuaValue::Integer(n)) => n,
-        Some(LuaValue::Number(f)) => try_truncate_f64(f, "count")?,
-        Some(LuaNil) => {
-            return wrap_err!("{}: count cannot be nil");
-        },
+        Some(LuaValue::Integer(n)) => Some(n),
+        Some(LuaValue::Number(f)) => Some(try_truncate_f64(f, "count")?),
+        Some(LuaNil) | None => None,
         Some(other) => {
             return wrap_err!("{} expected count to be a number (integer), got: {:#?}", function_name_and_args, other);
         },
-        None => {
-            return wrap_err!("{} expected count, got nothing", function_name_and_args);
-        }
+    };
+
+    let target_buffer = match multivalue.pop_front() {
+        Some(LuaValue::Buffer(buffy)) => Some(buffy),
+        Some(LuaNil) | None => None,
+        Some(other) => {
+            return wrap_err!("{} expected target_buffer to be a buffer, got: {:#?}", function_name_and_args, other)
+        },
+    };
+
+    let buffer_offset = match multivalue.pop_front() {
+        Some(LuaValue::Integer(n)) => n,
+        Some(LuaValue::Number(f)) => try_truncate_f64(f, "buffer_offset")?,
+        Some(LuaNil) | None => 0,
+        Some(other) => {
+            return wrap_err!("{} expected buffer_offset to be a number (integer), got: {:#?}", function_name_and_args, other);
+        },
     };
 
     // sanity checks
@@ -90,11 +77,6 @@ pub fn read_file_into_buffer(_luau: &Lua, entry_path: &str, mut multivalue: LuaM
         }
     };
 
-    let buffer_offset = assert_sign(buffer_offset, "buffer_offset")?;
-    let file_offset = assert_sign(file_offset, "file_offset")?;
-    let count = assert_sign(count, "count")?;
-
-    let buffer_size = target_buffer.len() as u64;
     let file_size = match fs::metadata(entry_path) {
         Ok(metadata) => {
             metadata.len()
@@ -104,6 +86,24 @@ pub fn read_file_into_buffer(_luau: &Lua, entry_path: &str, mut multivalue: LuaM
         }
     };
 
+    let buffer_offset = assert_sign(buffer_offset, "buffer_offset")?;
+    let file_offset = assert_sign(file_offset, "file_offset")?;
+    let count = {
+        if let Some(count) = count {
+            assert_sign(count, "count")?
+        } else {
+            file_size
+        }
+    };
+
+    let buffer_size = {
+        if let Some(target_buffer) = &target_buffer {
+            target_buffer.len() as u64
+        } else {
+            count
+        }
+    };
+    
     if (buffer_offset + count) > buffer_size {
         return wrap_err!("{}: target buffer too small! buffer_offset + count is {}, which is larger than the provided buffer ({})", function_name_and_args, buffer_offset + count, buffer_size);
     } else if (file_offset + count) > file_size {
@@ -141,23 +141,26 @@ pub fn read_file_into_buffer(_luau: &Lua, entry_path: &str, mut multivalue: LuaM
         }
     }
 
-    target_buffer.write_bytes(buffer_offset as usize, &rust_buffer);
-
-    Ok(LuaValue::Buffer(target_buffer))
+    if let Some(target_buffer) = target_buffer {
+        target_buffer.write_bytes(buffer_offset as usize, &rust_buffer);
+        Ok(LuaValue::Buffer(target_buffer))
+    } else {
+        Ok(LuaValue::Buffer(luau.create_buffer(rust_buffer)?))
+    }
 }
 
-fn file_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+fn file_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "FileEntry:readbytes(file_offset: number?, count: number?, target_buffer: buffer?, buffer_offset: number?)";
     let entry = match multivalue.pop_front() {
         Some(value) => value,
         None => {
-            return wrap_err!("FileEntry:readbytes() incorrectly called with zero arguments");
+            return wrap_err!("{} incorrectly called without self, did you forget to use methodcall syntax (:)?", function_name);
         }
     };
-    let entry_path = get_path_from_entry(&entry, "FileEntry:readbytes()")?;
+    let entry_path = get_path_from_entry(&entry, function_name)?;
 
     // read_entry_path_into_buffer(luau, entry_path, multivalue, "FileEntry:readbytes")
-    read_file_into_buffer(luau,&entry_path, multivalue, "FileEntry:readbytes(target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)")?;
-    Ok(())
+    read_file_into_buffer(luau, &entry_path, multivalue, function_name)
 }
 
 fn file_append(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {

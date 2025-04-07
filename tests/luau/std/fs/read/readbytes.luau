@@ -4,9 +4,25 @@ local fs = require("@std/fs")
 
 local funny_story = "./tests/data/funny_story.txt"
 
-local count = 1024
-local buffy = buffer.create(count)
-fs.readbytes(funny_story, buffy, 0, 0, 40)
-assert(buffer.tostring(buffy):match("Once upon a time in a pixelated paradise"), "buffer doesnt match")
-fs.readbytes(funny_story, buffy, 10, 60, 10)
-assert(buffer.tostring(buffy):match("called"), "overwriting buffer didn't work?")
+local function getanewbuffer()
+	local buffy = fs.readbytes(funny_story)
+	assert(type(buffy) == "buffer", "where buffy?")
+end
+
+getanewbuffer()
+
+local function getnewbuffercount()
+	local buffy = fs.readbytes(funny_story, 0, 27)
+	assert(buffer.tostring(buffy) == "Once upon a time in a pixel", "somehow count is off?")
+end
+
+getnewbuffercount()
+
+local function readfileintoexistingbuffer()
+	-- read first 40 bytes of file into existing buffer
+	local buffy = buffer.create(42)
+	local resbuffy = fs.readbytes(funny_story, 0, 40, buffy)
+	assert(buffy == resbuffy, "not the same buffer? huh")
+end
+
+readfileintoexistingbuffer()

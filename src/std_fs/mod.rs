@@ -53,7 +53,7 @@ pub fn fs_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
 }
 
 /// fs.readbytes(path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)
-pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let function_name_and_args = "fs.readbytes(path: string, target_buffer: buffer, buffer_offset: number?, file_offset: number?, count: number)";
     let entry_path: String = match multivalue.pop_front() {
         Some(LuaValue::String(file_path)) => {
@@ -65,8 +65,7 @@ pub fn fs_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult
             return wrap_err!("{} incorrectly called with zero arguments", function_name_and_args);
         }
     };
-    file_entry::read_file_into_buffer(luau, &entry_path, multivalue, function_name_and_args)?;
-    Ok(())
+    file_entry::read_file_into_buffer(luau, &entry_path, multivalue, function_name_and_args)
 }
 
 /// iterate over the lines of a file. you can use this within a for loop
