@@ -49,7 +49,7 @@ pub fn debug_print(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
         }
     }
 
-    println!("{}", result.clone());
+    println!("{:?}", result.clone());
     luau.create_string(&result)
 }
 
@@ -191,12 +191,16 @@ fn output_unformat(luau: &Lua, value: LuaValue) -> LuaValueResult {
 }
 
 pub fn output_clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
-    let clear_command = if cfg!(target_os = "windows") {
-        "cls"
+    let mut clear_command = if cfg!(target_os = "windows") {
+        // use "cmd.exe /C cls" for Windows
+        let mut com = Command::new("cmd");
+        com.args(["/C", "cls"]);
+        com
     } else {
-        "clear"
+        // use "clear" for Unix-like systems
+        Command::new("clear")
     };
-    match Command::new(clear_command).spawn() {
+    match clear_command.spawn() {
         Ok(_) => {
             // this is pretty cursed, but yields long enough for the clear to have been completed 
             // otherwise the next print() calls get erased

@@ -7,6 +7,15 @@ use crate::std_fs::entry::{self, wrap_io_read_errors, get_path_from_entry};
 
 use super::validate_path;
 
+/// fixes `./tests/luau/std\fs\pathlib_join.luau` nonsense on windows
+pub fn normalize_path(path: &str) -> String {
+    if cfg!(windows) && path.contains('/') && path.contains('\\') {
+        path.replace("\\", "/")
+    } else {
+        path.to_string()
+    }
+}
+
 pub fn listdir(luau: &Lua, dir_path: String, mut multivalue: LuaMultiValue, function_name_and_args: &str) -> LuaValueResult {
     let recursive = match multivalue.pop_front() {
         Some(LuaValue::Boolean(recursive)) => recursive,
@@ -35,12 +44,14 @@ pub fn listdir(luau: &Lua, dir_path: String, mut multivalue: LuaMultiValue, func
             };
             let list_vec = list_vec; // make immutable again
             for list_path in list_vec {
+                let list_path = normalize_path(&list_path);
                 entries_list.push(list_path)?;
             }
         } else {
             for entry in fs::read_dir(&dir_path)? {
                 let entry = entry?;
                 if let Some(entry_path) = entry.path().to_str() {
+                    let entry_path = normalize_path(entry_path);
                     entries_list.push(entry_path)?;
                 }
             };

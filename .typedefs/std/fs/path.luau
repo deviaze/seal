@@ -1,8 +1,26 @@
 export type PathLib = {
 	--[=[
-		Joins path components together in a cross-platform manner.
+		Joins path components together in a cross-platform-safe manner.
+
+		The default separator is `/`, except when dealing with absolute paths on Windows.
+
+		On Windows, pass `.\` as the first component to `path.join` to use `\` in relative paths.
+
+		## Usage
+		```luau
+		local srcpath = path.join(path.cwd(), "src")
+		local main_luau = path.join(srcpath, "main.luau")
+		local main_content = fs.readfile(main_luau)
+
+		local otherfile_in_script_dir = path.join(script:parent(), "otherfile.txt")
+		```
 	]=]
 	join: (...string) -> string,
+	--[=[
+		Checks if `path` exists on the filesystem using Rust's `std::fs::exists`.
+		
+		Note this function is ***not* TOCTOU (Time Of Check to Time Of Use)-safe**; in security-critical applications, wrap error-throwing apis like `fs.readfile` in a `pcall` instead.
+	]=]
 	exists: (path: string) -> boolean,
 	--[=[
 		Returns the canonical (absolute) form of `path` using Rust's `std::fs::canonicalize`, resolving symlinks and intermediate components.
@@ -32,8 +50,10 @@ export type PathLib = {
 	parent: (path: string, n: number?) -> string?,
 	--- the farthest child/leaf/node of the path, ex. `path.child("./src/main.luau") == "main.luau"`
 	child: (path: string) -> string?,
-	--- returns the user's home directory
+	--- returns the user's home directory, also known as `~`
 	home: () -> string,
+	--- returns the current working directory, errors if not found or is invalid utf-8
+	cwd: () -> string,
 }
 
 return {} :: PathLib

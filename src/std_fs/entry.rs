@@ -12,6 +12,7 @@ use copy_dir::copy_dir;
 use std::os::unix::fs::PermissionsExt;
 
 use super::directory_entry;
+use super::directory_entry::normalize_path;
 use super::file_entry;
 
 pub fn get_path_from_entry(entry: &LuaValue, function_name: &str) -> LuaResult<String> {
@@ -280,6 +281,7 @@ pub fn remove(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
 }
 
 pub fn create(luau: &Lua, path: &str, function_name: &str) -> LuaValueResult {
+    let path = &normalize_path(path);
     let metadata = match fs::metadata(path) {
         Ok(metadata) => metadata,
         Err(err) => {

@@ -63,3 +63,14 @@ local function getscriptpath()
 end
 
 getscriptpath()
+
+if env.os == "Windows" then
+	local function pathparent()
+		local cwd = path.cwd()
+		local mainrs = path.join(cwd, "src", "main.rs")
+		local src = path.parent(mainrs)
+		assert(src ~= nil, "where srcdir??")
+		assert(path.child(src) == "src", "cant path.child src?")
+	end
+	pathparent()
+end

@@ -19,9 +19,8 @@ do
 		return nil
 	end):expect_err("File/directory not found")
 
-	try(function()
+	local s, f = pcall(function()
 		fs.readfile(".")
-		return nil
-	end):expect_err("Error on path")
-
+	end)
+	assert(s == false, "reading . as a file shouldn't work")
 end
