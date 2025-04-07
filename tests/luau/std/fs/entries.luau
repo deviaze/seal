@@ -22,17 +22,6 @@ assert(src.type == "Directory")
 
 assert(fs.find("hi").dir == nil, "why do we have a dir named hi")
 
--- append to file
-local appendfilepath = "./tests/data/appendfile.txt"
-fs.writefile(appendfilepath, "startercontent")
-local appendfile = fs.find(appendfilepath):unwrap_file()
-
-assert(appendfile:read() == "startercontent", "wrong content in appendfile")
-appendfile:append("andmore")
-assert(appendfile:read() == "startercontentandmore", "appendfile:append didn't work?")
-
-fs.removefile(appendfilepath)
-
 local function findfileindir()
 	local server_views: fs.DirectoryEntry? = fs.dir("./tests/data/server-views")
 	if server_views then

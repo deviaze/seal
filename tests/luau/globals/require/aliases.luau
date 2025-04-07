@@ -1,5 +1,5 @@
 -- requiring std libraries works (it's an alias ig)
-local fs = require("@std/fs")
+local _fs = require("@std/fs")
 
 local function aliased()
 	local relative_but_not_relatively = require("@tests/globals/require/basic-requires/relative_data")

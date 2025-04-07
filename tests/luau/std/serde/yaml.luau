@@ -1,4 +1,3 @@
-local std = require("@std")
 local yaml = require("@std/serde/yaml")
 
 local content = {

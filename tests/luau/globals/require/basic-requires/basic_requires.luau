@@ -32,7 +32,7 @@ end
 
 invalidfile()
 
-local function circular()
+local function _circular()
 	local circular_path = script:parent().. "/circular.luau"
 	fs.writefile(circular_path, 'return require("./basic_requires.luau")')
 	local s, f = pcall(function()

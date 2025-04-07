@@ -1,5 +1,5 @@
 local http = require("@std/net/http")
-local process = require("@std/process")
+-- local process = require("@std/process")
 
 local r = http.get {
 	url = "meow.com"

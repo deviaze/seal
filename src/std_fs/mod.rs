@@ -6,6 +6,7 @@ use std::{fs, io};
 use crate::require::ok_table;
 use crate::{table_helpers::TableBuilder, LuaValueResult};
 use crate::{std_io_colors as colors, wrap_err, LuaEmptyResult};
+use copy_dir::copy_dir;
 
 pub mod entry;
 pub mod pathlib;
@@ -189,6 +190,72 @@ pub fn fs_move(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     }
 }
 
+pub fn fs_copy(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let function_name = "fs.copy(source: string, destination: string)";
+    let source_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        }
+        Some(other) => {
+            return wrap_err!("{} expected source path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected source, got nothing", function_name);
+        }
+    };
+    let destination_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected destination path to be a string, got: {:?}", function_name, other);
+        }
+        None => {
+            return wrap_err!("{} expected destination, got nothing", function_name);
+        }
+    };
+    let source_pathbuf = PathBuf::from(&source_path);
+    let mut destination_pathbuf = PathBuf::from(&destination_path);
+    
+    if source_pathbuf.is_file() && destination_pathbuf.is_dir() {
+        // copying a file into a directory shouldn't require you to type the filename again
+        let source_filename = match source_pathbuf.file_name() {
+            Some(name) => name.to_string_lossy().to_string(),
+            None => {
+                return wrap_err!("{} source path doesn't have a basename?", function_name);
+            }
+        };
+        destination_pathbuf.push(source_filename);
+    } else if source_pathbuf.is_dir() && destination_pathbuf.is_file() {
+        return wrap_err!("{}: attempt to copy directory '{}' into file '{}'", function_name, source_path, destination_path);
+    }
+
+    let source_to_destination = format!("{} -> {}", source_pathbuf.display(), destination_pathbuf.display());
+    if source_pathbuf.is_file() {
+        match fs::copy(&source_pathbuf, &destination_pathbuf) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                wrap_err!("{} unable to copy {} due to err {}", function_name, source_to_destination, err)
+            }
+        }
+    } else {
+        match copy_dir(&source_pathbuf, &destination_pathbuf) {
+            Ok(unsuccessful) => {
+                if !unsuccessful.is_empty() {
+                    eprintln!("{} didn't fully succeed:", function_name);
+                    for err in unsuccessful {
+                        eprintln!("  {}", err);
+                    }
+                }
+                Ok(())
+            },
+            Err(err) => {
+                wrap_io_read_errors_empty(err, function_name, &source_to_destination)
+            }
+        }
+    }
+}
+
 const READ_TREE_SRC: &str = include_str!("./read_tree.luau");
 /// fs.readtree(path: string): DirectoryTree
 /// not called readdir because it's uglier + we want dir/tree stuff to autocomplete after file
@@ -270,7 +337,7 @@ pub fn writetree(_luau: &Lua, path: String, tree: LuaTable, function_name: &str)
             }
         };
         match tree.raw_get(1)? {
-            LuaValue::Table(_) => tree,
+            LuaValue::Table(_) | LuaNil => tree, // allows fs.writetree/DirectoryEntry:add_tree with empty table or empty fs.tree()
             other => {
                 return wrap_err!("{} expected tree to be an array-like table (that contains entries from fs.file.build or fs.dir.build), got: {:?}", function_name, other);
             }
@@ -849,6 +916,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("readlines", fs_readlines)?
         .with_function("writefile", fs_writefile)?
         .with_function("move", fs_move)?
+        .with_function("copy", fs_copy)?
         .with_function("removefile", fs_removefile) ?
         .with_function("listdir", fs_listdir)?
         .with_function("makedir", fs_makedir)?

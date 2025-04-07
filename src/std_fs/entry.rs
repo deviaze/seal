@@ -37,8 +37,8 @@ pub fn wrap_io_read_errors<P: AsRef<Path>>(err: std::io::Error, function_name: &
             wrap_err!("{}: File/directory not found: '{}'", function_name, path),
         io::ErrorKind::PermissionDenied =>
             wrap_err!("{}: Permission denied: '{}'", function_name, path),
-        other => {
-            wrap_err!("{}: Error reading path: '{}'", function_name, other)
+        _other => {
+            wrap_err!("{}: Error on path: '{}': {}", function_name, path, err)
         }
     }
 }
@@ -50,8 +50,8 @@ pub fn wrap_io_read_errors_empty<P: AsRef<Path>>(err: std::io::Error, function_n
             wrap_err!("{}: File/directory not found: '{}'", function_name, path),
         io::ErrorKind::PermissionDenied =>
             wrap_err!("{}: Permission denied: '{}'", function_name, path),
-        other => {
-            wrap_err!("{}: Error reading path: '{}'", function_name, other)
+        _other => {
+            wrap_err!("{}: Error on path: '{}': {}", function_name, path, err)
         }
     }
 }
