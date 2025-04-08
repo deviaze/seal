@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::{self, Command, Stdio};
 // use std::thread;
 use std::sync::{Arc, Mutex};
@@ -350,7 +350,13 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                 let mut stdin = stdin.lock().unwrap();
                 match stdin.write_all(stuff_to_write.as_bytes()) {
                     Ok(_) => Ok(LuaNil),
-                    Err(err) => wrap_err!("ChildProcess.stdin:write: error writing to stdin: {:?}", err)
+                    Err(err) => {
+                        if err.kind() == io::ErrorKind::BrokenPipe {
+                            Ok(LuaNil)
+                        } else {
+                            wrap_err!("ChildProcess.stdin:write: error writing to stdin: {:?}", err)
+                        }
+                    }
                 }
             }
         })?
@@ -358,7 +364,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     
     let child_handle = TableBuilder::create(luau)?
         .with_value("id", child_id)?
-        .with_function("alive",{
+        .with_function("alive", {
             let child = Arc::clone(&arc_child);
             move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
                 let mut child = child.lock().unwrap();

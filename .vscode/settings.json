@@ -3,6 +3,7 @@
 	"luau-lsp.fflags.override": {
 		"LuauSolverV2": "true",
 	},
+	"files.eol": "\n",
 	"luau-lsp.platform.type": "standard",
 	"luau-lsp.completion.imports.suggestRequires": true,
 	"luau-lsp.types.definitionFiles": ["./.typedefs/globals.d.luau"],
