@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::{fs, time::Duration};
 use std::sync::Mutex;
 use std::thread;
@@ -24,18 +25,27 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                     let src = src.to_str()?.to_string();
                     Ok(src)
                 } else if let LuaValue::String(path) = options.get("path")? {
-                    let extract_path_re = Regex::new(r"^(.*[/\\])[^/\\]+\.luau$").unwrap();
-                    let script: LuaTable = luau.globals().get("script")?;
-                    let current_path: String = script.get("current_path")?;
-                    thread_called_from_path = current_path.to_owned();
-                    let captures = extract_path_re.captures(&current_path).unwrap();
-                    let new_path = &captures[1];
-
-                    let path = path.to_str()?.to_string();
-                    let path = path.replace("./", "");
-                    let path = format!("{new_path}{path}");
+                    let path = path.to_string_lossy();
+                    let path = path
+                        .trim_start_matches("./")
+                        .trim_start_matches(".\\");
+                    let called_from_path = match globals::get_script_path(luau, LuaMultiValue::new())? {
+                        LuaValue::String(p) => p.to_string_lossy(),
+                        other => {
+                            return wrap_err!("called from path not a string??: {:?}", other);
+                        }
+                    };
+                    thread_called_from_path = called_from_path.clone();
+                    let parent_path = match globals::get_script_parent(luau, LuaMultiValue::new())? {
+                        LuaValue::String(s) => s.to_string_lossy(),
+                        other => {
+                            return wrap_err!("thread parent path not string??: {:?}", other);
+                        }
+                    };
+                    let mut thread_src_pathbuf = PathBuf::from(&parent_path);
+                    thread_src_pathbuf.push(path);
                     thread_src_path = path.to_owned();
-                    Ok(fs::read_to_string(path).unwrap())
+                    Ok(fs::read_to_string(thread_src_pathbuf).unwrap())
                 } else {
                     wrap_err!("thread.spawn expected table with fields src or path, got neither")
                 }

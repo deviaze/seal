@@ -2,15 +2,13 @@
 	"luau-lsp.fflags.enableNewSolver": true,
 	"luau-lsp.fflags.override": {
 		"LuauSolverV2": "true",
-		"LuauTypeSolverRelease": "652",
-		"LuauNewSolverPopulateTableLocations": "true",
-		"LuauNewSolverPrePopulateClasses": "true"
 	},
+	"files.eol": "\n",
 	"luau-lsp.platform.type": "standard",
 	"luau-lsp.completion.imports.suggestRequires": true,
 	"luau-lsp.types.definitionFiles": ["./.typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
-		"luau": "cargo build && ./target/debug/seal ",
+		"luau": "cargo build && ./target/debug/seal $fullFileName",
 	},
 	"rust-analyzer.check.command": "clippy",
 	"stylua.targetReleaseVersion": "latest",

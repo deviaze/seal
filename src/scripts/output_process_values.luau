@@ -10,12 +10,12 @@ local mlua = require("@interop/mlua")
 local colors = require("@std/colors")
 local output = require("@std/io/output")
 
-local testvec = (vector.create :: any)(1, 2, 3, 4)
-local s, f = pcall(function()
-    return (testvec :: any).w == 4
-end)
-
-local VECTOR_FOUR_WIDE_MODE = if s then true else false
+local VECTOR_FOUR_WIDE_MODE = (function()
+    local s, f = pcall(function()
+        local testvec = (vector.create :: any)(1, 2, 3, 4)
+    end)
+    return s
+end)()
 
 local function get_table_id(t: { [any]: any }): string
     if typeof(t) ~= "table" then
@@ -106,7 +106,7 @@ local function process_raw_values(
         end
         result ..= current_indent ..  "}"
     elseif typeof(value) == "string" then
-        result ..= '"' .. value .. '"'
+        result ..= if depth == 0 then value else  '"' .. value .. '"'
     elseif typeof(value) == "boolean" then
         result ..= tostring(value)
     elseif typeof(value) == "number" then
@@ -341,8 +341,7 @@ end
 local function process_pretty_values(
     value: any,
     -- seen_tables' keys are tables since they get uniquely hashed, value is stringified path
-    -- seen_tables' values should be string? (optional) but that causes inference to fail to complete
-    seen_tables: { [{ [any]: any }]: string }?,
+    seen_tables: { [{ [any]: any }]: string? }?,
     depth: number?,
     current_table_path: { any }? -- used to put table paths in seen_tables
 ): string
@@ -408,7 +407,7 @@ local function process_pretty_values(
                     result ..= LEFT_BRACKET .. GREEN .. '"' .. key .. '"' .. RESET .. RIGHT_BRACKET
                 end
             elseif key_type == "table" then
-                local seen_name = seen_tables[key]
+                local seen_name: string? = seen_tables[key]
                 if seen_name then
                     result ..= LEFT_BRACKET .. seen_name .. RIGHT_BRACKET
                 elseif depth + 1 > 6 then
@@ -426,7 +425,7 @@ local function process_pretty_values(
             -- stringify values
             if type(val) == "table" then
                 local val = val :: { [any]: any }
-                local seen_name = seen_tables[val]
+                local seen_name: string? = seen_tables[val]
                 if seen_name then
                     result ..= seen_name
                 elseif depth + 1 > 6 then

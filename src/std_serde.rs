@@ -1,4 +1,4 @@
-use crate::{LuaValueResult, table_helpers::TableBuilder, colors, std_json, std_fs};
+use crate::{colors, std_fs, std_json, table_helpers::TableBuilder, LuaEmptyResult, LuaValueResult};
 use mlua::prelude::*;
 use toml::Value as TomlValue;
 use serde_yaml::Value as YamlValue;
@@ -64,7 +64,7 @@ pub fn create_yaml(luau: &Lua) -> LuaResult<LuaTable> {
                 other => wrap_err!("yaml.readfile expected file_path (string), got {:#?}", other)
             }
         })?
-        .with_function("writefile", move | luau: &Lua, value: LuaValue | -> LuaValueResult {
+        .with_function("writefile", move | luau: &Lua, value: LuaValue | -> LuaEmptyResult {
             match value {
                 LuaValue::Table(data) => {
                     let file_path = match data.raw_get("path") {
@@ -85,12 +85,12 @@ pub fn create_yaml(luau: &Lua) -> LuaResult<LuaTable> {
                     };
 
                     let yaml_value = serde_yaml_encode(luau, LuaValue::Table(content))?;
-                    std_fs::fs_writefile(luau, LuaValue::Table(
-                        TableBuilder::create(luau)?
-                            .with_value("path", file_path)?
-                            .with_value("content", yaml_value)?
-                            .build_readonly()?
-                    ))
+                    let writefile_vec = vec![
+                        LuaValue::String(file_path),
+                        yaml_value
+                    ];
+                    let writefile_multivalue = LuaMultiValue::from_vec(writefile_vec);
+                    std_fs::fs_writefile(luau, writefile_multivalue)
                 },
                 other => wrap_err!("yaml.readfile expected table to convert to yaml, got {:#?}", other)
             }
@@ -149,7 +149,7 @@ pub fn create_toml(luau: &Lua) -> LuaResult<LuaTable> {
                 other => wrap_err!("toml.readfile expected file_path (string), got {:#?}", other)
             }
         })?
-        .with_function("writefile", move | luau: &Lua, value: LuaValue | -> LuaValueResult {
+        .with_function("writefile", move | luau: &Lua, value: LuaValue | -> LuaEmptyResult {
             match value {
                 LuaValue::Table(data) => {
                     let file_path = match data.raw_get("path") {
@@ -170,12 +170,12 @@ pub fn create_toml(luau: &Lua) -> LuaResult<LuaTable> {
                     };
 
                     let toml_value = serde_toml_encode(luau, LuaValue::Table(content))?;
-                    std_fs::fs_writefile(luau, LuaValue::Table(
-                        TableBuilder::create(luau)?
-                            .with_value("path", file_path)?
-                            .with_value("content", toml_value)?
-                            .build_readonly()?
-                    ))
+                    let writefile_vec = vec![
+                        LuaValue::String(file_path),
+                        toml_value
+                    ];
+                    let writefile_multivalue = LuaMultiValue::from_vec(writefile_vec);
+                    std_fs::fs_writefile(luau, writefile_multivalue)
                 },
                 other => wrap_err!("toml.readfile expected table to convert to toml, got {:#?}", other)
             }

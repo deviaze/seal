@@ -1,5 +1,4 @@
 local output = require("@std/io/output")
-local time = require("@std/time")
 
 local thing = {
 	a = 2,

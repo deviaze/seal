@@ -44,7 +44,7 @@ if env.os ~= "Windows" then
 	
 		local slashes_are_bad = `/{path.join("project", "src", "ui")}/someplace.html`
 		local slashed = path.join("home", slashes_are_bad)
-		assert(slashed == "home/project/src/ui/someplace.html", "Leading slashes not stripped (if not first arg)")
+		assert(slashed == "home/project/src/ui/someplace.html", `Leading slashes not stripped (if not first arg)?: '{slashed}'`)
 	end
 	
 	appendingpaths()
@@ -63,3 +63,14 @@ local function getscriptpath()
 end
 
 getscriptpath()
+
+if env.os == "Windows" then
+	local function pathparent()
+		local cwd = path.cwd()
+		local mainrs = path.join(cwd, "src", "main.rs")
+		local src = path.parent(mainrs)
+		assert(src ~= nil, "where srcdir??")
+		assert(path.child(src) == "src", "cant path.child src?")
+	end
+	pathparent()
+end
