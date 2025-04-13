@@ -54,7 +54,16 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
         _ => "/", // probably a path.join("dogs", "cats") partial path, default to /
     };
 
-    result += trim_path(&first_component);
+    // avoid stripping unix root / on first component
+    result += if first_component.starts_with("/") {
+        if first_component.len() > 1 {
+            first_component.trim_end_matches(['/', '\\'])
+        } else {
+            "/"
+        }
+    } else {
+        trim_path(&first_component)
+    };
 
     while let Some(component) = components.pop_front() {
         let trimmed_component = trim_path(&component);

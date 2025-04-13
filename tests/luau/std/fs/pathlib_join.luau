@@ -27,7 +27,7 @@ end
 
 local function appendcwd()
 	local testpath = path.join(path.cwd(), "tests")
-	assert(path.exists(testpath), "where the ./tests at?")
+	assert(path.exists(testpath), `where the ./tests at? (path: {testpath})`)
 end
 
 appendcwd()

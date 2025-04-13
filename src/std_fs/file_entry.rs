@@ -5,10 +5,13 @@ use crate::std_fs::entry::{self, wrap_io_read_errors, wrap_io_read_errors_empty,
 use std::cell::RefCell;
 use std::fs::{self, OpenOptions};
 use std::path::PathBuf;
-use std::io::{BufRead, BufReader, Read, Seek, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 
 #[cfg(unix)]
 use std::os::unix::fs::FileExt;
+
+#[cfg(windows)]
+use std::io::Seek;
 
 fn file_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let file_path = get_path_from_entry(&value, "FileEntry:read()")?;
@@ -110,6 +113,7 @@ pub fn read_file_into_buffer(luau: &Lua, entry_path: &str, mut multivalue: LuaMu
         return wrap_err!("{}: file_offset + count ({}) is greater than the file size ({})", function_name_and_args, file_offset + count, file_size);
     }
 
+    #[allow(unused_mut, reason = "needs to be mut on windows")]
     let mut file = match fs::File::open(entry_path) {
         Ok(file) => file,
         Err(err) => {

@@ -5,8 +5,8 @@ local env = require("@std/env")
 if env.os ~= "Windows" then
 	local res = process.run {
 		program = "cd ./src; pwd",
+		shell = "sh",
 	}
-	
 	assert(res.ok == true, `result failed: {res.stderr}`)
 end
 
