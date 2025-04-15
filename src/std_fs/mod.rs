@@ -574,24 +574,25 @@ pub fn fs_removetree(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
     }
 }
 
-/// fs.listdir(path: string, recursive: boolean?): { string }
+/// fs.listdir(path: string, options: { recursive: boolean?, relative_to: ("cwd" | "root" | "self")? }?): { string }
 fn fs_listdir(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.listdir(path: string, recursive: boolean?)";
     let dir_path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
-            validate_path(&path, "fs.listdir(path: string, recursive: boolean?)")?
+            validate_path(&path, function_name)?
         },
         Some(other) => {
-            return wrap_err!("fs.listdir(path: string, recursive: boolean?) expected path to be a string, got: {:#?}", other);
+            return wrap_err!("{} expected path to be a string, got: {:#?}", function_name, other);
         },
         None => {
-            return wrap_err!("fs.listdir(path: string, recursive: boolean?) called without any arguments");
+            return wrap_err!("{} called without any arguments", function_name);
         }
     };
-    directory_entry::listdir(luau, dir_path, multivalue, "fs.listdir(path: string, recursive: boolean?)")
+    directory_entry::listdir(luau, dir_path, multivalue, function_name)
 }
 
-fn fs_makedir(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
-    let function_name = "fs.makedir(path: string, create_missing: boolean?)";
+fn fs_makedir(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.makedir(path: string, options: { create_missing: boolean?, error_if_exists: boolean? }?)";
     let new_path = match multivalue.pop_front() {
         Some(LuaValue::String(path)) => {
             validate_path(&path, function_name)?
@@ -603,13 +604,36 @@ fn fs_makedir(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
             return wrap_err!("{} expected path to be a string, got nothing", function_name);
         }
     };
-    let create_missing_dirs = match multivalue.pop_front() {
-        Some(LuaValue::Boolean(b)) => b,
-        Some(LuaNil) => false,
+
+    let options = match multivalue.pop_front() {
+        Some(LuaValue::Table(options)) => Some(options),
+        Some(LuaNil) | None => None,
         Some(other) => {
-            return wrap_err!("{}: expected create_missing to be a boolean, nil, or unspecified, got: {:?}", function_name, other);
-        },
-        None => false,
+            return wrap_err!("{} expected options to be a table, got: {:?}", function_name, other);
+        }
+    };
+
+    let create_missing_dirs = if let Some(ref options) = options {
+        match options.raw_get("create_missing")? {
+            LuaValue::Boolean(b) => b,
+            LuaNil => false,
+            other => {
+                return wrap_err!("{} expected options.create_missing to be an optional boolean (default false), got: {:?}", function_name, other);
+            }
+        }
+    } else {
+        false
+    };
+    let error_if_exists = if let Some(options) = options {
+        match options.raw_get("error_if_exists")? {
+            LuaValue::Boolean(b) => b,
+            LuaNil => true,
+            other => {
+                return wrap_err!("{} expected options.error_if_exists to be an optional boolean (default true), got: {:?}", function_name, other);
+            }
+        }
+    } else {
+        true
     };
 
     match if create_missing_dirs {
@@ -617,18 +641,25 @@ fn fs_makedir(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     } else {
         fs::create_dir(&new_path)
     } {
-        Ok(_) => Ok(()),
+        Ok(_) => Ok(LuaValue::Boolean(true)),
         Err(err) => {
             match err.kind() {
                 io::ErrorKind::AlreadyExists => {
-                    wrap_err!("{}: directory '{}' already exists", function_name, &new_path)
+                    if error_if_exists {
+                        wrap_err!("{}: directory '{}' already exists", function_name, &new_path)
+                    } else {
+                        Ok(LuaValue::Boolean(false))
+                    }
                 },
                 io::ErrorKind::NotFound => {
                     wrap_err!(
-                        "{}: path to '{}' not found; pass 'true' as fs.makedir's second argument to create the missing directories,\n\
+                        "{}: path to '{}' not found; pass {{ create_missing = true }} as fs.makedir's second argument to create the missing directories,\n\
                         and/or make sure the passed path starts in '/', './', or '../'",
                         function_name, &new_path
                     )
+                },
+                io::ErrorKind::PermissionDenied => {
+                    wrap_err!("{}: permission denied at '{}'", function_name, &new_path)
                 },
                 _ => {
                     wrap_err!("{} unable to create directory/directories due to err: {}", function_name, err)
@@ -761,15 +792,28 @@ fn fs_file_call(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
             return wrap_err!("{} expected path to be a string, got nothing", function_name);
         }
     };
-    let LuaValue::Table(find_result) = fs_find(luau, file_path.into_lua_multi(luau)?)? else {
-        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
-    };
-    match find_result.raw_get("file")? {
-        LuaValue::Table(t) => ok_table(Ok(t)),
-        LuaNil => Ok(LuaNil),
-        other => {
-            wrap_err!("[Internal error]: {}: find_result.file returned smth that isn't a table nor nil: {:?}", function_name, other)
+
+    let metadata = match fs::metadata(&file_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound => {
+                    return Ok(LuaNil)
+                },
+                io::ErrorKind::PermissionDenied => {
+                    return wrap_err!("{}: permission denied at '{}'", function_name, file_path);
+                },
+                _other => {
+                    return wrap_err!("{}: unexpected error at '{}', err: {}", function_name, file_path, err);
+                }
+            }
         }
+    };
+
+    if metadata.is_file() {
+        entry::create(luau, &file_path, function_name)
+    } else {
+        Ok(LuaNil)
     }
 }
 
@@ -865,15 +909,28 @@ fn fs_dir_call(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
             return wrap_err!("{} expected path to be a string, got nothing", function_name);
         }
     };
-    let LuaValue::Table(find_result) = fs_find(luau, dir_path.into_lua_multi(luau)?)? else {
-        return wrap_err!("[Internal error]: {}: if fs_find doesn't return a table it's gone insane", function_name)
-    };
-    match find_result.raw_get("dir")? {
-        LuaValue::Table(t) => ok_table(Ok(t)),
-        LuaNil => Ok(LuaNil),
-        other => {
-            wrap_err!("[Internal error]: {}: find_result.dir returned smth that isn't a table nor nil: {:?}", function_name, other)
+
+    let metadata = match fs::metadata(&dir_path) {
+        Ok(metadata) => metadata,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound => {
+                    return Ok(LuaNil)
+                },
+                io::ErrorKind::PermissionDenied => {
+                    return wrap_err!("{}: permission denied at '{}'", function_name, dir_path);
+                },
+                _other => {
+                    return wrap_err!("{}: unexpected error at '{}', err: {}", function_name, dir_path, err);
+                }
+            }
         }
+    };
+    
+    if metadata.is_dir() {
+        entry::create(luau, &dir_path, function_name)
+    } else {
+        Ok(LuaNil)
     }
 }
 
@@ -897,11 +954,68 @@ fn fs_dir_create(luau: &Lua, value: LuaValue) -> LuaValueResult {
     }
 }
 
+/// fs.dir.ensure(path: string, create_missing: boolean?): DirectoryEntry
+/// ensures a directory exists at the requested path by making it (AlreadyExists is ok)
+/// and creating a DirectoryEntry for that path.
+/// Basically similar to fs.makedir(path, { error_if_exists = false }) + fs.dir.from(path)
+/// Errors if PermissionDenied or whatever's at that path is actually a File
+fn fs_dir_ensure(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.dir.ensure(path: string, create_missing: boolean?)";
+    let requested_path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        },
+        Some(LuaNil) => {
+            return wrap_err!("{} expected path to be a string, got nil", function_name);
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path but was incorrectly called with no arguments", function_name);
+        }
+    };
+    let create_missing = match multivalue.pop_front() {
+        Some(LuaValue::Boolean(b)) => b,
+        Some(LuaNil) | None => false,
+        Some(other) => {
+            return wrap_err!("{} expected create_missing to be an optional boolean (default false), got: {:?}", function_name, other);
+        }
+    };
+    let requested_pathbuf = PathBuf::from(&requested_path);
+    let already_exists = match if create_missing {
+        fs::create_dir_all(&requested_pathbuf)
+    } else {
+        fs::create_dir(&requested_pathbuf)
+    } {
+        Ok(_) => false,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::AlreadyExists => true,
+                io::ErrorKind::NotFound => {
+                    return wrap_err!("{} cannot create directory; path to '{}' doesn't exist; pass 'true' as the second argument to fs.dir.ensure to create the missing directories", function_name, requested_path);
+                }
+                io::ErrorKind::PermissionDenied => {
+                    return wrap_err!("{} cannot ensure directory at '{}' exists (Permission Denied)", function_name, requested_path);
+                },
+                _other => {
+                    return wrap_err!("{}: unexpected error when trying to create directory at '{}': {}", function_name, requested_path, err);
+                }
+            }
+        }
+    };
+    if already_exists && requested_pathbuf.is_file() {
+        return wrap_err!("{} cannot ensure directory at '{}' exists: it's actually a file!", function_name, requested_path);
+    }
+    entry::create(luau, &requested_path, function_name)
+}
+
 pub fn create_dirlib(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_dir_from)?
         .with_function("build", fs_dir_build)?
         .with_function("create", fs_dir_create)?
+        .with_function("ensure", fs_dir_ensure)?
         .with_metatable(TableBuilder::create(luau)?
             .with_function("__call", fs_dir_call)?
             .build_readonly()?

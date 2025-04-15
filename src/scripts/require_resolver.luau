@@ -143,9 +143,9 @@ local function resolve_require_path(requested_path: string): ResolveResult
         }
     end
     -- now that we've resolved a current_path, let's check if it's a dir w/ init.luau
-    local resolved_dir = fs.find(current_path).dir
+    local resolved_dir = fs.find(current_path):try_dir()
     if resolved_dir then
-        if resolved_dir:find("init.luau").file then
+        if resolved_dir:find("init.luau").type == "File" then
             current_path = fs.path.join(current_path, "init")
         else
             return {
@@ -155,8 +155,8 @@ local function resolve_require_path(requested_path: string): ResolveResult
         end
     end
     current_path ..= '.luau'
-    local resolved_file = fs.find(current_path).file
-    if resolved_file then
+    local resolved_file = fs.find(current_path)
+    if resolved_file.type == "File" then
         return {
             ok = true,
             resolved_path = current_path,

@@ -15,7 +15,7 @@ local ignore_files = {
 local tests_with_stdin = {"io/init", "stdin", "input"}
 
 local test_files: { string } = {} do
-	local file_list = fs.dir.from("./tests/luau/std"):list(true)
+	local file_list = fs.listdir("./tests/luau/std", true)
 	for _, path in file_list do
 		if (not path:match("%.luau$")) or table.find(ignore_files, path) then
 			continue

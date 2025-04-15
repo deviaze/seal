@@ -13,13 +13,13 @@ export type fs = {
 	writetree: (path: string, tree: TreeBuilder | DirectoryTree) -> (),
 	removetree: (path: string) -> (),
 
-	makedir: (path: string, create_missing: boolean?) -> (),
+	makedir: (path: string, options: { create_missing: boolean?, error_if_exists: boolean? }?) -> boolean,
 	listdir: (path: string, recursive: boolean?) -> { string },
 
 	move: (from: string, to: string) -> (),
 	copy: (source: string, destination: string) -> (),
 
-	find: (path: string, follow_symlinks: boolean?) -> FindResult,
+	find: (path: string, options: { follow_symlinks: boolean?, error_if_permission_denied: boolean? }?) -> FindResult,
 	entries: (path: string) -> { [string]: Entry },
 
 	file: setmetatable<{
@@ -34,6 +34,7 @@ export type fs = {
 		from: (path: string) -> DirectoryEntry,
 		build: (name: string, tree: DirectoryTree) -> DirectoryBuilder,
 		create: (path: string) -> DirectoryEntry,
+		ensure: (path: string, create_missing: boolean?) -> DirectoryEntry,
 	}, {
 		__call: (self: any, path: string) -> DirectoryEntry?,
 	}>,
@@ -71,7 +72,7 @@ export type DirectoryEntry = {
 	path: string,
 	type: "Directory",
 	list: (self: DirectoryEntry, recursive: boolean?) -> { string },
-	find: (self: DirectoryEntry, name: string, follow_symlinks: boolean?) -> FindResult,
+	find: (self: DirectoryEntry, name: string, options: { follow_symlinks: boolean?, error_if_permission_denied: boolean? }?) -> FindResult,
 	entries: (self: DirectoryEntry) -> { [string]: Entry },
 	expect_file: (self: DirectoryEntry, name: string) -> FileEntry,
 	expect_dir: (self: DirectoryEntry, name: string) -> DirectoryEntry,
@@ -99,14 +100,12 @@ export type FsMetadata = {
 export type FindResult = { -- can't make this type more accurate w/ unions bc it breaks (new) typesolver
 	ok: boolean,
 	path: string,
+	type: "File" | "Directory" | "Symlink" | "NotFound" | "PermissionDenied",
 	exists: (self: FindResult) -> boolean,
-	file: FileEntry?,
-	dir: DirectoryEntry?,
-	retry_file: (self: FindResult) -> FileEntry?,
-	retry_dir: (self: FindResult) -> DirectoryEntry?,
+	try_file: (self: FindResult) -> FileEntry?,
+	try_dir: (self: FindResult) -> DirectoryEntry?,
 	unwrap_file: (self: FindResult) -> FileEntry,
 	unwrap_dir: (self: FindResult) -> DirectoryEntry,
-	err: "PermissionDenied"?,
 }
 
 export type FileBuilder = {

@@ -23,8 +23,8 @@ local default_luaurc = {
 }
 
 local function update_vscode_settings()
-	local vscode_dir = fs.find(".vscode").dir or fs.dir.create(".vscode")
-	local settings_json = vscode_dir:find("settings.json").file
+	local vscode_dir = fs.dir.ensure(".vscode")
+	local settings_json = vscode_dir:find("settings.json"):try_file()
 	if settings_json then
 		local vscode_settings = json.readfile(settings_json.path)
 		for key, value in default_vscode_settings do -- replace nonexisting keys with their defaults
@@ -61,8 +61,7 @@ local function update_luaurc()
 end
 
 local function create_src_dir()
-	local src_dir = fs.dir("src")
-	if not src_dir then
+	if not fs.path.exists("src") then
 		fs.writetree("src", fs.tree()
 			:with_file("main.luau", 'print("Hello world!")')
 		)

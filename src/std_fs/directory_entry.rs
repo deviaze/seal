@@ -19,11 +19,10 @@ pub fn normalize_path(path: &str) -> String {
 pub fn listdir(luau: &Lua, dir_path: String, mut multivalue: LuaMultiValue, function_name_and_args: &str) -> LuaValueResult {
     let recursive = match multivalue.pop_front() {
         Some(LuaValue::Boolean(recursive)) => recursive,
-        Some(LuaNil) => false,
+        Some(LuaNil) | None => false,
         Some(other) => {
-            return wrap_err!("{} expected recursive to be a boolean (default false), got: {:#?}", function_name_and_args, other);
+            return wrap_err!("{} expected recursive to be a boolean or nil, got: {:?}", function_name_and_args, other);
         }
-        None => false,
     };
 
     let metadata = match fs::metadata(&dir_path) {
