@@ -2,7 +2,6 @@ use crate::*;
 use std::fs;
 
 pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
-    // convert path to a String
     let path = match path {
         LuaValue::String(path) => path.to_string_lossy(),
         other => {
@@ -52,10 +51,17 @@ pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaVa
     Ok(LuaValue::Function(luau.create_function(f)?))
 }
 
+pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::String(luau.create_string(s)?))
+}
+
 fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
     match path.as_str() {
         "@std/fs" => ok_table(std_fs::create(luau)),
         "@std/fs/path" => ok_table(std_fs::pathlib::create(luau)),
+        "@std/fs/file" => ok_table(std_fs::filelib::create(luau)),
+        "@std/fs/dir" => ok_table(std_fs::dirlib::create(luau)),
+
         "@std/env" => ok_table(std_env::create(luau)),
 
         "@std/io" => ok_table(std_io::create(luau)),

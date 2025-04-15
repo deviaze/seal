@@ -1,7 +1,7 @@
 use mlua::prelude::*;
 use std::{fs, io, path::PathBuf};
 use crate::{colors, require::ok_table, wrap_err, LuaValueResult, TableBuilder};
-use super::{entry::{self, wrap_io_read_errors}, validate_path};
+use super::{entry::{self, wrap_io_read_errors}, validate_path, validate_path_without_checking_fs};
 
 fn fr_exists(_luau: &Lua, multivalue: LuaMultiValue) -> LuaValueResult {
     let function_name = "FindResult:exists()";
@@ -113,17 +113,8 @@ fn fr_unwrap_dir(luau: &Lua, multivalue: LuaMultiValue) -> LuaValueResult {
 /// find(path: string, options: { follow_symlinks: boolean?, error_if_permission_denied: boolean? }): FindResult
 /// both follow_symlinks and error_if_permission_denied are true by default
 pub fn find(luau: &Lua, mut multivalue: LuaMultiValue, function_name: &str) -> LuaValueResult {
-    let search_path = match multivalue.pop_front() {
-        Some(LuaValue::String(path)) => {
-            validate_path(&path, function_name)?
-        },
-        Some(other) => {
-            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
-        },
-        None => {
-            return wrap_err!("{} expected path to be a string, got nothing", function_name);
-        }
-    };
+     // pop this first; we check it later after determining whether we're erroring if permission denied or not
+    let search_path = multivalue.pop_front();
 
     let find_options = match multivalue.pop_front() {
         Some(LuaValue::Table(options)) => Some(options),
@@ -154,6 +145,22 @@ pub fn find(luau: &Lua, mut multivalue: LuaMultiValue, function_name: &str) -> L
         }
     } else {
         true
+    };
+
+    let search_path = match search_path {
+        Some(LuaValue::String(path)) => {
+            if error_if_permission_denied {
+                validate_path(&path, function_name)?
+            } else {
+                validate_path_without_checking_fs(&path, function_name)?
+            }
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path to be a string, got nothing", function_name);
+        }
     };
 
     let mut permission_denied = false;

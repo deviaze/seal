@@ -33,6 +33,7 @@ const TYPEDEFS_DIR: Dir = include_dir!(".typedefs");
 
 type LuaValueResult = LuaResult<LuaValue>;
 type LuaEmptyResult = LuaResult<()>;
+type LuaMultiResult = LuaResult<LuaMultiValue>;
 
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();

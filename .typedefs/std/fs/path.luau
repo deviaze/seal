@@ -19,7 +19,10 @@ export type PathLib = {
 	--[=[
 		Checks if `path` exists on the filesystem using Rust's `std::fs::exists`.
 		
-		Note this function is ***not* TOCTOU (Time Of Check to Time Of Use)-safe**; in security-critical applications, wrap error-throwing apis like `fs.readfile` in a `pcall` instead.
+		Note this function is ***not* TOCTOU (Time Of Check to Time Of Use)-safe**!
+			
+		In security-critical applications, use relatively error-safe functions like `fs.file.try_read`, `fs.file.try_write`, etc., which allow you to
+		handle cases like `NotFound` and `PermissionDenied` without wrapping error-throwing functions like `fs.readbytes` in a pcall.
 	]=]
 	exists: (path: string) -> boolean,
 	--[=[

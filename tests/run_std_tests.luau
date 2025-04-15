@@ -162,6 +162,6 @@ end
 -- print(os.clock() - t0) -- 45 seconds
 
 local t1 = os.clock()
-parallel()
+parallel() -- usually 14 to 14.9 seconds
 
 print(`seconds: {colors.bold.blue(tostring(os.clock() - t1))}`)
