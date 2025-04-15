@@ -359,8 +359,15 @@ local function process_pretty_values(
 
         -- pretty printed tables should be printed in numerical, then alphabetical order (if possible)
         local unsorted_pairs: { TablePair } = {}
-        for k, v in value do 
-            table.insert(unsorted_pairs, { key = k, val = v }) 
+        local value_meta = getmetatable(value :: any) :: { [any]: any }?
+        if value_meta then
+            for k, v in pairs(value) do -- use pairs to avoid unexpectedly calling __call on tables w/ metatable
+                table.insert(unsorted_pairs, { key = k, val = v }) 
+            end
+        else
+            for k, v in value do
+                table.insert(unsorted_pairs, { key = k, val = v }) 
+            end
         end
 
         local sorted_pairs: { TablePair } = sort_table_pairs(unsorted_pairs)
@@ -459,6 +466,9 @@ local function process_pretty_values(
             end
             
             result ..= DIM .. "," .. RESET .. "\n"
+        end
+        if value_meta then
+            result ..= current_indent .. "    " .. RED .. "@metatable" .. RESET .. " = " .. process_pretty_values(value_meta, seen_tables, depth + 1, current_table_path) .. "\n"
         end
         result ..= current_indent .. "}"
         return result
