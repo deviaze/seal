@@ -1,9 +1,10 @@
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::{self, Command, Stdio};
 // use std::thread;
 use std::sync::{Arc, Mutex};
 
 use mlua::prelude::*;
+use crate::require::ok_table;
 use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult};
 
 struct RunOptions {
@@ -87,7 +88,7 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
     };
 
     let output = {
-        if let Some(shell) = options.shell {
+        match if let Some(shell) = options.shell {
             Command::new(shell.clone())
                 .arg(
                     if shell.as_str() == "pwsh" || shell.as_str() == "powershell" {
@@ -99,12 +100,36 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
                 .arg(options.program)
                 .arg(options.args.join(" "))
                 .output()
-                .expect("process.run failed to execute process")
         } else {
             Command::new(options.program)
                 .args(options.args)
                 .output()
-                .expect("process.run failed to execute process")
+        } {
+            Ok(output) => output,
+            Err(err) => {
+                // it breaks here on windows
+                let err_message = format!("process.run failed to execute process: {}", err);
+                let failed_to_exec_table = TableBuilder::create(luau)?
+                    .with_value("ok", false)?
+                    .with_value("out", "")?
+                    .with_value("err", err_message)?
+                    .with_value("stdout", "")?
+                    .with_value("stderr", "")?
+                    .with_function("unwrap",
+                        | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                            let _failure_table = multivalue.pop_front();
+                            let default_arg = match multivalue.pop_front() {
+                                Some(value) => value,
+                                None => {
+                                    return wrap_err!("Attempt to ProcessRunResult:unwrap() an erred process.run without a default value!")
+                                }
+                            };
+                            Ok(default_arg)
+                        }
+                    )?
+                    .build_readonly();
+                return ok_table(failed_to_exec_table)
+            }
         }
     };
 
@@ -162,7 +187,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     };
 
     let mut child = {
-        if let Some(shell) = options.shell {
+        match if let Some(shell) = options.shell {
             Command::new(shell.clone())
                 .arg(
                     if shell.as_str() == "pwsh" || shell.as_str() == "powershell" {
@@ -177,7 +202,6 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
-                .expect("process.spawn failed to execute process")
         } else {
             Command::new(options.program)
                 .args(options.args)
@@ -185,7 +209,11 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
-                .expect("process.run failed to execute process")
+        } {
+            Ok(child) => child,
+            Err(err) => {
+                return wrap_err!("process.spawn failed to execute process: {}", err);
+            }
         }
     };
 
@@ -322,7 +350,13 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                 let mut stdin = stdin.lock().unwrap();
                 match stdin.write_all(stuff_to_write.as_bytes()) {
                     Ok(_) => Ok(LuaNil),
-                    Err(err) => wrap_err!("ChildProcess.stdin:write: error writing to stdin: {:?}", err)
+                    Err(err) => {
+                        if err.kind() == io::ErrorKind::BrokenPipe {
+                            Ok(LuaNil)
+                        } else {
+                            wrap_err!("ChildProcess.stdin:write: error writing to stdin: {:?}", err)
+                        }
+                    }
                 }
             }
         })?
@@ -330,7 +364,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     
     let child_handle = TableBuilder::create(luau)?
         .with_value("id", child_id)?
-        .with_function("alive",{
+        .with_function("alive", {
             let child = Arc::clone(&arc_child);
             move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
                 let mut child = child.lock().unwrap();

@@ -6,8 +6,6 @@ local x = {
 	b = "meow",
 }
 
--- print(json.encode(x))
-
 local unencodable = {
 	name = "deviaze",
 	says = function()
@@ -50,10 +48,7 @@ local json_result = json.decode(got_data) :: CatOwnerData
 -- print(os.clock() - t0)
 -- print(json_result)
 
-json.writefile {
-	path = "./tests/data/cats.json",
-	content = json_result,
-}
+json.writefile("./tests/data/cats.json", json_result :: any)
 
 -- print(fs.entries("./tests/data/"))
 local deviazecats = json.readfile("./tests/data/cats.json")

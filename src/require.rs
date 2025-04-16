@@ -2,7 +2,6 @@ use crate::*;
 use std::fs;
 
 pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
-    // convert path to a String
     let path = match path {
         LuaValue::String(path) => path.to_string_lossy(),
         other => {
@@ -44,18 +43,25 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
 }
 
 // wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
-fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
+pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
     Ok(LuaValue::Table(t?))
 }
 
-fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
+pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::Function(luau.create_function(f)?))
+}
+
+pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::String(luau.create_string(s)?))
 }
 
 fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
     match path.as_str() {
         "@std/fs" => ok_table(std_fs::create(luau)),
-        "@std/fs/path" => ok_table(std_fs_pathlib::create(luau)),
+        "@std/fs/path" => ok_table(std_fs::pathlib::create(luau)),
+        "@std/fs/file" => ok_table(std_fs::filelib::create(luau)),
+        "@std/fs/dir" => ok_table(std_fs::dirlib::create(luau)),
+
         "@std/env" => ok_table(std_env::create(luau)),
 
         "@std/io" => ok_table(std_io::create(luau)),
@@ -63,6 +69,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/io/output" => ok_table(std_io_output::create(luau)),
         "@std/io/colors" => ok_table(colors::create(luau)),
         "@std/io/clear" => ok_function(std_io_output::output_clear, luau),
+        "@std/io/format" => ok_function(std_io_output::output_format, luau),
         "@std/colors" => ok_table(colors::create(luau)),
 
         "@std/time" => ok_table(std_time::create(luau)),
@@ -126,11 +133,17 @@ fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {
     let require_resolver = include_str!("./scripts/require_resolver.luau");
     let r: LuaFunction = luau.load(require_resolver).eval()?;
     match r.call::<LuaValue>(path.to_owned()) {
-        Ok(LuaValue::String(path)) => Ok(path.to_string_lossy()),
-        Ok(LuaValue::Table(err_table)) => {
-            let err_message: LuaString = err_table.raw_get("err")?;
-            let err_message = err_message.to_string_lossy();
-            wrap_err!("require: {}", err_message)
+        // Ok(LuaValue::String(path)) => Ok(path.to_string_lossy()),
+        Ok(LuaValue::Table(result_table)) => {
+            let ok: bool = result_table.raw_get("ok")?;
+            if ok {
+                let resolved_path: LuaString = result_table.raw_get("resolved_path")?;
+                Ok(resolved_path.to_string_lossy())
+            } else {
+                let err_message: LuaString = result_table.raw_get("err")?;
+                let err_message = err_message.to_string_lossy();
+                wrap_err!("require: {}", err_message)
+            }
         },
         Ok(_other) => {
             panic!("require: ./scripts/require_resolver.luau returned something that isn't a string or err table; this shouldn't be possible");
