@@ -8,6 +8,7 @@
 	"workbench.layoutControl.enabled": false,
 	"workbench.editor.customLabels.patterns": {
 		"**/init.luau": "${dirname}",
+		"**/mod.rs": "${dirname}",
 		"**/init.client.luau": "${dirname}",
 		"**/init.server.luau": "${dirname}"
 	},
