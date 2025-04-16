@@ -12,6 +12,9 @@ use super::{entry, file_entry, validate_path};
 #[cfg(unix)]
 use std::os::unix::fs::FileExt;
 
+#[cfg(windows)]
+use std::io::{Seek, Read};
+
 fn fs_file_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let path = match value {
         LuaValue::String(path) => path.to_string_lossy(),
