@@ -226,7 +226,7 @@ fn get_search_path(mut multivalue: LuaMultiValue, function_name: &str) -> LuaRes
     match multivalue.pop_front() {
         Some(LuaValue::Table(find_result)) => {
             if let LuaValue::String(search_path) = find_result.raw_get("path")? {
-                validate_path(&search_path, function_name)
+                validate_path_without_checking_fs(&search_path, function_name)
             } else {
                 wrap_err!("{} expected FindResult.path to be a string; why did you modify it??")
             }
