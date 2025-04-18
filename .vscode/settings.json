@@ -5,6 +5,13 @@
 	},
 	"files.eol": "\n",
 	"luau-lsp.platform.type": "standard",
+	"workbench.layoutControl.enabled": false,
+	"workbench.editor.customLabels.patterns": {
+		"**/init.luau": "${dirname}",
+		"**/mod.rs": "${dirname}",
+		"**/init.client.luau": "${dirname}",
+		"**/init.server.luau": "${dirname}"
+	},
 	"luau-lsp.completion.imports.suggestRequires": true,
 	"luau-lsp.types.definitionFiles": ["./.typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
@@ -12,4 +19,7 @@
 	},
 	"rust-analyzer.check.command": "clippy",
 	"stylua.targetReleaseVersion": "latest",
+	"luau-lsp.inlayHints.parameterNames": "literals",
+	"luau-lsp.plugin.enabled": false,
+	"luau-lsp.inlayHints.variableTypes": false,
 }
