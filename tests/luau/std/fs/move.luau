@@ -2,7 +2,7 @@ local fs = require("@std/fs")
 
 local datadir = fs.dir.from("./tests/data")
 
-local old_movetrees = datadir:find("movetrees").dir
+local old_movetrees = datadir:find("movetrees"):try_file()
 if old_movetrees then
 	old_movetrees:remove()
 end
@@ -25,7 +25,7 @@ assert(
 	datadir
 		:expect_dir("movetrees")
 		:expect_dir("start")
-		:find("move1").file == nil,
+		:find("move1"):try_file() == nil,
 	"was move1 not moved successfully?"
 )
 
