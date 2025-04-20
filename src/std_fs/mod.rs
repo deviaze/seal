@@ -575,21 +575,10 @@ pub fn fs_removetree(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
             return wrap_err!("fs.removetree(path: string) expected path to be a string, got: {:?}", other);
         }
     };
-    let metadata = match fs::metadata(&victim_path) {
-        Ok(metadata) => metadata,
-        Err(err) => {
-            return wrap_io_read_errors_empty(err, function_name, &victim_path);
-        }
-    };
-    if metadata.is_dir() {
-        if let Err(err) = fs::remove_dir_all(&victim_path) {
-            let err_message = "fs.removetree was unable to remove some, or all of the directory tree requested:\n";
-            wrap_err!("{}    {}", err_message, err)
-        } else {
-            Ok(())
-        }
+    if let Err(err) = fs::remove_dir_all(&victim_path) {
+        wrap_err!("fs.removetree was unable to remove some (or all) of the directory at '{}' due to err: {}", victim_path, err)
     } else {
-        wrap_err!("fs.removetree(path: string) expected to find a directory at path '{}' but instead found a file", victim_path)
+        Ok(())
     }
 }
 
