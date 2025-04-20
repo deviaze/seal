@@ -15,6 +15,9 @@ pub mod file_entry;
 pub mod directory_entry;
 pub mod find;
 
+/// helper and converter function to turn LuaStrings into Rust Strings
+/// use this one if we're okay with checking the filesystem for common issues for better user experience,
+/// don't use this one if we expect to handle permission denied without erroring
 pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String> {
     let Ok(path) = path.to_str() else {
         return wrap_err!("{}: provided path '{}' is not properly utf8-encoded", function_name, path.display());
@@ -25,7 +28,7 @@ pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String>
             Ok(b) => b,
             Err(err) => match err.kind() {
                 io::ErrorKind::PermissionDenied => {
-                    return wrap_err!("{}: Permission Denied when trying to validate path: '{}'; if this function isn't supposed to error when PermissionDenied, you've found a bug", function_name, path);
+                    return wrap_err!("{}: permission denied when trying to validate path at '{}'; if this function isn't supposed to error when PermissionDenied, you've found a bug", function_name, path);
                 },
                 _ => {
                     return wrap_err!("{}: unexpected error when validating path: {}", function_name, path);
