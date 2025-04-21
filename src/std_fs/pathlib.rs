@@ -2,36 +2,8 @@ use mlua::prelude::*;
 use std::collections::VecDeque;
 use std::io;
 use std::fs;
-use std::path::{self, PathBuf, Path};
+use std::path::{self, Path};
 use crate::{colors, LuaValueResult, wrap_err, table_helpers::TableBuilder, std_fs::fs_exists};
-
-#[allow(dead_code)]
-fn fs_path_join_old(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let mut path = PathBuf::new();
-    let mut index = 0;
-    while let Some(component) = multivalue.pop_front() {
-        let component = match component {
-            LuaValue::String(component) => {
-                // passing a path starting with / or \ into path.push replaces the current path
-                // path.join("./src", "/main.luau") should not return "/main.luau"
-                // this strips any of those for better ux
-                let separators_to_trim = ['/', '\\']; 
-                let component = component.to_string_lossy();
-                if index > 0 { // dont remove / from absolute paths that start in / on purpose
-                    index += 1;
-                    component.trim_start_matches(separators_to_trim).to_string()
-                } else {
-                    component
-                }
-            },
-            other => {
-                return wrap_err!("path.join expected path to be a string, got: {:#?}", other);
-            }
-        };
-        path.push(component);
-    }
-    Ok(LuaValue::String(luau.create_string(path.to_string_lossy().to_string())?))
-}
 
 fn trim_path(path: &str) -> &str {
     path.trim_matches(['/', '\\'])
