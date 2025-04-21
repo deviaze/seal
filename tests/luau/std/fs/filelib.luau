@@ -90,3 +90,45 @@ local function trywritepermissiondenied()
 end
 
 trywritepermissiondenied()
+
+local function tryremove()
+	local rmpath = path.join(datadir, "normalfile.txt")
+	fs.writefile(rmpath, "hi")
+	local success, status  = file.try_remove(rmpath)
+	assert(success == true and status == "Ok")
+end
+
+tryremove()
+
+local function tryremovefileadir()
+	local data_dir = fs.dir.from(datadir)
+	local cantremoveme = data_dir:add_tree(
+		"tryfilecantremoveme", 
+		fs.tree()
+			:with_file("init.luau", "return 'hi'")
+	):expect_dir("tryfilecantremoveme")
+
+	local success, result = file.try_remove(cantremoveme.path)
+
+	assert(success == false and result == "IsADirectory", "unexpectedly not IsADirectory")
+	
+	cantremoveme:remove()
+end
+
+tryremovefileadir()
+
+local function tryremovenotexists()
+	local data_dir = fs.dir.from(datadir)
+	local success, result = file.try_remove("unexpected_meow")
+	assert(success == false and result == "NotFound", "why is there a file unexpected_meow")
+end
+
+tryremovenotexists()
+
+local function tryremovepermissiondenied()
+	local denied_path = path.join(permission_denied_path, "hi.txt")
+	local success, failure = file.try_remove(denied_path)
+	assert(success == false and failure == "PermissionDenied", "can remove permission denied? huh")
+end
+
+tryremovepermissiondenied()

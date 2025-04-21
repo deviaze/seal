@@ -25,6 +25,18 @@ export type DirLib = setmetatable<{
 	```
 	]=]
 	ensure: (path: string, create_missing: boolean?) -> DirectoryEntry,
+
+	-- fs.dir.try_remove(path: string) -> (boolean, "Ok" | "PermissionDenied" | "NotFound" | "NotADirectory" | "Other", string?)
+	--[=[
+		Try to remove directory at `path` using Rust's `fs::remove_dir_all` without erroring in common cases.
+
+		If this function partially fails (removes some but not all subtrees/files in `path`), `try_remove` will return false
+		with result "Other", as well as an error kind string that describes what went wrong.
+
+		## Errors
+		- if provided invalid arguments (`path` is not a valid utf-8 encoded string that could exist on the filesystem)
+	]=]
+	try_remove: (path: string) -> (boolean, "Ok" | "PermissionDenied" | "NotFound" | "NotADirectory" | "Other", string?)
 }, {
 	--[=[
 	Convenient and slightly more efficient alternative to `fs.find(path):try_dir()`

@@ -376,6 +376,35 @@ fn fs_file_try_write(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaMultiResul
     Ok(result_multivalue)
 }
 
+fn fs_file_try_remove(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaMultiResult {
+    let function_name = "fs.file.try_remove(path: string)";
+    let path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path_without_checking_fs(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path to be a string, but was called with no arguments", function_name);
+        }
+    };
+    let (success, result): (bool, &str) = match fs::remove_file(&path) {
+        Ok(_) => (true, "Ok"),
+        Err(err) => match err.kind() {
+            io::ErrorKind::PermissionDenied => (false, "PermissionDenied"),
+            io::ErrorKind::NotFound => (false, "NotFound"),
+            io::ErrorKind::IsADirectory => (false, "IsADirectory"),
+            other => (false, &other.to_string()),
+        }
+    };
+    let result_multi = LuaMultiValue::from_vec(vec![
+        LuaValue::Boolean(success),
+        LuaValue::String(luau.create_string(result)?)
+    ]);
+    Ok(result_multi)
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_file_from)?
@@ -384,6 +413,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("try_read", fs_file_try_read)?
         .with_function("try_readbytes", fs_file_try_readbytes)?
         .with_function("try_write", fs_file_try_write)?
+        .with_function("try_remove", fs_file_try_remove)?
         .with_metatable(TableBuilder::create(luau)?
             .with_function("__call", fs_file_call)?
             .build_readonly()?

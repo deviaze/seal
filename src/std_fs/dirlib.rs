@@ -2,9 +2,11 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 use mlua::prelude::*;
+use crate::LuaMultiResult;
 use crate::{wrap_err, colors, LuaValueResult, TableBuilder};
 use crate::require::ok_table;
 use super::entry::wrap_io_read_errors;
+use super::validate_path_without_checking_fs;
 use super::{directory_entry, entry, validate_path};
 
 fn fs_dir_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
@@ -161,12 +163,45 @@ fn fs_dir_ensure(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     entry::create(luau, &requested_path, function_name)
 }
 
+fn fs_dir_try_remove(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaMultiResult {
+    let function_name = "fs.dir.try_remove(path: string)";
+    let path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path_without_checking_fs(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path to be a string, but was incorrectly called with zero arguments", function_name);
+        }
+    };
+    let (success, result, other_kind): (bool, &str, Option<String>) = match fs::remove_dir_all(&path) {
+        Ok(_) => (true, "Ok", None),
+        Err(err) => match err.kind() {
+            io::ErrorKind::NotFound => (false, "NotFound", None),
+            io::ErrorKind::PermissionDenied => (false, "PermissionDenied", None),
+            io::ErrorKind::NotADirectory => (false, "NotADirectory", None),
+            other => (false, "Other", Some(other.to_string()))
+        }
+    };
+    let mut result_multi = LuaMultiValue::from_vec(vec![
+        LuaValue::Boolean(success),
+        LuaValue::String(luau.create_string(result)?)
+    ]);
+    if let Some(other) = other_kind {
+        result_multi.push_back(LuaValue::String(luau.create_string(other)?));
+    };
+    Ok(result_multi)
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_dir_from)?
         .with_function("build", fs_dir_build)?
         .with_function("create", fs_dir_create)?
         .with_function("ensure", fs_dir_ensure)?
+        .with_function("try_remove", fs_dir_try_remove)?
         .with_metatable(TableBuilder::create(luau)?
             .with_function("__call", fs_dir_call)?
             .build_readonly()?

@@ -70,6 +70,15 @@ export type FileLib = setmetatable<{
 	```
 	]=]
 	try_write: (path: string, content: string | buffer) -> (boolean, "Ok" | "PermissionDenied"),
+
+	-- fs.file.try_remove(path: string) -> (boolean, "Ok" | "PermissionDenied" | "NotExists")
+	--[=[
+		Try to remove a file at `path` without erroring if the file doesn't exist or if the user doesn't have access to it.
+
+		## Errors
+		- if `path` is not a valid utf-8 encoded path that could possibly exist on the filesystem
+	]=]
+	try_remove: (path: string) -> (boolean, "Ok" | "PermissionDenied" | "NotFound" | "IsADirectory")
 }, {
 	--[=[
 	Convenient and slightly more efficient alternative to `fs.find(path):try_file()`
