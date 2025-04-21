@@ -13,3 +13,4 @@ local decrypted = rsa.decrypt(encrypted, keys.private)
 assert(decrypted == "whoami", "rsa plaintext doesnt match")
 
 data_dir:expect_file("private.key"):remove() -- so git guardian doesn't angery
+data_dir:expect_file("public.key"):remove() -- so we don't git status changed every time we run tests

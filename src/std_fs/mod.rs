@@ -15,6 +15,9 @@ pub mod file_entry;
 pub mod directory_entry;
 pub mod find;
 
+/// helper and converter function to turn LuaStrings into Rust Strings
+/// use this one if we're okay with checking the filesystem for common issues for better user experience,
+/// don't use this one if we expect to handle permission denied without erroring
 pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String> {
     let Ok(path) = path.to_str() else {
         return wrap_err!("{}: provided path '{}' is not properly utf8-encoded", function_name, path.display());
@@ -25,7 +28,7 @@ pub fn validate_path(path: &LuaString, function_name: &str) -> LuaResult<String>
             Ok(b) => b,
             Err(err) => match err.kind() {
                 io::ErrorKind::PermissionDenied => {
-                    return wrap_err!("{}: Permission Denied when trying to validate path: '{}'; if this function isn't supposed to error when PermissionDenied, you've found a bug", function_name, path);
+                    return wrap_err!("{}: permission denied when trying to validate path at '{}'; if this function isn't supposed to error when PermissionDenied, you've found a bug", function_name, path);
                 },
                 _ => {
                     return wrap_err!("{}: unexpected error when validating path: {}", function_name, path);
@@ -575,21 +578,10 @@ pub fn fs_removetree(_luau: &Lua, value: LuaValue) -> LuaEmptyResult {
             return wrap_err!("fs.removetree(path: string) expected path to be a string, got: {:?}", other);
         }
     };
-    let metadata = match fs::metadata(&victim_path) {
-        Ok(metadata) => metadata,
-        Err(err) => {
-            return wrap_io_read_errors_empty(err, function_name, &victim_path);
-        }
-    };
-    if metadata.is_dir() {
-        if let Err(err) = fs::remove_dir_all(&victim_path) {
-            let err_message = "fs.removetree was unable to remove some, or all of the directory tree requested:\n";
-            wrap_err!("{}    {}", err_message, err)
-        } else {
-            Ok(())
-        }
+    if let Err(err) = fs::remove_dir_all(&victim_path) {
+        wrap_err!("fs.removetree was unable to remove some (or all) of the directory at '{}' due to err: {}", victim_path, err)
     } else {
-        wrap_err!("fs.removetree(path: string) expected to find a directory at path '{}' but instead found a file", victim_path)
+        Ok(())
     }
 }
 

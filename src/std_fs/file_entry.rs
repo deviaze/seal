@@ -72,7 +72,7 @@ pub fn read_file_into_buffer(luau: &Lua, entry_path: &str, mut multivalue: LuaMu
     };
 
     // sanity checks
-    let assert_sign = |n: i32, context: &str | -> LuaResult<u64> {
+    let assert_sign = | n: i32, context: &str | -> LuaResult<u64> {
         if n < 0 {
             wrap_err!("{}: {} cannot be negative", function_name_and_args, context)
         } else {
@@ -156,7 +156,7 @@ pub fn read_file_into_buffer(luau: &Lua, entry_path: &str, mut multivalue: LuaMu
         Ok(LuaValue::Buffer(luau.create_buffer(rust_buffer)?))
     }
 }
-
+        
 fn file_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let function_name = "FileEntry:readbytes(file_offset: number?, count: number?, target_buffer: buffer?, buffer_offset: number?)";
     let entry = match multivalue.pop_front() {
