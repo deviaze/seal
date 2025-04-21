@@ -16,11 +16,13 @@ If a GitHub release isn't available yet, you can build `seal` with `cargo` by ru
 
 ### Setup
 
-`seal` doesn't spawn any top-level settings or type definitions, instead, it adds its settings and type definitions directly to your project's workspace for easy reference. Further configuration options (project and system-wide) are planned.
-
 Use `seal setup` to generate a new project in your current directory. This autogenerates a `.vscode/settings.json` to configure [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp) with some default settings, seal's `.typedefs`, a `src` dir, and a `.luaurc` for configuring Luau. Ideally, this means you should be able to just start writing code without much more configuration on your end!
 
-To run a `.luau` file with seal, use `seal <filename_with_ext>` (like `seal ./get_homework.luau`). To evaluate code with seal, use `seal eval '<string src>'`. `seal eval` comes with the `fs`, `http`, and `process` libs loaded in for convenience. An interactive REPL is planned for the future. Use `seal run` to run the current project at its entry path (default `./src/main.luau`).
+To run a `.luau` file with seal, use `seal <filename_with_ext>` (like `seal ./get_homework.luau`).
+
+To evaluate code with seal, use `seal eval '<string src>'`. `seal eval` comes with the `fs`, `http`, and `process` libs loaded in for convenience. An interactive REPL is planned for the future.
+
+Use `seal run` to run the current project at its entry path (default `./src/main.luau`).
 
 Although seal provides some builtin globals (such as `p`, `pp`, `channel` (in a child thread), and `script`), most features are in the standard library. You can import stdlibs like so:
 
@@ -34,9 +36,9 @@ local input = require("@std/io/input")
 
 If you're using VSCode and Luau Language Server, you should be able to see documentation, usage examples, and typedefs for each stdlib by hovering over their variable names in your editor. For convenience, all documentation is located in the `.typedefs` directory generated alongside your project.
 
-## Common tasks
+### Common tasks
 
-### Read and write files/directories
+#### Read and write files/directories
 
 ```luau
 local fs = require("@std/fs")
@@ -44,13 +46,11 @@ local path = fs.path
 
 -- read files
 local content = fs.readfile("myfile.txt")
--- read half the file
-local verybigfile = fs.file.from("verybig.txt")
-local half_the_file = buffer.tostring(verybigfile:readbytes(0, verybigfile:size() // 2))
 
 -- write a file from string (or buffer!)
 local seally_path = path.join(path.cwd(), "seally.txt")
 fs.writefile(seally_path, "did you know seals can bark?")
+
 -- remove it
 fs.removefile(seally_path)
 
@@ -81,7 +81,7 @@ for entry_path, entry in entries do
 end
 ```
 
-### Send http requests
+#### Send http requests
 
 ```luau
 local http = require("@std/net/http")
@@ -99,7 +99,7 @@ local post_response = http.post {
 }
 ```
 
-### Spawning processes ~~(ffi at home)~~
+#### Spawning processes ~~(ffi at home)~~
 
 ```luau
 local process = require("@std/process")
@@ -128,9 +128,7 @@ end
 
 ### Simple Structured Parallelism
 
-seal is sans-tokio for performance and simplicity.
-
-But, you want > 1 thing to happen at once nonetheless? seal provides access to Real Rust Threads with a relatively simple, low-level API. Each thread has its own Luau VM, which allows you to execute code in parallel. To send messages between threads, you can use the `:send()` and `:read()` methods located on both `channel`s (child threads) and `JoinHandle`s (parent threads), which seamlessly serialize, transmit, and deserialize Luau data tables between threads (VMs) for you! For better performance, you can use their `bytes` APIs to exchange buffers without the serialization overhead.
+seal is sans-tokio for performance and simplicity, but provides access to Real Rust Threads with a relatively simple, low-level API. Each thread has its own Luau VM, which allows you to execute code in parallel. To send messages between threads, you can use the `:send()` and `:read()` methods located on both `channel`s (child threads) and `JoinHandle`s (parent threads), which seamlessly serialize, transmit, and deserialize Luau data tables between threads (VMs) for you! For better performance, you can use their `bytes` APIs to exchange buffers without the serialization overhead.
 
 Although this style of thread management is definitely less ergonomic than a `task` library, I hope this makes it more reliable and less prone to yields and UB, and is all-around a stable experience.
 
