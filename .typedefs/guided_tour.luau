@@ -1,4 +1,5 @@
 --!nolint ImportUnused
+--!nolint LocalUnused
 --!nolint LocalShadow
 
 -- hi!! welcome to sealey runtime ᶘ ᵔᴥᵔᶅ, here's some basics to get you set up 
