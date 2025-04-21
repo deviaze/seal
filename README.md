@@ -5,8 +5,8 @@ seal makes writing scripts and programs fun and easy, and runs them seally fast.
 ## Goals
 
 - Focus on high-level general purpose programming, scripting, and being the best Python alternative for Luau.
-- Provide a simple, useful, and expressive API that allows users to get real work done--you should be able to use `seal` right out of the box; common needs should be provided for so you can get straight to working on your project.
-- Be helpful and user friendly--if you run into trouble, `seal` should tell you *exactly* where you went wrong with a custom, handcrafted warning or error message.'
+- Provide a simple, useful, and expressive API that allows users to get real work done—you should be able to use `seal` right out of the box; common needs should be provided for so you can get straight to working on your project.
+- Be helpful and user friendly—if you run into trouble, `seal` should tell you *exactly* where you went wrong with a custom, handcrafted warning or error message.
 
 ## Install
 
@@ -164,5 +164,5 @@ end
 
 ### Non-goals
 
-- Fully featured standard library for all usecases: `seal` is primarily suited for high level scripting and general purpose programming. We don't want to add every single hash algorithm, nor bind to every single part of Rust's standard library--providing too many options might end up confusing to the average user.
-- Top tier performance: although `seal` is pretty fast, `mlua` isn't the fastest way to use Luau; other runtimes using Luau directly (including but not limited to `lute` and Zig-based runtimes such as `Zune` and `cart`), may be faster than `seal`. On the other hand, because `seal` doesn't have an async overhead, its standard library should be faster than `Lune`'s, and because of its parallelism model, multithreaded programs in `seal` should be more stable than async programs in `Lune`.
+- Fully featured standard library for all usecases: `seal` is primarily suited for high level scripting and general purpose programming. We don't want to add every single hash algorithm, nor bind to every single part of Rust's standard library—providing too many options might end up confusing to the average user.
+- Top tier performance: although `seal` is pretty fast, `mlua` isn't the fastest way to use Luau; runtimes like `Zune` and `lute` may be faster than `seal`. On the other hand, because `seal` doesn't have any tokio or async overhead, its standard library should be faster than `Lune`'s, and because of its parallelism model, multithreaded programs in `seal` should be more stable than async programs in `Lune`.
