@@ -46,7 +46,7 @@ local path = fs.path
 local content = fs.readfile("myfile.txt")
 -- read half the file
 local verybigfile = fs.file.from("verybig.txt")
-local half_the_file = buffer.tostring(verybigfile:readbytes(0, verybigfile.size // 2))
+local half_the_file = buffer.tostring(verybigfile:readbytes(0, verybigfile:size() // 2))
 
 -- write a file from string (or buffer!)
 local seally_path = path.join(path.cwd(), "seally.txt")
