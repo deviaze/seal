@@ -117,6 +117,9 @@ export type DirectoryEntry = {
 	type: "Directory",
 	--- Returns an an array of basenames of the directory's entries; pass `true` as the second argument to list all files recursively.
 	list: (self: DirectoryEntry, recursive: boolean?) -> { string },
+	--- Join the `DirectoryEntry`'s path with multiple paths in a cross-platform-compliant manner.
+	--- Basically a wrapper around `fs.path.join(entry.path, a, b, c, ...)`
+	join: (self: DirectoryEntry, ...string) -> string,
 	find: (self: DirectoryEntry, name: string, options: { follow_symlinks: boolean?, error_if_permission_denied: boolean? }?) -> FindResult,
 	entries: (self: DirectoryEntry) -> { [string]: Entry },
 	--- Expect that the directory contains file `name`, returning its `FileEntry` or otherwise error.

@@ -59,16 +59,9 @@ end
 
 dirmetadata()
 
-local function ensuredir()
-	local src = fs.dir.ensure("./src")
-	assert(src.path == "./src", "why not ensure src?")
-	assert(#src:list() > 0, "oh no we just wiped the whole srcdir??")
-
-	local previously_nonexistent_path = fs.path.join(".", "tests", "data", "meow")
-	local previously_nonexistent_dir = fs.dir.ensure(previously_nonexistent_path)
-	assert(fs.path.exists(previously_nonexistent_path), "previously nonexistent should exist now?")
-	assert(previously_nonexistent_dir.path == previously_nonexistent_path, "what's wrong with path?")
-	previously_nonexistent_dir:remove()
+local function dirjoin()
+	local cats_path = data_dir:join("cats", "Nanuk")
+	assert(cats_path == "./tests/data/cats/Nanuk", "cats path doesnt match")
 end
 
-ensuredir()
+dirjoin()

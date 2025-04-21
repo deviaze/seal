@@ -1,10 +1,12 @@
+use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
 use mlua::prelude::*;
 use crate::{LuaValueResult, LuaEmptyResult, wrap_err, colors, table_helpers::TableBuilder, std_fs};
-use crate::require::ok_table;
+use crate::require::{ok_string, ok_table};
 use crate::std_fs::entry::{self, wrap_io_read_errors, get_path_from_entry};
 
+use super::pathlib::path_join;
 use super::validate_path;
 
 /// fixes `./tests/luau/std\fs\pathlib_join.luau` nonsense on windows
@@ -278,6 +280,39 @@ fn dir_add_tree(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     Ok(entry)
 }
 
+/// DirectoryEntry:join(paths: ...string)
+/// convenience wrapper for path.join around a DirectoryEntry's path
+fn dir_join(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "DirectoryEntry:join(paths: ...string)";
+    let entry_path = match multivalue.pop_front() {
+        Some(entry) => get_path_from_entry(&entry, function_name)?,
+        None => {
+            return wrap_err!("{} expected to be called with self", function_name);
+        }
+    };
+    let mut paths_to_join = VecDeque::new();
+    paths_to_join.push_back(entry_path);
+
+    let mut current_index = 0;
+    while let Some(value) = multivalue.pop_front() {
+        current_index += 1;
+        let string_to_add = match value {
+            LuaValue::String(path) => match path.to_str() {
+                Ok(str) => str.to_string(),
+                Err(_) => {
+                    return wrap_err!("{}: path component at index '{}' is not valid utf-8 encoded", function_name, current_index);
+                }
+            }
+            other => {
+                return wrap_err!("{} expected path component at index '{}' to be a string, got: {:?}", function_name, current_index, other);
+            }
+        };
+        paths_to_join.push_back(string_to_add);
+    }
+
+    ok_string(path_join(paths_to_join), luau)
+}
+
 pub fn create(luau: &Lua, path: &str) -> LuaResult<LuaTable> {
     let original_path = path;
     let path = PathBuf::from(path);
@@ -300,6 +335,7 @@ pub fn create(luau: &Lua, path: &str) -> LuaResult<LuaTable> {
         .with_value("path", original_path)?
         .with_value("type", "Directory")?
         .with_function("list", dir_list)?
+        .with_function("join", dir_join)?
         .with_function("entries", dir_entries)?
         .with_function("add_file", dir_add_file)?
         .with_function("add_tree", dir_add_tree)?
