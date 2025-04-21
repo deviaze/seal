@@ -50,8 +50,8 @@ export type FileLib = setmetatable<{
 		end
 		```
 
-		**Errors** on invalid arguments, or 
-		- attempt to read a file into an incorrectly-sized buffer, 
+		## Errors
+		- if attempt to read a file into an incorrectly-sized buffer, 
 		- invalid file or buffer offset (too big for file size, negative, etc.),
 		- error trying to Seek to the file offset (on Windows)
 	]=]
