@@ -193,7 +193,6 @@ fn file_append(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
     
     let content = match multivalue.pop_front() {
         Some(LuaValue::String(content)) => {
-            let content = content.to_string_lossy();
             content.as_bytes().to_owned()
         },
         Some(LuaValue::Buffer(buffy)) => {
