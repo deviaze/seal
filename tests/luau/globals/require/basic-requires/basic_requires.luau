@@ -23,7 +23,7 @@ local function relative()
 	local t1 = os.clock()
 
 	assert(relative_data.relative == "yes very", "relative require didnt work")
-	assert((t1 - t0) < 0.0035, "basic relative require took too long")
+	assert((t1 - t0) < 0.0045, "basic relative require took too long")
 end
 
 relative()

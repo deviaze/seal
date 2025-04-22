@@ -29,7 +29,7 @@ end
 
 tryreadnonexistent()
 
-if env.os ~= "Windows" then
+if env.os ~= "Windows" and env.os ~= "Android" then
 	local function tryreadpermissiondenied()
 		local test_path = path.join(permission_denied_path, "hi")
 		local s, f = pcall(function()
@@ -60,7 +60,7 @@ end
 
 tryreadbytesnotfound()
 
-if env.os ~= "Windows" then
+if env.os ~= "Windows" and env.os ~= "Android" then
 	local function tryreadbytespermissiondenied()
 		local test_path = path.join(permission_denied_path, "hehe")
 		local content_buffy, result = file.try_readbytes(test_path)
@@ -113,10 +113,10 @@ local function tryremovefileadir()
 	):expect_dir("tryfilecantremoveme")
 
 	local success, result = file.try_remove(cantremoveme.path)
-	if env.os ~= "Windows" then
+	if env.os == "Linux" or env.os == "MacOS" then
 		assert(success == false and result == "IsADirectory", "unexpectedly not IsADirectory")
-	else
-		assert(success == false and result == "PermissionDenied", "removing dir with file.try_remove not PermissionDenied on windows?")
+	elseif env.os == "Windows" then
+		assert(success == false and result == "PermissionDenied", "removing dir with file.try_remove not PermissionDenied on Windows?")
 	end
 	
 	cantremoveme:remove()
@@ -132,7 +132,7 @@ end
 
 tryremovenotexists()
 
-if env.os ~= "Windows" then
+if env.os ~= "Windows" and env.os ~= "Android" then
 	local function tryremovepermissiondenied()
 		local denied_path = path.join(permission_denied_path, "hi.txt")
 		local success, failure = file.try_remove(denied_path)

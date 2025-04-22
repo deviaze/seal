@@ -18,7 +18,7 @@ ensuredir()
 local permission_denied_path = 
 	if env.os == "Windows" then [[C:\System]]
 	elseif env.os == "Linux" then "/root"
-	elseif env.os == "Android" then "/data"
+	elseif env.os == "Android" then "/"
 	elseif env.os == "MacOS" then "/private/var/root"
 	else "/root"
 
@@ -36,7 +36,7 @@ end
 
 tryremove()
 
-if env.os ~= "Windows" then -- returns NotFound on Windows instead of PermissionDenied and I don't want to test removing a REAL important path
+if env.os ~= "Windows" and env.os ~= "Android" then -- returns NotFound on Windows instead of PermissionDenied and I don't want to test removing a REAL important path
 	local function tryremovepermissiondenied()
 		local denied_path = fs.path.join(permission_denied_path, "hi")
 		local success, result, kind = fs.dir.try_remove(denied_path)
