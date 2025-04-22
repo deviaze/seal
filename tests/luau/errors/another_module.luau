@@ -7,7 +7,7 @@ function module.execute()
 	-- print(debug.traceback())
 end
 
-function module.rf()
+function module.readimpossiblefile()
 	return fs.readfile("./hmm")
 end
 

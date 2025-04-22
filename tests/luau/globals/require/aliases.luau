@@ -2,7 +2,7 @@
 local _fs = require("@std/fs")
 
 local function aliased()
-	local relative_but_not_relatively = require("@tests/globals/require/basic-requires/relative_data")
+	local relative_but_not_relatively = (require :: any)("@tests/globals/require/basic-requires/relative_data")
 	assert(relative_but_not_relatively.relative == "yes very", "alias required file returned unexpected result")
 end
 
