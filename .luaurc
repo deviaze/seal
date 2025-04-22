@@ -7,6 +7,7 @@
 		"std": "./.typedefs/std/",
 		"interop": "./.typedefs/interop/",
 		"tests": "./tests/luau/",
-		"data": "./tests/data/"
+		"data": "./tests/data/",
+		"output_process_values": "./src/scripts/output_process_values"
 	}
 }

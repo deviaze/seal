@@ -1,5 +1,5 @@
 -- requiring std libraries works (it's an alias ig)
-local _fs = require("@std/fs")
+local fs = require("@std/fs")
 
 local function aliased()
 	local relative_but_not_relatively = (require :: any)("@tests/globals/require/basic-requires/relative_data")
@@ -27,3 +27,22 @@ local function nonexistentalias()
 end
 
 nonexistentalias()
+
+local function aliaswithoutslashfile()
+	local process_values = (require :: any)("@output_process_values")
+	assert(process_values.simple_print ~= nil, "output_process_values.simple_print should be non-nil")
+end
+
+aliaswithoutslashfile()
+
+local function aliaswithoutslashdir()
+	local data_path = fs.path.join(".", "tests", "data")
+	local data_dir = fs.dir.from(data_path)
+		:add_file("init.luau", "return 'successful'")
+	
+	local res = (require :: any)("@data")
+	assert(res == "successful", "why is requiring @data not successful?")
+	fs.removefile(data_dir:join("init.luau"))
+end
+
+aliaswithoutslashdir()
