@@ -1,7 +1,6 @@
 --!nonstrict
 --!nolint LocalShadow
 local thread = require("@std/thread")
-local http = require("@std/net/http")
 local format = require("@std/io/format")
 
 local urls: {string} = {
@@ -9,22 +8,8 @@ local urls: {string} = {
 	"https://google.com",
 	"https://en.wikipedia.org/wiki/Cat",
 	"https://catfact.ninja/fact",
-	"https://play.typeracer.com",
 	"https://jsonplaceholder.typicode.com/todos/1",
 }
-
--- get serially
-local s_t = os.clock()
-local results = {}
-for _, url in urls do
-	local result = http.get({
-		url = url,
-	})
-	if result.ok then
-		results[url] = result.body
-	end
-end
-print(`{os.clock() - s_t} seconds in serial`)
 
 -- get in parallel
 local s_t = os.clock()
@@ -42,13 +27,15 @@ for _, url in urls do
 	handles[url] = handle
 end
 
+local start_time = os.clock()
 local results_got = 0
-while true do
+while (os.clock() - start_time) < 20 do
 	for url, handle in handles do
 		local result = handle:read()
 		if result then
 			results[url] = result
 			results_got += 1
+			handles[url] = nil
 		end
 	end
 	if results_got == #urls then
@@ -59,6 +46,8 @@ end
 for url, handle in handles do
 	handle:join()
 end
+
+print(handles)
 
 print(`{os.clock() - s_t} seconds in parallel/synchronously with os threads :)`)
 

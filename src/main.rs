@@ -6,7 +6,6 @@ use std::io;
 mod table_helpers;
 mod std_io_output;
 mod std_fs;
-mod std_fs_pathlib;
 mod std_process;
 mod std_env;
 mod std_json;
@@ -33,6 +32,8 @@ use include_dir::{include_dir, Dir};
 const TYPEDEFS_DIR: Dir = include_dir!(".typedefs");
 
 type LuaValueResult = LuaResult<LuaValue>;
+type LuaEmptyResult = LuaResult<()>;
+type LuaMultiResult = LuaResult<LuaMultiValue>;
 
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();
@@ -77,7 +78,7 @@ fn main() -> LuaResult<()> {
             let globals = luau.globals();
             globals.set("fs", table(std_fs::create(&luau)?))?;
             globals.set("process", table(std_process::create(&luau)?))?;
-            globals.set("net", table(std_net::create(&luau)?))?;
+            globals.set("http", table(std_net_http::create(&luau)?))?;
 
             globals.set("script", TableBuilder::create(&luau)?
                 .with_value("entry_path", "eval")?

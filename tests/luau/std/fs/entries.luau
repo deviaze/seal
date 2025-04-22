@@ -3,8 +3,7 @@ local fs = require("@std/fs")
 
 for path, entry in fs.entries(".") do
 	if entry.type == "File" then
-		assert(entry.extension, "where extension?")
-		assert(entry.name ~= nil, "where entry.name?")
+		assert(typeof(entry.name) == "string", "where entry.name?")
 		local content = (entry :: fs.FileEntry):read()
 		assert(typeof(content) == "string", "file content is not string?")
 	else
@@ -13,60 +12,27 @@ for path, entry in fs.entries(".") do
 	end
 end
 
-local entry = fs.find("./Cargo.toml")
+local entry = fs.find("./Cargo.toml"):try_file()
 assert(entry ~= nil and entry.type == "File", "Cargo.toml not found?")
 
-local src = fs.find({directory = "./src"})
-assert(src ~= nil, "no src?")
-assert(src.name == "src", "src name not src?")
-assert(src.type == "Directory", "src not a directory???")
+local src = fs.find("./src"):try_dir()
+assert(src ~= nil, "where src?")
+assert(src.name == "src")
+assert(src.type == "Directory")
 
-local ninexists = fs.find { directory = "hi" }
-assert(ninexists == nil)
+assert(fs.find("hi"):try_dir() == nil, "why do we have a dir named hi")
 
-assert(fs.find{file = "Cargo.toml"} ~= nil)
+-- see metadata
+local dt = require("@std/time/datetime")
 
-local try = require("@std/testing/try")
-
--- handle cases
-do
-	try(function()
-		fs.entries("")
-		return nil
-	end):expect_err("No such file or directory")
-end
-
--- append to file
-local appendfile = fs.create { file = {
-	name = "./tests/data/appendfile.txt",
-	content = "startercontent"
-}} :: fs.FileEntry
-
-if appendfile then
-	local content = (appendfile :: fs.FileEntry):read() :: string
-	assert(content == "startercontent", "saving file apparently didnt write 'startercontent'?")
-	local appendfile: fs.FileEntry = appendfile
-	appendfile:append("andmore")
-	assert(appendfile:read() == "startercontentandmore", "appendfile:append didn't work right?")
-end
-
-local function findfile()
-	local server_views = fs.dir("./tests/data/server-views")
-	if server_views then
-		local index_html = server_views:file("index.html")
-		assert(index_html ~= nil, "can't find index.html")
-		assert(index_html.extension == "html")
+local function meta()
+	local mainrs = fs.file("./src/main.rs")
+	if mainrs then
+		local metadata = mainrs:metadata()
+		local now = dt.now().unix_timestamp
+		local accessed_at = metadata.accessed_at
+		assert(accessed_at ~= nil, "where is accessed at at?")
 	end
 end
 
-findfile()
-
-local function finddir()
-	local data_folder = fs.dir("./tests/data")
-	if data_folder then
-		local server_views = data_folder:dir("server-views")
-		assert(server_views ~= nil, "cant find server-views")
-	end
-end
-
-finddir()
+meta()

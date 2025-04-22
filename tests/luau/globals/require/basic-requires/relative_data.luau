@@ -4,5 +4,4 @@ local data = {
 		return "maybe"
 	end
 }
-
 return data

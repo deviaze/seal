@@ -1,9 +1,12 @@
+-- TODO: properly test errors without making tests too brittle
+local mlua = require("@interop/mlua")
 local module = require("./another_module")
 
 local function main()
 	script.context = "rfing"
-	module.rf()
+	module.readimpossiblefile()
 	return module.execute()
 end
 
-main()
+local success, result = pcall(main)
+assert(mlua.iserror(result), "error should be made of error")

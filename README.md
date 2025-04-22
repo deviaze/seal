@@ -1,110 +1,136 @@
-# seal, the cutest ~~runtime~~ for the [luau language](https://luau.org)
+# seal, the cutest runtime for the [luau language](https://luau.org)
 
 seal makes writing scripts and programs fun and easy, and runs them seally fast.
 
+## Goals
+
+- Focus on high-level general purpose programming, scripting, and being the best Python alternative for Luau.
+- Provide a simple, useful, and expressive API that allows users to get real work done—you should be able to use `seal` right out of the box; common needs should be provided for so you can get straight to working on your project.
+- Be helpful and user friendly—if you run into trouble, `seal` should tell you *exactly* where you went wrong with a custom, handcrafted warning or error message.
+
+## Install
+
+If a GitHub release isn't available yet, you can build `seal` with `cargo` by running `cargo build --release`. After it's built, move `seal` to your `PATH` to use it anywhere on your system. Install scripts and releases are planned to make this much easier by 0.1.0.
+
 ## Usage
 
-Use `seal setup` to generate a new project in your current directory. This autogenerates a `.vscode/settings.json` to configure [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp), seal typedefs, `src` and `spec` directories, and a `.luaurc` for configuring Luau. Ideally, this means you should be able to just start writing code with no further configuration on your end!
+### Setup
 
-To run a `.luau` file with seal, use `seal <filename>`. To evaluate code within seal (with fs/net/process libs already loaded in), use `seal eval '<string src>'`
+Use `seal setup` to generate a new project in your current directory. This autogenerates a `.vscode/settings.json` to configure [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp) with some default settings, seal's `.typedefs`, a `src` dir, and a `.luaurc` for configuring Luau. Ideally, this means you should be able to just start writing code without much more configuration on your end!
 
-Although seal provides some builtin globals, most features are in the standard library. You can import stdlibs like so:
+To run a `.luau` file with seal, use `seal <filename_with_ext>` (like `seal ./get_homework.luau`).
+
+To evaluate code with seal, use `seal eval '<string src>'`. `seal eval` comes with the `fs`, `http`, and `process` libs loaded in for convenience. An interactive REPL is planned for the future.
+
+Use `seal run` to run the current project at its entry path (default `./src/main.luau`).
+
+Although seal provides some builtin globals (such as `p`, `pp`, `channel` (in a child thread), and `script`), most features are in the standard library. You can import stdlibs like so:
 
 ```luau
 local fs = require("@std/fs")
-local net = require("@std/net")
-local process = require("@std/process")
 local colors = require("@std/colors") -- (the most important one tbh)
 
 -- some libs are nested:
 local input = require("@std/io/input")
 ```
 
-If you're using VSCode and Luau Language Server, you should be able to see documentation, usage examples, and typedefs for each stdlib by hovering over their variable names in your editor. For convenience, all documentation is located in the `typedefs/*` directory generated alongside your project.
+If you're using VSCode and Luau Language Server, you should be able to see documentation, usage examples, and typedefs for each stdlib by hovering over their variable names in your editor. For convenience, all documentation is located in the `.typedefs` directory generated alongside your project.
 
 ### Common tasks
 
-- File wrangling
+#### Read and write files/directories
 
 ```luau
--- read a file to string
-local file = fs.readfile("./path/to/file.ext") -- note, fs stdlib paths are relative to workspace/cwd root, not relative to file
+local fs = require("@std/fs")
+local path = fs.path
 
--- write a file
-fs.writefile {
-    path = "./somewhere/filename.txt",
-    content = "did you know seals can bark?",
-} -- you can also use fs.create, which also allows you to create directories
+-- read files
+local content = fs.readfile("myfile.txt")
 
--- iterate all files/dirs in a dir
-for path, entry in fs.entries("./spec") do
-    local result = process.shell(`seal {path}`):unwrap()
-    entry:remove()
-end
+-- write a file from string (or buffer!)
+local seally_path = path.join(path.cwd(), "seally.txt")
+fs.writefile(seally_path, "did you know seals can bark?")
 
--- find an entry; entries provide many useful fields and methods to help you manipulate files & dirs
-local very_file = fs.find { file = "./very_file" }
-if very_file then
-    -- read the file to string
-    local text = very_file:read()
-    -- read half the file
-    local half_the_file = buffer.tostring(very_file:readbytes(0, very_file.size // 2))
-    -- delet the file
-    very_file:remove()
-end
+-- remove it
+fs.removefile(seally_path)
 
--- fs.find will use Luau type functions when they get stabilized and beta released, for now please annotate them types manually or use the Entry.type
-
+-- make a new empty directory
+fs.makedir("./src")
+-- write a new directory tree
+fs.writetree("./tests", fs.tree()
+    :with_file("run_tests.luau", run_tests_src)
+    :with_tree("cases", fs.tree()
+        :with_file("case1", cases[1])
+    )
+)
+-- remove both
+fs.removetree("./src"); fs.removetree("./tests")
 ```
 
-- requests
+#### Iterate through a directory's entries
+
+```luau
+local entries = fs.entries(path.join(script:parent(), "other_dir"))
+for entry_path, entry in entries do
+    if entry.type == "File" then
+        print(`file at '{entry_path}' says {entry:read()}!`)
+    elseif entry.type == "Directory" then
+        local recursive_list = table.concat(entry:list(true))
+        print(`directory at {colors.blue(`'{entry_path}'`)} has these entries, recursively: {recursive_list}'`)
+    end
+end
+```
+
+#### Send http requests
 
 ```luau
 local http = require("@std/net/http")
 
-local response = http.get({
-    url = "https://sealfinder.net/get",
-})
-
-local res = if response.ok then response:decode() else {
-    location = "where the seals live"
+local seal_data = http.get("https://sealfinder.net/api/get"):unwrap_json()
+local post_response = http.post {
+    url = "https://mycatlist.me/api/add_cat/post",
+    headers = {
+        Authorization = `Bearer {TOKEN}`,
+    },
+    body = {
+        name = "Taz",
+        age = 12,
+    }, -- pass a table? seal serializes it for you (and sets Content-Type: application/json)!
 }
-
--- you can also unwrap_json!
-local res = http.get({
-    url = "https://sealfinder.net/get",
-}):unwrap_json({ -- all :unwrap() methods take an optional default argument
-    location = "where the seals live"
-})
-
 ```
 
-- colorful
+#### Spawning processes ~~(ffi at home)~~
 
 ```luau
-local colors = require("@std/colors")
-local format = require("@std/io/format")
+local process = require("@std/process")
+-- run a shell command
+local output = process.shell("seal ./cats.luau"):unwrap()
 
-print(`{colors.red("oh no, anyways!:")}: {format(some_table)}`)
-```
+-- run a program directly (waits til it completes)
+local result = process.run {
+    program = "seal",
+    args = { "./cats.luau" },
+}:unwrap()
 
-- cli args
-
-```luau
-local env = require("@std/env")
-
-for _, arg in env.args do
-    print(arg)
+-- spawn a program as a long-running child process
+local child = process.spawn {
+    program = "somewatcher",
+    args = { "./somefile.json" }
+}
+if you_want_to_block_main_thread then
+    for line in child.stdout:lines() do
+        print(line)
+    end
+else
+    local text: string? = child.stdout:read(24)
 end
 ```
 
-## Simple Structured Concurrency
+### Simple Structured Parallelism
 
-seal is fully sans-tokio and async-less for performance, efficiency, and simplicity. Concurrency is hard. Concurrency + upvalues, even harder.
+seal is sans-tokio for performance and simplicity, but provides access to Real Rust Threads with a relatively simple, low-level API. Each thread has its own Luau VM, which allows you to execute code in parallel. To send messages between threads, you can use the `:send()` and `:read()` methods located on both `channel`s (child threads) and `JoinHandle`s (parent threads), which seamlessly serialize, transmit, and deserialize Luau data tables between threads (VMs) for you! For better performance, you can use their `bytes` APIs to exchange buffers without the serialization overhead.
 
-But, you want > 1 thing to happen at once nonetheless? seal provides access to Real Rust Threads with a relatively simple, low-level API. Each thread has its own Luau VM, which allows you to execute code concurrently. To send messages between threads, you can use the `:send()` and `:read()` methods located on both `channel`s (child threads) and `JoinHandle`s (parent threads), which seamlessly serialize, transmit, and deserialize Luau data tables between threads (VMs) for you!
-
-Although this style of thread management is definitely less ergonomic than a `task` library or promise implementation, I hope this makes it more reliable and less prone to yields and UB, and is all-around a stable experience. I'll be working on improving this throughout seal's continual development, and I'm very open to a `task` lib equivalent getting contributed in for simple coroutine management.
+Although this style of thread management is definitely less ergonomic than a `task` library, I hope this makes it more reliable and less prone to yields and UB, and is all-around a stable experience.
 
 ```luau
 -- parent.luau
@@ -129,9 +155,12 @@ Child threads have a global `channel` exposed, which you can use to send data to
 local http = require("@std/net/http")
 if channel then
     local data = channel.data :: { url: string }
-    local response = http.get({ url = data.url }):unwrap_json()
+    local response = http.get(data.url):unwrap_json()
     channel:send(response)
 end
 ```
 
-Notes on concurrency: because each Luau value (a table, number, or function) is attached specifically to a single Luau VM, you cannot send values arbitrarily between VMs. To get around this, instead of allowing users to pass arbitrary upvalues between functions in different threads, seal exposes a low-level API for structured communication between threads, and handles serialization/deserialization of values on our end.
+### Non-goals
+
+- Fully featured standard library for all usecases: `seal` is primarily suited for high level scripting and general purpose programming. We don't want to add every single hash algorithm, nor bind to every single part of Rust's standard library—providing too many options might end up confusing to the average user.
+- Top tier performance: although `seal` is pretty fast, `mlua` isn't the fastest way to use Luau; runtimes like `Zune` and `lute` may be faster than `seal`. On the other hand, because `seal` doesn't have any tokio or async overhead, its standard library should be faster than `Lune`'s, and because of its parallelism model, multithreaded programs in `seal` should be more stable than async programs in `Lune`.

@@ -1,8 +1,8 @@
 -- requiring std libraries works (it's an alias ig)
-local fs = require("@std/fs")
+local _fs = require("@std/fs")
 
 local function aliased()
-	local relative_but_not_relatively = require("@tests/globals/require/basic-requires/relative_data")
+	local relative_but_not_relatively = (require :: any)("@tests/globals/require/basic-requires/relative_data")
 	assert(relative_but_not_relatively.relative == "yes very", "alias required file returned unexpected result")
 end
 
@@ -13,7 +13,7 @@ local function unabletoextractalias()
 		local impossible = (require)("@/hi")
 	end)
 	assert(s == false, "extracting alias was not supposed to succeed")
-	assert(tostring(f):match("unable to extract alias"), "received different error when trying to extract alias")
+	assert(tostring(f):match("couldn't extract require alias"), "received different error when trying to extract alias")
 end
 
 unabletoextractalias()

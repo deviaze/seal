@@ -1,56 +1,32 @@
+type EncodeOptions = {
+	--- with tabs/newlines/spaces for easy reading (default true)
+	pretty: boolean?,
+	--- sorted in alphanumeric order (default false)
+	sorted: boolean?,
+}
+
+export type JsonData = { [any]: any }
+
 --[=[
 Easily manipulate JSON (JavaScript Object Notation) data.
 
-### Usage
+## Usage
 ```luau
 local json = require("@std/json")
--- read & deserialize json file to luau table
-local data = json.readfile("./somefile.json")
-
--- Quick reference
-type json = {
-	encode: (t: any, options: EncodeOptions?) -> string,
-	decode: (json: string) -> any,
-	readfile: (path: string) -> string,
-	writefile: (WriteOptions: JsonWritefileOptions) -> ()
-}
-
-type EncodeOptions = {
-	--- with tabs/newlines/spaces for easy reading (default true)
-	pretty: boolean?,
-	--- sorted in alphanumeric order (default false)
-	sorted: boolean?,
-}
-
-type JsonWritefileOptions = {
-	path: string,
-	content: { [any]: any }
-}
+local data = json.readfile("./animals.json") :: { cats: number, dogs: number }
+data.cats += 1
+json.writefile("./animals.json", data)
 ```
 ]=]
-
-type EncodeOptions = {
-	--- with tabs/newlines/spaces for easy reading (default true)
-	pretty: boolean?,
-	--- sorted in alphanumeric order (default false)
-	sorted: boolean?,
-}
-
 type json = {
 	--- encodes json with newlines, readable
-	encode: (t: any, options: EncodeOptions?) -> string,
+	encode: (t: JsonData, options: EncodeOptions?) -> string,
 	--- encodes json data without newlines, etc.
-	encode_raw: (t: any) -> string,
+	encode_raw: (t: JsonData) -> string,
 	decode: (json: string) -> any,
-	readfile: (path: string) -> any,
-	writefile: (WriteOptions: JsonWritefileOptions) -> (),
-	writefile_raw: (WriteOptions: JsonWritefileOptions) -> ()
+	readfile: (path: string) -> JsonData,
+	writefile: (path: string, data: JsonData, options: EncodeOptions?) -> (),
+	writefile_raw: (path: string, data: JsonData) -> ()
 }
-
-type JsonWritefileOptions = {
-	path: string,
-	content: { [any]: any }
-}
-
 
 return {} :: json

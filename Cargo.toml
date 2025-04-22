@@ -1,10 +1,10 @@
 [package]
 name = "seal"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 
 [dependencies]
-mlua = {version = "0.10.1", features = ["luau", "serialize"]}
+mlua = {version = "0.10.2", features = ["luau", "serialize"]}
 chrono = "0.4.38"
 regex = "1.11.1"
 include_dir = { version = "0.7.4" }
@@ -15,6 +15,7 @@ base64 = { version = "0.13.0" }
 serde_yaml = "0.9.21"
 toml = "0.5.9"
 serde-xml-rs = "0.5.1"
+copy_dir = "0.1.3"
 ring = "0.17.8"
 rsa = "0.9.7"
 rand = "0.8.5"

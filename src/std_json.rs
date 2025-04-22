@@ -1,7 +1,7 @@
 use std::fs;
 
 use mlua::prelude::*;
-use crate::{std_fs, table_helpers::TableBuilder, wrap_err, colors, LuaValueResult};
+use crate::{colors, std_fs::{self, entry::wrap_io_read_errors_empty, validate_path}, table_helpers::TableBuilder, wrap_err, LuaEmptyResult, LuaValueResult};
 
 use serde_json_lenient as serde_json;
 
@@ -159,64 +159,66 @@ fn json_readfile(luau: &Lua, file_path: LuaValue) -> LuaValueResult {
     json_decode(luau, file_content.to_string()?)
 }
 
-fn json_writefile(luau: &Lua, json_write_options: LuaValue) -> LuaValueResult {
-    match json_write_options {
-        LuaValue::Table(options) => {
-            let file_path: LuaValue = options.get("path")?;
-            if file_path == LuaValue::Nil {
-                wrap_err!("json.writefile expected JsonWritefileOptions.path, got nil")
-            } else {
-                let file_content = options.get("content")?;
-                match file_content {
-                    LuaValue::Table(content) => {
-                        let json_result = json_encode(luau, LuaValue::Table(content).into_lua_multi(luau)?)?;
-                        fs::write(file_path.to_string()?, json_result)?;
-                        Ok(LuaNil)
-                    },
-                    LuaValue::String(json) => {
-                        fs::write(file_path.to_string()?, json.to_str()?.to_string())?;
-                        Ok(LuaNil)
-                    },
-                    LuaValue::Nil => {
-                        wrap_err!("expected JsonWritefileOptions.content to be table (to encode to json) or string (already encoded json), got nil.")
-                    },
-                    other => wrap_err!("expected table (to encode to json and save) or string (of already encoded json), got: {:?}", other)
-                }
-            }
+fn json_writefile(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let function_name = "json.writefile(path: string, json: JsonData, options: EncodeOptions?)";
+    let path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
         },
-        other => {
-            wrap_err!("json.writefile expected JsonWritefileOptions, got: {:?}", other)
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path, got nothing", function_name);
+        }
+    };
+    let encoded_data = match json_encode(luau, multivalue) {
+        Ok(encoded) => encoded,
+        Err(err) => {
+            return wrap_err!("{}: encoding error: {}", function_name, err);
+        }
+    };
+    match fs::write(&path, &encoded_data) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            wrap_io_read_errors_empty(err, function_name, &path)
         }
     }
 }
 
-fn json_writefile_raw(luau: &Lua, json_write_options: LuaValue) -> LuaValueResult {
-    match json_write_options {
-        LuaValue::Table(options) => {
-            let file_path: LuaValue = options.get("path")?;
-            if file_path == LuaValue::Nil {
-                wrap_err!("json.writefile_data expected JsonWritefileOptions.path, got nil")
-            } else {
-                let file_content = options.get("content")?;
-                match file_content {
-                    LuaValue::Table(content) => {
-                        let json_result = json_encode_raw(luau, LuaValue::Table(content))?;
-                        fs::write(file_path.to_string()?, json_result)?;
-                        Ok(LuaNil)
-                    },
-                    LuaValue::String(json) => {
-                        fs::write(file_path.to_string()?, json.to_str()?.to_string())?;
-                        Ok(LuaNil)
-                    },
-                    LuaValue::Nil => {
-                        wrap_err!("expected JsonWritefileOptions.content to be table (to encode to json) or string (already encoded json), got nil.")
-                    },
-                    other => wrap_err!("expected table (to encode to json and save) or string (of already encoded json), got: {:?}", other)
+fn json_writefile_raw(_luau: &Lua, mut multivalue: LuaMultiValue) -> LuaEmptyResult {
+    let function_name = "json.writefile_raw(path: string, json: JsonData)";
+    let path = match multivalue.pop_front() {
+        Some(LuaValue::String(path)) => {
+            validate_path(&path, function_name)?
+        },
+        Some(other) => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} expected path, got nothing", function_name);
+        }
+    };
+    let encoded_data = match multivalue.pop_front() {
+        Some(LuaValue::Table(t)) => {
+            match serde_json::to_string(&t) {
+                Ok(data) => data,
+                Err(err) => {
+                    return wrap_err!("{}: unable to encode table: {}", function_name, err)
                 }
             }
         },
-        other => {
-            wrap_err!("json.writefile expected JsonWritefileOptions, got: {:?}", other)
+        Some(other) => {
+            return wrap_err!("{} expected json to be any json-serializable table, got: {:?}", function_name, other);
+        },
+        None => {
+            return wrap_err!("{} missing second argument json", function_name);
+        }
+    };
+    match fs::write(&path, &encoded_data) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            wrap_io_read_errors_empty(err, function_name, &path)
         }
     }
 }
