@@ -19,6 +19,7 @@ jobs:
         with:
           file: Cargo.toml
           field: package.version
+
   build:
     needs: ["version"]
     runs-on: ${{ matrix.os }}
@@ -72,5 +73,5 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: seal-${{ needs.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}
+          name: seal-v${{ needs.version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
           path: ./target/release/seal*
