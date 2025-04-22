@@ -36,9 +36,9 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           $BIN_PATH = ".\target\release\seal.exe"
-          $TEST_CMD = "$BIN_PATH .\tests\run_tests.luau"
-          $STDERR_CHECK = & $TEST_CMD 2>&1 | Out-String
-          if ($STDERR_CHECK -ne "") {
+          $SCRIPT_PATH = ".\tests\run_tests.luau"
+          & $BIN_PATH $SCRIPT_PATH 2> $stderrOutput
+          if ($stderrOutput.Length -gt 0) {
             Write-Host "Tests failed! STDERR contains output."
             exit 1
           }
