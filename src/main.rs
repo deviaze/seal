@@ -78,7 +78,7 @@ fn main() -> LuaResult<()> {
             let globals = luau.globals();
             globals.set("fs", table(std_fs::create(&luau)?))?;
             globals.set("process", table(std_process::create(&luau)?))?;
-            globals.set("net", table(std_net::create(&luau)?))?;
+            globals.set("http", table(std_net_http::create(&luau)?))?;
 
             globals.set("script", TableBuilder::create(&luau)?
                 .with_value("entry_path", "eval")?
