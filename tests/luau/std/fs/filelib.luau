@@ -1,8 +1,8 @@
 local fs = require("@std/fs")
+local env = require("@std/env")
 local file = require("@std/fs/file")
 local path = require("@std/fs/path")
 
-local env = require("@std/env")
 local permission_denied_path = 
 	if env.os == "Windows" then [[C:\System Volume Information]]
 	elseif env.os == "Linux" then "/root"
@@ -29,18 +29,20 @@ end
 
 tryreadnonexistent()
 
-local function tryreadpermissiondenied()
-	local test_path = path.join(permission_denied_path, "hi")
-	local s, f = pcall(function()
-		return path.exists(test_path)
-	end)
-	assert(tostring(f):match("permission denied"), "permission denied path should be permission denied?")
-	local content, result = file.try_read(test_path)
-	assert(content == nil, "why can we read permission denied path and why is there a file named hi there?")
-	assert(result == "PermissionDenied", "why can we read permission denied path?")
+if env.os ~= "Windows" then
+	local function tryreadpermissiondenied()
+		local test_path = path.join(permission_denied_path, "hi")
+		local s, f = pcall(function()
+			return path.exists(test_path)
+		end)
+		assert(tostring(f):match("permission denied"), "permission denied path should be permission denied?")
+		local content, result = file.try_read(test_path)
+		assert(content == nil, "why can we read permission denied path and why is there a file named hi there?")
+		assert(result == "PermissionDenied", "why can we read permission denied path?")
+	end
+	
+	tryreadpermissiondenied()
 end
-
-tryreadpermissiondenied()
 
 local function tryreadbytes()
 	local cats, result = file.try_readbytes(path.join(datadir, "cats.json"))
@@ -58,14 +60,16 @@ end
 
 tryreadbytesnotfound()
 
-local function tryreadbytespermissiondenied()
-	local test_path = path.join(permission_denied_path, "hehe")
-	local content_buffy, result = file.try_readbytes(test_path)
-	assert(content_buffy == nil, "we shouldn't have content from trying to readbytes permission denied path")
-	assert(result == "PermissionDenied", "readbytes permission denied path should PermissionDenied")
+if env.os ~= "Windows" then
+	local function tryreadbytespermissiondenied()
+		local test_path = path.join(permission_denied_path, "hehe")
+		local content_buffy, result = file.try_readbytes(test_path)
+		assert(content_buffy == nil, "we shouldn't have content from trying to readbytes permission denied path")
+		assert(result == "PermissionDenied", "readbytes permission denied path should PermissionDenied")
+	end
+	
+	tryreadbytespermissiondenied()
 end
-
-tryreadbytespermissiondenied()
 
 local function trywrite()
 	local new_file_path = path.join(datadir, "hmm.txt")
@@ -109,8 +113,11 @@ local function tryremovefileadir()
 	):expect_dir("tryfilecantremoveme")
 
 	local success, result = file.try_remove(cantremoveme.path)
-
-	assert(success == false and result == "IsADirectory", "unexpectedly not IsADirectory")
+	if env.os ~= "Windows" then
+		assert(success == false and result == "IsADirectory", "unexpectedly not IsADirectory")
+	else
+		assert(success == false and result == "PermissionDenied", "removing dir with file.try_remove not PermissionDenied on windows?")
+	end
 	
 	cantremoveme:remove()
 end
@@ -125,10 +132,12 @@ end
 
 tryremovenotexists()
 
-local function tryremovepermissiondenied()
-	local denied_path = path.join(permission_denied_path, "hi.txt")
-	local success, failure = file.try_remove(denied_path)
-	assert(success == false and failure == "PermissionDenied", "can remove permission denied? huh")
+if env.os ~= "Windows" then
+	local function tryremovepermissiondenied()
+		local denied_path = path.join(permission_denied_path, "hi.txt")
+		local success, failure = file.try_remove(denied_path)
+		assert(success == false and failure == "PermissionDenied", "can remove permission denied? huh")
+	end
+	
+	tryremovepermissiondenied()
 end
-
-tryremovepermissiondenied()

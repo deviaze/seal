@@ -1,4 +1,5 @@
 local fs = require("@std/fs")
+local env = require("@std/env")
 
 local function ensuredir()
 	local src = fs.dir.ensure("./src")
@@ -14,9 +15,8 @@ end
 
 ensuredir()
 
-local env = require("@std/env")
 local permission_denied_path = 
-	if env.os == "Windows" then [[C:\System Volume Information]]
+	if env.os == "Windows" then [[C:\System]]
 	elseif env.os == "Linux" then "/root"
 	elseif env.os == "Android" then "/data"
 	elseif env.os == "MacOS" then "/private/var/root"
@@ -36,13 +36,16 @@ end
 
 tryremove()
 
-local function tryremovepermissiondenied()
-	local denied_path = fs.path.join(permission_denied_path, "hi")
-	local success, result, kind = fs.dir.try_remove(denied_path)
-	assert(success == false and result == "PermissionDenied", "removing permisison denied dir should be permission denied")
+if env.os ~= "Windows" then -- returns NotFound on Windows instead of PermissionDenied and I don't want to test removing a REAL important path
+	local function tryremovepermissiondenied()
+		local denied_path = fs.path.join(permission_denied_path, "hi")
+		local success, result, kind = fs.dir.try_remove(denied_path)
+		assert(success == false and result == "PermissionDenied", "removing permisison denied dir should be permission denied")
+	end
+	
+	tryremovepermissiondenied()
 end
 
-tryremovepermissiondenied()
 
 local function tryremovenotfound()
 	local not_found_path = fs.path.join(data_dir.path, "notfounddir")
