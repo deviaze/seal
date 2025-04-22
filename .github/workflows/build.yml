@@ -4,7 +4,23 @@ on:
   workflow_dispatch:  # Allows manual triggering
 
 jobs:
+  version: # credit to lune
+    name: Get version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.value }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from manifest
+        uses: SebRollen/toml-action@v1.2.0
+        id: get_version
+        with:
+          file: Cargo.toml
+          field: package.version
   build:
+    needs: ["version"]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -25,7 +41,15 @@ jobs:
         run: |
           BIN_PATH="./target/release/seal"
           TEST_CMD="$BIN_PATH ./tests/run_tests.luau"
-          STDERR_CHECK=$($TEST_CMD 2>&1 >/dev/null)
+          
+          # Capture both stdout and stderr separately
+          STDOUT_CHECK=$($TEST_CMD 2>/tmp/stderr_output)
+          
+          # Print stdout to GitHub Actions logs
+          echo "$STDOUT_CHECK"
+          
+          # Check stderr separately
+          STDERR_CHECK=$(cat /tmp/stderr_output)
           if [ -n "$STDERR_CHECK" ]; then
             echo "Tests failed! STDERR contains output."
             exit 1
@@ -48,5 +72,5 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: seal-build-${{ matrix.os }}
+          name: seal-${{ needs.version.outputs.version }}-${{ matrix.os }}-${{ matrix.arch }}
           path: ./target/release/seal*
