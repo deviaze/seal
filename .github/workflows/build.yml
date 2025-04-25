@@ -1,0 +1,77 @@
+name: Build and Test Seal
+
+on:
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  version: # credit to lune
+    name: Get version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.value }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get version from manifest
+        uses: SebRollen/toml-action@v1.2.0
+        id: get_version
+        with:
+          file: Cargo.toml
+          field: package.version
+
+  build:
+    needs: ["version"]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build project
+        run: cargo build --release
+
+      - name: Run tests (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          BIN_PATH="./target/release/seal"
+          TEST_CMD="$BIN_PATH ./tests/run_tests.luau"
+          
+          # Capture both stdout and stderr separately
+          STDOUT_CHECK=$($TEST_CMD 2>/tmp/stderr_output)
+          
+          # Print stdout to GitHub Actions logs
+          echo "$STDOUT_CHECK"
+          
+          # Check stderr separately
+          STDERR_CHECK=$(cat /tmp/stderr_output)
+          if [ -n "$STDERR_CHECK" ]; then
+            echo "Tests failed! STDERR contains output."
+            exit 1
+          fi
+        shell: bash
+
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $BIN_PATH = ".\target\release\seal.exe"
+          $SCRIPT_PATH = ".\tests\run_tests.luau"
+          & $BIN_PATH $SCRIPT_PATH 2> $stderrOutput
+          if ($stderrOutput.Length -gt 0) {
+            Write-Host "Tests failed! STDERR contains output."
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Upload artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: seal-v${{ needs.version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
+          path: ./target/release/seal*
