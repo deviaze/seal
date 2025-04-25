@@ -27,10 +27,10 @@ fn file_readfile(luau: &Lua, value: LuaValue) -> LuaValueResult {
 /// helper function for fs.readbytes and FileEntry:readbytes(); expects multivalue like
 /// (file_offset: number?, count: number?, target_buffer: buffer?, buffer_offset: number?)
 pub fn read_file_into_buffer(luau: &Lua, entry_path: &str, mut multivalue: LuaMultiValue, function_name_and_args: &str) -> LuaValueResult {
-    let try_truncate_f64 = | f: f64, context: &str | -> LuaResult<i32> {
+    let try_truncate_f64 = | f: f64, context: &str | -> LuaResult<i64> {
         let truncated_f = f.trunc();
         if truncated_f != f {
-            Ok(truncated_f as i32)
+            Ok(truncated_f as i64)
         } else {
             wrap_err!("{} expected {} to be an integer number, got floating point number", function_name_and_args, context)
         }
@@ -72,7 +72,7 @@ pub fn read_file_into_buffer(luau: &Lua, entry_path: &str, mut multivalue: LuaMu
     };
 
     // sanity checks
-    let assert_sign = | n: i32, context: &str | -> LuaResult<u64> {
+    let assert_sign = | n: i64, context: &str | -> LuaResult<u64> {
         if n < 0 {
             wrap_err!("{}: {} cannot be negative", function_name_and_args, context)
         } else {

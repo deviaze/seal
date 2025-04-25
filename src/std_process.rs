@@ -458,14 +458,18 @@ fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
     let globals = luau.globals();
     match globals.get("_process_exit_callback_function")? {
         LuaValue::Function(f) => {
-            f.call::<i32>(exit_code)?;
+            f.call::<i64>(exit_code)?;
         },
         LuaValue::Nil => {},
         other => {
             unreachable!("wtf is in _process_exit_callback_function other than a function or nil?: {:?}", other)
         }
     }
-    process::exit(exit_code);
+    if let Ok(exit_code) = i32::try_from(exit_code) {
+        process::exit(exit_code);
+    } else {
+        wrap_err!("process.exit: your exit code is too big ({}), we can't convert it to i32.", exit_code)
+    }
 }
 
 

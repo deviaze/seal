@@ -21,17 +21,23 @@ pub fn from_system_time(luau: &Lua, system_time: SystemTime) -> LuaValueResult {
 }
 
 pub fn time_datetime_from(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "datetime.from(unix_timestamp: number)";
     let unix_timestamp = match value { 
         LuaValue::Integer(unix_timestamp) => unix_timestamp,
-        LuaValue::Number(maybe_timestamp) => {
-            maybe_timestamp as i32
+        LuaValue::Number(fake_timestamp) => {
+            return wrap_err!("{} expected unix_timestamp to be an integer number (i64), got floating point number ({}) instead", function_name, fake_timestamp);
         },
         other =>  {
-            return wrap_err!("datetime.from(unix_timestamp) expected unix_timestamp to be a number, got: {:?}", other);
+            return wrap_err!("{} expected unix_timestamp to be a number (integer i64), got: {:?}", function_name, other);
         }
     };
 
-    let dt = chrono::DateTime::from_timestamp(unix_timestamp.into(), 0).unwrap();
+    let dt = match chrono::DateTime::from_timestamp(unix_timestamp, 0) {
+        Some(dt) => dt,
+        None => {
+            return wrap_err!("{} cannot convert unix_timestamp ({}) into DateTime<Utc>", function_name, unix_timestamp);
+        }
+    };
     Ok(LuaValue::Table(
         TableBuilder::create(luau)?
             .with_value("unix_timestamp", dt.timestamp())?

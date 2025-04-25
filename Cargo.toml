@@ -4,7 +4,8 @@ version = "0.0.4"
 edition = "2021"
 
 [dependencies]
-mlua = {version = "0.10.2", features = ["luau", "serialize"]}
+# mlua = {version = "0.10.3", features = ["luau", "serialize"]}
+mlua = { git = "https://github.com/mlua-rs/mlua.git", features = ["luau", "serialize"] }
 chrono = "0.4.38"
 regex = "1.11.1"
 include_dir = { version = "0.7.4" }

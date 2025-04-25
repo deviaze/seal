@@ -187,14 +187,7 @@ pub fn create_toml(luau: &Lua) -> LuaResult<LuaTable> {
 fn convert_toml_to_lua(luau: &Lua, value: TomlValue) -> LuaValueResult {
     match value {
         TomlValue::String(s) => Ok(LuaValue::String(luau.create_string(&s)?)),
-        TomlValue::Integer(i) => Ok(LuaValue::Integer(
-            match i.try_into() {
-                Ok(i) => i,
-                Err(err) => {
-                    return wrap_err!("Can't convert toml i64 to Luau i32 integer: {}", err);
-                }
-            }
-        )),
+        TomlValue::Integer(i) => Ok(LuaValue::Integer(i)),
         TomlValue::Float(f) => Ok(LuaValue::Number(f)),
         TomlValue::Boolean(b) => Ok(LuaValue::Boolean(b)),
         TomlValue::Datetime(dt) => Ok(LuaValue::String(luau.create_string(dt.to_string())?)),
@@ -226,7 +219,7 @@ fn convert_lua_to_toml(luau: &Lua, table: LuaTable) -> LuaResult<TomlValue> {
         };
         let toml_value = match value {
             LuaValue::String(s) => TomlValue::String(s.to_str()?.to_string()),
-            LuaValue::Integer(i) => TomlValue::Integer(i.into()),
+            LuaValue::Integer(i) => TomlValue::Integer(i),
             LuaValue::Number(n) => TomlValue::Float(n),
             LuaValue::Boolean(b) => TomlValue::Boolean(b),
             LuaValue::Table(t) => convert_lua_to_toml(luau, t)?,
