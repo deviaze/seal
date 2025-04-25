@@ -1,5 +1,7 @@
+use core::str;
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::process::{self, Command, Stdio};
+use std::path::PathBuf;
+use std::process::{self, Command, Output, Stdio};
 // use std::thread;
 use std::sync::{Arc, Mutex};
 
@@ -7,10 +9,12 @@ use mlua::prelude::*;
 use crate::require::ok_table;
 use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult};
 
+#[derive(Clone, Debug)]
 struct RunOptions {
     program: String,
     args: Vec<String>,
     shell: Option<String>,
+    cwd: Option<PathBuf>,
 }
 
 impl RunOptions {
@@ -19,12 +23,13 @@ impl RunOptions {
         RunOptions {
             program,
             args,
-            shell
+            shell,
+            cwd: None,
         }
     }
 
     fn from_table(luau: &Lua, run_options: LuaTable) -> LuaResult<Self> {
-        let program = match run_options.raw_get("program").unwrap() {
+        let program = match run_options.raw_get("program")? {
             LuaValue::String(program) => {
                 program.to_string_lossy()
             },
@@ -36,7 +41,7 @@ impl RunOptions {
             }
         };
 
-        let args = match run_options.raw_get("args").unwrap() {
+        let args = match run_options.raw_get("args")? {
             LuaValue::Table(args) => {
                 let mut rust_vec: Vec<String> = Vec::from_lua(LuaValue::Table(args), luau)?;
                 // let's trim the whitespace just to make sure we pass valid args (untrimmed args might explode)
@@ -53,7 +58,7 @@ impl RunOptions {
             }
         };
 
-        let shell = match run_options.raw_get("shell").unwrap() {
+        let shell = match run_options.raw_get("shell")? {
             LuaValue::String(shell) => {
                 Some(shell.to_string_lossy())
             },
@@ -65,111 +70,197 @@ impl RunOptions {
             }
         };
 
+        let cwd = match run_options.raw_get("cwd")? {
+            LuaValue::String(cwd) => {
+                let cwd = cwd.as_bytes();
+                let cwd_str = str::from_utf8(&cwd)?;
+                let cwd_pathpuf = PathBuf::from(cwd_str);
+                let canonicalized_cwd = match cwd_pathpuf.canonicalize() {
+                    Ok(pathbuf) => pathbuf,
+                    Err(err) => {
+                        return wrap_err!("RunOptions.cwd must be able to be canonicalized as an absolute path that currently exists on the filesystem; \
+                        canonicalization failed with err: {}", err);
+                    }
+                };
+                Some(canonicalized_cwd)
+            },
+            LuaNil => None,
+            other => {
+                return wrap_err!("RunOpitons.cwd to be a string or nil, got: {:?}", other);
+            }
+        };
+
         Ok(RunOptions {
             program,
             args,
-            shell
+            shell,
+            cwd,
         })
         
     }
 }
 
+fn run_result_unwrap_or(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "RunResult:unwrap_or(default: string | (result: RunResult) -> string)";
+    let run_result = match multivalue.pop_front() {
+        Some(LuaValue::Table(run_result)) => run_result,
+        Some(other) => {
+            return wrap_err!("{} expected self to be a RunResult table, got: {:?}", function_name, other);
+        }
+        None => {
+            return wrap_err!("{} expected to be called with self; did you forget methodcall syntax (:)?", function_name);
+        },
+    };
+
+    let default_value: Option<LuaValue> = match multivalue.pop_front() {
+        Some(LuaValue::String(default)) => Some(LuaValue::String(default)),
+        Some(LuaValue::Function(f)) => Some(LuaValue::Function(f)),
+        Some(LuaNil) => Some(LuaNil),
+        Some(other) => {
+            return wrap_err!("{}: expected default value to be a string (or a function that returns one), got: {:?}", function_name, other);
+        },
+        None => None,
+    };
+
+    let is_ok = match run_result.raw_get("ok")? {
+        LuaValue::Boolean(b) => b,
+        other => {
+            return wrap_err!("{}: expected RunResult.ok to be a boolean, got: {:?}", function_name, other);
+        },
+    };
+
+    let stdout = if is_ok {
+        match run_result.raw_get("stdout")? {
+            LuaValue::String(s) => {
+                let Ok(s) = s.to_str() else {
+                    return wrap_err!("{}: stdout is not a valid utf-8 encoded string, use RunResult.stdout to get the raw stdout without attempting to trim/clean it", function_name);
+                };
+                let s = s.trim_end();
+                LuaValue::String(luau.create_string(s)?)
+            },
+            other => {
+                return wrap_err!("{} RunResult.stdout is not a string??: {:?}", function_name, other);
+            }
+        }
+    } else if let Some(default_value) = default_value {
+        match default_value {
+            LuaValue::String(d) => LuaValue::String(d),
+            LuaValue::Function(f) => {
+                match f.call::<LuaValue>(run_result) {
+                    Ok(LuaValue::String(default)) => {
+                        LuaValue::String(default)
+                    },
+                    Ok(other) => {
+                        return wrap_err!("{}: expected default value function to return string, got: {:?}", function_name, other);
+                    },
+                    Err(err) => {
+                        return wrap_err!("{}: default value function unexpectedly errored: {}", function_name, err);
+                    },
+                }
+            },
+            other => {
+                return wrap_err!("{}: default value expected to be a string (or a function that returns one), got: {:?}", function_name, other);
+            }
+        }
+    } else {
+        return wrap_err!("Attempt to {} an unsuccessful RunResult without a default value!", function_name);
+    };
+    Ok(stdout)
+}
+
+fn trim_end_or_return(vec: &[u8]) -> &[u8] {
+    match str::from_utf8(vec) {
+        Ok(s) => s.trim_end().as_bytes(),
+        Err(_) => vec
+    }
+}
+
+fn run_command(options: RunOptions) -> io::Result<Output> {
+    let shell_switches = if let Some(shell) = options.shell {
+        match shell.as_str() {
+            "pwsh" | "powershell" => vec!["-Command", "-NonInteractive"],
+            _other => vec!["-c"]
+        }
+    } else {
+        Vec::new()
+    };
+    
+    let mut command = Command::new(&options.program);
+    if !shell_switches.is_empty() {
+        command.args(shell_switches);
+    }
+    command.args(options.args);
+    if let Some(cwd) = options.cwd {
+        command.current_dir(&cwd);
+    }
+    command.output()
+}
+
+fn create_run_result_table(luau: &Lua, output: Output) -> LuaValueResult {
+    let ok = output.status.success();
+    let stdout = output.stdout.clone();
+    let stderr = output.stderr.clone();
+
+    let run_result = TableBuilder::create(luau)?
+        .with_value("ok", ok)?
+        .with_value("out", {
+            if ok {
+                let s = trim_end_or_return(&stdout);
+                LuaValue::String(luau.create_string(s)?)
+            } else {
+                LuaNil
+            }
+        })?
+        .with_value("err", {
+            if !ok {
+                let s = trim_end_or_return(&stderr);
+                LuaValue::String(luau.create_string(s)?)
+            } else {
+                LuaNil
+            }
+        })?
+        .with_value("stdout", luau.create_string(&stdout)?)?
+        .with_value("stderr", luau.create_string(&stderr)?)?
+        .with_function("unwrap", {
+            move | luau: &Lua, _value: LuaMultiValue | -> LuaValueResult {
+                if ok {
+                    let s = trim_end_or_return(&stdout);
+                    Ok(LuaValue::String(luau.create_string(s)?))
+                } else {
+                    wrap_err!("Attempt to :unwrap() a failed RunResult! Use :unwrap_or to specify a default value")
+                }
+            }
+        })?
+        .with_function("unwrap_or", run_result_unwrap_or)?
+        .build_readonly();
+
+    ok_table(run_result)
+}
+
 fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
+    let function_name = "process.run(options: RunOptions)";
     let options = match run_options {
         LuaValue::Table(run_options) => {
             RunOptions::from_table(luau, run_options)?
         },
         LuaValue::Nil => {
-            return wrap_err!("process.run expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got nil.");
+            return wrap_err!("{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string?, cwd: string? }}, got nil.", function_name);
         },
         other => {
-            return wrap_err!("process.run expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got: {:#?}", other);
+            return wrap_err!("{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string?, cwd: string? }}, got: {:#?}", function_name, other);
         }
     };
 
-    let output = {
-        match if let Some(shell) = options.shell {
-            Command::new(shell.clone())
-                .arg(
-                    if shell.as_str() == "pwsh" || shell.as_str() == "powershell" {
-                        "-Command"
-                    } else {
-                        "-c"
-                    }
-                )
-                .arg(options.program)
-                .arg(options.args.join(" "))
-                .output()
-        } else {
-            Command::new(options.program)
-                .args(options.args)
-                .output()
-        } {
-            Ok(output) => output,
-            Err(err) => {
-                // it breaks here on windows
-                let err_message = format!("process.run failed to execute process: {}", err);
-                let failed_to_exec_table = TableBuilder::create(luau)?
-                    .with_value("ok", false)?
-                    .with_value("out", "")?
-                    .with_value("err", err_message)?
-                    .with_value("stdout", "")?
-                    .with_value("stderr", "")?
-                    .with_function("unwrap",
-                        | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                            let _failure_table = multivalue.pop_front();
-                            let default_arg = match multivalue.pop_front() {
-                                Some(value) => value,
-                                None => {
-                                    return wrap_err!("Attempt to ProcessRunResult:unwrap() an erred process.run without a default value!")
-                                }
-                            };
-                            Ok(default_arg)
-                        }
-                    )?
-                    .build_readonly();
-                return ok_table(failed_to_exec_table)
-            }
+    match run_command(options.clone()) {
+        Ok(output) => {
+            create_run_result_table(luau, output)
+        },
+        Err(err) => {
+            // we want to throw an error if the program was unable to spawn at all
+            // this is because when a user calls process.run/shell, they expect their program to actually run
+            // and we don't want the 'ok' or 'err' value to serve two purposes (program failed to execute vs program executed with error)
+            wrap_err!("{} was unable to run the program '{}': {}", function_name, options.program, err)
         }
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    if output.status.success() {
-        let success_table = TableBuilder::create(luau)?
-            .with_value("ok", true)?
-            .with_value("out", stdout.clone())?
-            .with_value("stdout", stdout.clone())?
-            .with_value("stderr", stderr.clone())?
-            .with_function("unwrap", {
-                let stdout = stdout.clone().to_string();
-                move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                    Ok(LuaValue::String(luau.create_string(stdout.clone())?))
-                }
-            })?
-            .build_readonly()?;
-        Ok(LuaValue::Table(success_table))
-    } else {
-        let failure_table = TableBuilder::create(luau)?
-            .with_value("ok", false)?
-            .with_value("err", stderr.clone())?
-            .with_value("stdout", stdout.clone())?
-            .with_value("stderr", stderr.clone())?
-            .with_function("unwrap",
-                | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                    let _failure_table = multivalue.pop_front();
-                    let default_arg = match multivalue.pop_front() {
-                        Some(value) => value,
-                        None => {
-                            return wrap_err!("Attempt to ProcessRunResult:unwrap() an erred process.run without a default value!")
-                        }
-                    };
-                    Ok(default_arg)
-                }
-            )?
-            .build_readonly()?;
-        Ok(LuaValue::Table(failure_table))
     }
 }
 
@@ -395,18 +486,28 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 }
 
 fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
-    let shell_path = std_env::get_current_shell();
-    match shell_command {
+    let function_name = "process.shell(command: string)";
+    let shell_name = std_env::get_current_shell();
+    let shell_command = match shell_command {
         LuaValue::String(command) => {
-            process_run(luau, LuaValue::Table(
-                TableBuilder::create(luau)?
-                    .with_value("program", command)?
-                    .with_value("shell", shell_path)?
-                    .build_readonly()?
-            ))
+            command.to_str()?.to_string()
         },
         other => {
-            wrap_err!("process.shell(command) expected command to be a string, got: {:#?}", other)
+            return wrap_err!("{} expected command to be a string, got: {:?}", function_name, other);
+        }
+    };
+    
+    let run_options = RunOptions {
+        program: shell_name.clone(),
+        args: vec![shell_command.clone()],
+        shell: Some(shell_name.clone()),
+        cwd: None,
+    };
+
+    match run_command(run_options) {
+        Ok(output) => create_run_result_table(luau, output),
+        Err(err) => {
+            wrap_err!("{} unable to run shell command with shell '{}' ('{}') because of err: {}", function_name, shell_name, shell_command, err)
         }
     }
 }

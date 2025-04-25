@@ -16,13 +16,8 @@ pub fn get_current_shell() -> String {
 
     #[cfg(target_os = "windows")]
     {
-        // On Windows systems, first check the SHELL environment variable (if set)
+        // first check the SHELL environment variable (if set) if user install custom shell
         if let Ok(shell_path) = env::var("SHELL") {
-            return shell_path;
-        }
-        
-        // If SHELL is not set, check for PowerShell (pwsh.exe) or cmd (ComSpec)
-        if let Ok(shell_path) = env::var("ComSpec") {
             return shell_path;
         }
         
@@ -30,18 +25,25 @@ pub fn get_current_shell() -> String {
         let pwsh_cmd = "pwsh";
         let powershell_cmd = "powershell";
         
+        // check if regular powershell installed bc pwsh 7 blows up
+        if let Ok(output) = Command::new("where").arg(powershell_cmd).output() {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                return path;
+            }
+        }
+        
+        // check if new/oss/powershell 7 installed; it might blow up with threading error tho
         if let Ok(output) = Command::new("where").arg(pwsh_cmd).output() {
             if output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 return path;
             }
         }
-
-        if let Ok(output) = Command::new("where").arg(powershell_cmd).output() {
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                return path;
-            }
+        // fallback to cmd
+        if let Ok(shell_path) = env::var("ComSpec") {
+            eprintln!("get_current_shell falling to back to cmd.exe; please set $SHELL");
+            return shell_path;
         }
     }
 

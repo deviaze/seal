@@ -10,7 +10,8 @@ export type RunResult = ({
 	stdout: string,
 	stderr: string,
 }) & {
-	unwrap: (self: RunResult, default: any?) -> string
+	unwrap: (self: RunResult) -> string,
+	unwrap_or: (self: RunResult, default: string | (result: RunResult) -> string) -> string
 }
 
 export type RunOptions = {
