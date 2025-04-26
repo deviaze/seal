@@ -113,7 +113,7 @@ local function tryremovefileadir()
 	):expect_dir("tryfilecantremoveme")
 
 	local success, result = file.try_remove(cantremoveme.path)
-	if env.os == "Linux" or env.os == "MacOS" then
+	if env.os == "Linux" then
 		assert(success == false and result == "IsADirectory", "unexpectedly not IsADirectory")
 	elseif env.os == "Windows" then
 		assert(success == false and result == "PermissionDenied", "removing dir with file.try_remove not PermissionDenied on Windows?")

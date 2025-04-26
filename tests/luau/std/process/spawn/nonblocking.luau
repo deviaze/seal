@@ -1,11 +1,14 @@
+local env = require("@std/env")
 local process = require("@std/process")
 
 local folder_path = "./tests/luau/std/process/spawn/"
 local longrunning_path = `{folder_path}/longrunning.luau`
 
+local seal_path = env.executable_path
+
 local function test_reads()
 	local child = process.spawn {
-		program = "seal",
+		program = seal_path,
 		args = { longrunning_path },
 	}
 	
@@ -23,7 +26,7 @@ end
 
 local function test_lines()
 	local child = process.spawn {
-		program = "seal",
+		program = seal_path,
 		args = { longrunning_path },
 	}
 	
@@ -35,7 +38,7 @@ end
 local function test_stdin()
 	local stdin_path = `{folder_path}/has_stdin.luau`
 	local child = process.spawn {
-		program = "seal",
+		program = seal_path,
 		args = { stdin_path }
 	}
 	child.stdin:write("yes\n")

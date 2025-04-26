@@ -1,6 +1,8 @@
 local process = require("@std/process")
 local env = require("@std/env")
 
+local seal_path = env.executable_path
+
 if env.os ~= "Windows" then
 	local res = process.run {
 		program = "cd ./src; pwd",
@@ -21,7 +23,7 @@ end
 nonexistentprogram()
 
 local failed_res = process.run {
-	program = env.executable_path,
+	program = seal_path,
 	args = { "eval", "process.exit(1)"}
 }
 
@@ -48,7 +50,7 @@ local function computedresult()
 		process.exit(1)
 	]]
 	local fails_and_writes_to_stderr_default = process.run {
-		program = "seal",
+		program = seal_path,
 		args = { "eval", uh_oh_src:gsub("\n", "") }
 	}:unwrap_or(function(result: process.RunResult)
 		local stderr = result.stderr
