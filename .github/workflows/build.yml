@@ -1,7 +1,13 @@
-name: Build and Test Seal
+name: Run tests and build artifacts
 
 on:
-  workflow_dispatch:  # Allows manual triggering
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:  # manual triggering
 
 jobs:
   version: # credit to lune
