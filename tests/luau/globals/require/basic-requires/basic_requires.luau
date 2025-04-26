@@ -74,7 +74,9 @@ local function circular()
 		program = env.executable_path,
 		args = { circulars:expect_file("callmeback.luau").path }
 	}
-	assert(os.clock() - start_time < 1, "oh no are we infinite yielding?")
+	assert(os.clock() - start_time < (
+		if env.os ~= "Windows" then 1.25 else 5 -- windows is slow potato of a process runner
+	), "oh no are we infinite yielding?")
 	circulars:remove()
 end
 

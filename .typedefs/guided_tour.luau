@@ -117,9 +117,10 @@ end
 type SpawningChildProcesses = {}; local back: TableOfContents do
 	local process = require("@std/process")
 
-	-- to run a shell command, use process.shell; this uses some magic to figure out which shell you're currently using
+	-- to run a shell command, use process.shell; this uses some magic (checks $SHELL, falls back to `powershell` on windows) 
+	-- to figure out which shell you're currently using
 	-- and spawns a shell command child process with your preferred shell
-	local lslist = process.shell("ls"):unwrap("can't ls")
+	local lslist = process.shell("ls"):unwrap_or("can't ls")
 
 	-- to run any arbitrary process that blocks (the current VM) until it completes, use process.run
 	local result = process.run {

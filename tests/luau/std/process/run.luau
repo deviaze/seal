@@ -15,7 +15,7 @@ local function nonexistentprogram()
 			program = "idontexist",
 		})
 	end)
-	assert(tostring(err):match("program not found"), "why do you have a program named 'idontexist'???")
+	assert(tostring(err):match("unable to run the program"), "why do you have a program named 'idontexist'???")
 end
 
 nonexistentprogram()

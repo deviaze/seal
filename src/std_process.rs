@@ -1,6 +1,6 @@
 use core::str;
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
 // use std::thread;
 use std::sync::{Arc, Mutex};
@@ -9,25 +9,70 @@ use mlua::prelude::*;
 use crate::require::ok_table;
 use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult};
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+enum Shell {
+    #[allow(clippy::enum_variant_names)]
+    WindowsPowerShell,
+    Pwsh,
+    Bash,
+    Sh,
+    Zsh,
+    Fish,
+    CmdDotExe,
+    Other(String),
+}
+
+impl From<String> for Shell {
+    fn from(s: String) -> Self {
+        let shell_name = Path::new(&s)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or(&s); // If file_name fails, fall back to the original
+
+        match shell_name {
+            "pwsh" => Shell::Pwsh,
+            "powershell" => Shell::WindowsPowerShell,
+            "bash" => Shell::Bash,
+            "sh" => Shell::Sh,
+            "zsh" => Shell::Zsh,
+            "fish" => Shell::Fish,
+            "cmd" | "cmd.exe" => Shell::CmdDotExe,
+            other => Shell::Other(other.to_string()),
+        }
+    }
+}
+
+impl Shell {
+    fn program_name(&self) -> &str {
+        match self {
+            Shell::Pwsh => "pwsh",
+            Shell::WindowsPowerShell => "powershell",
+            Shell::Bash => "bash",
+            Shell::Sh => "sh",
+            Shell::Zsh => "zsh",
+            Shell::Fish => "fish",
+            Shell::CmdDotExe => "cmd.exe",
+            Shell::Other(name) => name.as_str(),
+        }
+    }
+    fn get_switches(&self) -> Vec<&str> {
+        match self {
+            Shell::Pwsh | Shell::WindowsPowerShell => vec!["-Command", "-NonInteractive"],
+            Shell::CmdDotExe => vec!["/C"],
+            _other => vec!["-c"],
+        }
+    }
+}
+
+#[derive(Debug)]
 struct RunOptions {
     program: String,
-    args: Vec<String>,
-    shell: Option<String>,
+    args: Option<Vec<String>>,
+    shell: Option<Shell>,
     cwd: Option<PathBuf>,
 }
 
 impl RunOptions {
-    #[allow(dead_code)]
-    fn new(program: String, args: Vec<String>, shell: Option<String>) -> Self {
-        RunOptions {
-            program,
-            args,
-            shell,
-            cwd: None,
-        }
-    }
-
     fn from_table(luau: &Lua, run_options: LuaTable) -> LuaResult<Self> {
         let program = match run_options.raw_get("program")? {
             LuaValue::String(program) => {
@@ -48,10 +93,10 @@ impl RunOptions {
                 for s in rust_vec.iter_mut() {
                     *s = s.trim().to_string();
                 };
-                rust_vec
+                Some(rust_vec)
             },
             LuaValue::Nil => {
-                Vec::new()
+                None
             },
             other => {
                 return wrap_err!("RunOptions.args expected to be {{string}} or nil, got: {:#?}", other);
@@ -60,7 +105,7 @@ impl RunOptions {
 
         let shell = match run_options.raw_get("shell")? {
             LuaValue::String(shell) => {
-                Some(shell.to_string_lossy())
+                Some(Shell::from(shell.to_string_lossy()))
             },
             LuaValue::Nil => {
                 None
@@ -175,27 +220,6 @@ fn trim_end_or_return(vec: &[u8]) -> &[u8] {
     }
 }
 
-fn run_command(options: RunOptions) -> io::Result<Output> {
-    let shell_switches = if let Some(shell) = options.shell {
-        match shell.as_str() {
-            "pwsh" | "powershell" => vec!["-Command", "-NonInteractive"],
-            _other => vec!["-c"]
-        }
-    } else {
-        Vec::new()
-    };
-    
-    let mut command = Command::new(&options.program);
-    if !shell_switches.is_empty() {
-        command.args(shell_switches);
-    }
-    command.args(options.args);
-    if let Some(cwd) = options.cwd {
-        command.current_dir(&cwd);
-    }
-    command.output()
-}
-
 fn create_run_result_table(luau: &Lua, output: Output) -> LuaValueResult {
     let ok = output.status.success();
     let stdout = output.stdout.clone();
@@ -237,6 +261,35 @@ fn create_run_result_table(luau: &Lua, output: Output) -> LuaValueResult {
     ok_table(run_result)
 }
 
+fn run_command(options: RunOptions) -> io::Result<Output> {
+    let shell_switches = match options.shell {
+        Some(ref shell) => shell.get_switches(),
+        None => Vec::new(),
+    };
+
+    if let Some(ref shell) = options.shell {
+        let mut command = Command::new(shell.program_name());
+        command.args(shell_switches);
+        command.arg(options.program);
+        if let Some(args) = options.args {
+            command.arg(args.join(" "));
+        }
+        if let Some(cwd) = options.cwd {
+            command.current_dir(&cwd);
+        }
+        command.output()
+    } else {
+        let mut command = Command::new(&options.program);
+        if let Some(args) = options.args {
+            command.args(args);
+        }
+        if let Some(cwd) = options.cwd {
+            command.current_dir(&cwd);
+        }
+        command.output()
+    }
+}
+
 fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
     let function_name = "process.run(options: RunOptions)";
     let options = match run_options {
@@ -251,7 +304,9 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
         }
     };
 
-    match run_command(options.clone()) {
+    let program_to_run= options.program.clone();
+
+    match run_command(options) {
         Ok(output) => {
             create_run_result_table(luau, output)
         },
@@ -259,7 +314,34 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
             // we want to throw an error if the program was unable to spawn at all
             // this is because when a user calls process.run/shell, they expect their program to actually run
             // and we don't want the 'ok' or 'err' value to serve two purposes (program failed to execute vs program executed with error)
-            wrap_err!("{} was unable to run the program '{}': {}", function_name, options.program, err)
+            wrap_err!("{} was unable to run the program '{}': {}", function_name, program_to_run, err)
+        }
+    }
+}
+
+fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
+    let function_name = "process.shell(command: string)";
+    let shell_name = std_env::get_current_shell();
+    let shell_command = match shell_command {
+        LuaValue::String(command) => {
+            command.to_str()?.to_string()
+        },
+        other => {
+            return wrap_err!("{} expected command to be a string, got: {:?}", function_name, other);
+        }
+    };
+    
+    let run_options = RunOptions {
+        program: shell_command.clone(),
+        args: None,
+        shell: Some(Shell::from(shell_name.clone())),
+        cwd: None,
+    };
+
+    match run_command(run_options) {
+        Ok(output) => create_run_result_table(luau, output),
+        Err(err) => {
+            wrap_err!("{} unable to run shell command '{}' with shell '{}' because of err: {}", function_name, shell_command, shell_name, err)
         }
     }
 }
@@ -277,25 +359,31 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
         }
     };
 
+    let shell_switches = match options.shell {
+        Some(ref shell) => shell.get_switches(),
+        None => Vec::new(),
+    };
+
     let mut child = {
-        match if let Some(shell) = options.shell {
-            Command::new(shell.clone())
-                .arg(
-                    if shell.as_str() == "pwsh" || shell.as_str() == "powershell" {
-                        "-Command"
-                    } else {
-                        "-c"
-                    }
-                )
-                .arg(options.program)
-                .arg(options.args.join(" "))
+        match if let Some(ref shell) = options.shell {
+            let mut command = Command::new(shell.program_name());
+            command
+                .args(shell_switches)
+                .arg(options.program);
+            if let Some(args) = options.args {
+                command.arg(args.join(" "));
+            }
+            command
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
                 .spawn()
         } else {
-            Command::new(options.program)
-                .args(options.args)
+            let mut command = Command::new(options.program);
+            if let Some(args) = options.args {
+               command.args(args);
+            }
+            command
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -483,33 +571,6 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
         .build_readonly()?;
 
     Ok(LuaValue::Table(child_handle))
-}
-
-fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
-    let function_name = "process.shell(command: string)";
-    let shell_name = std_env::get_current_shell();
-    let shell_command = match shell_command {
-        LuaValue::String(command) => {
-            command.to_str()?.to_string()
-        },
-        other => {
-            return wrap_err!("{} expected command to be a string, got: {:?}", function_name, other);
-        }
-    };
-    
-    let run_options = RunOptions {
-        program: shell_name.clone(),
-        args: vec![shell_command.clone()],
-        shell: Some(shell_name.clone()),
-        cwd: None,
-    };
-
-    match run_command(run_options) {
-        Ok(output) => create_run_result_table(luau, output),
-        Err(err) => {
-            wrap_err!("{} unable to run shell command with shell '{}' ('{}') because of err: {}", function_name, shell_name, shell_command, err)
-        }
-    }
 }
 
 fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaValueResult {
