@@ -5,8 +5,9 @@
 
 local fs = require("@std/fs")
 local env = require("@std/env")
-local process = require("@std/process")
 local colors = require("@std/colors")
+local process = require("@std/process")
+local output = require("@std/io/output")
 
 local passed_tests: { string } = {}
 local failed_tests: { { file: string, err: string } } = {}
@@ -232,6 +233,8 @@ local function parallel()
 		end
 		current_fail_index += 1
 		print(`{current_fail_index}    {result.path}: {result.err}`)
+		-- we also want to write to stderr so that failing a test fails CI and Build Action
+		output.ewrite(`{current_fail_index}    {result.path}: {result.err}\n`)
 	end
 end
 
