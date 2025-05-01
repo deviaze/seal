@@ -31,6 +31,7 @@ local s, f = pcall(function()
 		fs.path.join(copytree.path, "atree"),
 		fs.path.join(copytree.path, "target")
 	)
+	return nil
 end)
 
 assert(s == false, "can't copy dir into dir implicitly")

@@ -13,7 +13,7 @@ end
 
 local function nonexistentprogram()
 	local s, err = pcall(function()
-		process.run({
+		return process.run({
 			program = "idontexist",
 		})
 	end)
@@ -29,7 +29,7 @@ local failed_res = process.run {
 
 local function attempttounwrapfailedrunresult()
 	local success, result = pcall(function()
-		failed_res:unwrap()
+		return failed_res:unwrap()
 	end)
 	assert(tostring(result):match("Attempt to"), "RunResult:unwrap() broke?")
 end

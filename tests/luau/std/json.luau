@@ -14,7 +14,7 @@ local unencodable = {
 }
 
 local s, e = pcall(function()
-	json.encode(unencodable)
+	return json.encode(unencodable)
 end)
 
 assert(s == false and tostring(e):match("cannot serialize <function>"))

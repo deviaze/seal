@@ -13,7 +13,7 @@ local output = require("@std/io/output")
 local VECTOR_FOUR_WIDE_MODE = (function()
     local s, f = pcall(function()
         local testvec = (vector.create :: any)(1, 2, 3, 4)
-        print(testvec.w)
+        return testvec.w
     end)
     return s
 end)()

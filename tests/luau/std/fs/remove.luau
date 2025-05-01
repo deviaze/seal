@@ -9,6 +9,7 @@ local function basicremovefile()
 	
 	local s, f = pcall(function()
 		fs.removefile("startsfeiontnesart.rstas")
+		return nil
 	end)
 	
 	assert(s == false, "removing nonexistent file cant succeed")
@@ -25,6 +26,7 @@ local function removefilecantremovedir()
     )
 	local s, f = pcall(function()
 		fs.removefile(fs.path.join(data_dir.path, "removeme"))
+		return nil
 	end)
 	assert(s == false, "why")
 	data_dir:expect_dir("removeme"):remove()
@@ -36,6 +38,7 @@ local function canremovetreeremovefile()
 	data_dir:add_file("removemeremovetree", "imactuallyfile")
 	local s, f = pcall(function()
 		fs.removetree(fs.path.join(data_dir.path, "removemeremovetree"))
+		return nil
 	end)
 	assert(s == false, "removetree shouldnt be able to remove singluar files")
 	data_dir:expect_file("removemeremovetree"):remove()

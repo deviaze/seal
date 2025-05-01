@@ -8,7 +8,7 @@ local basic_requires_dir = fs.dir.from(script:parent())
 local function dirwithinit()
 	local canweinitdir = fs.dir.ensure(basic_requires_dir:join("canweinit"))
 		:add_file("init.luau", 'return "wecaninit"')
-	local success, result = pcall(function()
+	local success, result = pcall(function(): any
 		return (require :: any)("./canweinit")
 	end)
 	assert(result == "wecaninit", "we can't require directory with init.luau?")
@@ -53,8 +53,9 @@ local basic_requires_path = "./tests/luau/globals/require/basic-requires"
 local function invalidfile()
 	local invalid_file_path = script:parent() .. "/invalid_file.luau"
 	fs.writefile(invalid_file_path, "local")
-	local s, f = pcall(function()
+	local s, f = pcall(function(): nil
 		(require)("./invalid_file")
+		return nil
 	end)
 	fs.removefile(invalid_file_path)
 	assert(tostring(f):match("Expected identifier when parsing variable name"), "requiring an invalid file doesn't produce the expected error")
@@ -85,8 +86,9 @@ circular()
 local function showshelpermessage()
 	local s, f = pcall(function()
 		local relative_data = (require :: any)("relative_data")
+		return nil
 	end)
-	assert(tostring(f):match("Invalid require path format"), "issue showing the long 'Invalid require path format' helper message")
+	assert(tostring(f):match("does not start with"), "issue showing prefix helper message")
 end
 
 showshelpermessage()
@@ -94,9 +96,10 @@ showshelpermessage()
 local function filenotfound()
 	local s, f = pcall(function()
 		local notfound = (require)("./notfound")
+		return nil
 	end)
 	assert(s == false, "requiring filenotfound was not supposed to succeed")
-	assert(tostring(f):match("require: file not found:"), "not getting file not found when requiring a file that should not be found")
+	assert(tostring(f):match("require: module not found:"), "not getting module not found when requiring a file that should not be found")
 end
 
 filenotfound()
@@ -108,6 +111,7 @@ local function filethaterrors()
 	
 	local s, f = pcall(function()
 		(require)("./iwillbreak")
+		return nil
 	end)
 
 	assert(s == false, "iwillbreak.luau did not actually break?")

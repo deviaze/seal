@@ -8,5 +8,5 @@ local function main()
 	return module.execute()
 end
 
-local success, result = pcall(main)
+local success, result = pcall(main :: any)
 assert(mlua.iserror(result), "error should be made of error")

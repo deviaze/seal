@@ -33,7 +33,8 @@ local succ, err = pcall(function()
 	fs.move(
 		"./tests/data/movetrees/movefolder",
 		"./tests/data/movetrees/finish/movefolder"
-	)	
+	)
+	return nil
 end)
 assert(succ == false, "this shouldn't succeed")
 assert(tostring(err):match("unable to move"), "should be unable to move bc wrong path typed in")
