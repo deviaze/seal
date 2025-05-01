@@ -1,24 +1,6 @@
 local env = {}
 --[=[
 A stdlib to interact with the script's running environment.
-```luau
-type env = {
-	--- a list of arguments passed to the program
-	args: {string},
-	--- your operating system
-	os: "Windows" | "Linux" | "Android" | "MacOS" | "Other",
-	--- the path of the executable
-	executable_path: string,
-	script_path: string,
-	current_working_directory: string,
-	--- get environment variable if exists
-	getvar: (key: string) -> string?,
-	--- set an environment variable (unsafe in multithreaded linux)
-	setvar: (key: string, value: string) -> nil,
-	--- remove an environment variable (unsafe in multithreaded linux)
-	removevar: (key: string) -> nil,
-}
-```
 ]=]
 type env = {
 	--- a list of arguments passed to the program
@@ -28,7 +10,12 @@ type env = {
 	--- the path of the executable
 	executable_path: string,
 	script_path: string,
-	current_working_directory: string,
+	--[=[ 
+	Get the current working directory of the running process.
+
+	Errors if the `cwd` doesn't exist or otherwise isn't accessible (permission denied).
+	]=]
+	cwd: () -> string,
 	--[=[
 	Gets an environment variable in the current process.
 	]=]

@@ -3,20 +3,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use mlua::prelude::*;
 use crate::{LuaValueResult, LuaEmptyResult, wrap_err, colors, table_helpers::TableBuilder, std_fs};
-use crate::require::{ok_string, ok_table};
+use crate::{ok_string, ok_table};
 use crate::std_fs::entry::{self, wrap_io_read_errors, get_path_from_entry};
-
-use super::pathlib::path_join;
+use super::pathlib::{normalize_path, path_join};
 use super::validate_path;
-
-/// fixes `./tests/luau/std\fs\pathlib_join.luau` nonsense on windows
-pub fn normalize_path(path: &str) -> String {
-    if cfg!(windows) && path.contains('/') && path.contains('\\') {
-        path.replace("\\", "/")
-    } else {
-        path.to_string()
-    }
-}
 
 pub fn listdir(luau: &Lua, dir_path: String, mut multivalue: LuaMultiValue, function_name_and_args: &str) -> LuaValueResult {
     let recursive = match multivalue.pop_front() {

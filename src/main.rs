@@ -35,6 +35,19 @@ type LuaValueResult = LuaResult<LuaValue>;
 type LuaEmptyResult = LuaResult<()>;
 type LuaMultiResult = LuaResult<LuaMultiValue>;
 
+// wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
+pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
+    Ok(LuaValue::Table(t?))
+}
+
+pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::Function(luau.create_function(f)?))
+}
+
+pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::String(luau.create_string(s)?))
+}
+
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -66,6 +79,7 @@ fn main() -> LuaResult<()> {
     }
     
     let luau: Lua = Lua::new();
+    
     // luau.sandbox(true)?; // free performance boost
 
     let globals = luau.globals();
@@ -157,6 +171,8 @@ fn main() -> LuaResult<()> {
     script.set("src", luau_code.to_owned())?;
 
     globals::set_globals(&luau)?;
+    // let cwd = std_env::get_cwd("main.rs")?;
+    // require::set_requirer(&luau, cwd, &entry_path)?;
 
     match luau.load(luau_code).set_name(&entry_path).exec() {
         Ok(()) => {
@@ -178,22 +194,7 @@ fn main() -> LuaResult<()> {
 }
 
 fn seal_setup() -> LuaResult<()> {
-    let cwd = match std::env::current_dir() {
-        Ok(cwd) => cwd,
-        Err(err) => {
-            match err.kind() {
-                io::ErrorKind::NotFound => { // yes this happened in testing
-                    return wrap_err!("seal setup - your current directory does not exist (try reloading your terminal/editor?)");
-                },
-                io::ErrorKind::PermissionDenied => {
-                    return wrap_err!("seal setup - insufficient permissions to access your current directory");
-                },
-                other => {
-                    return wrap_err!("seal setup - error getting your current directory: {}", other);
-                }
-            }
-        }
-    };
+    let cwd = std_env::get_cwd("seal setup")?;
 
     let typedefs_dir = cwd.join(".typedefs");
     if let Err(err) = fs::create_dir(&typedefs_dir) {

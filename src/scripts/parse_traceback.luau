@@ -1,7 +1,4 @@
--- local colors = require("@std/colors")
-local env = require("@std/env")
-
-local cwd = env.current_working_directory
+local cwd = require("@std/env").cwd()
 
 local function parse_traceback(traceback: string): string
 	local new_traceback = traceback

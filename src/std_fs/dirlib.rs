@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use mlua::prelude::*;
 use crate::LuaMultiResult;
 use crate::{wrap_err, colors, LuaValueResult, TableBuilder};
-use crate::require::ok_table;
+use crate::ok_table;
 use super::entry::wrap_io_read_errors;
 use super::validate_path_without_checking_fs;
 use super::{directory_entry, entry, validate_path};

@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 use mlua::prelude::*;
-use crate::{std_time, require::ok_table};
+use crate::{std_time, ok_table};
 use crate::{wrap_err, LuaValueResult, LuaEmptyResult, table_helpers::TableBuilder, colors};
 use copy_dir::copy_dir;
 
@@ -12,7 +12,7 @@ use copy_dir::copy_dir;
 use std::os::unix::fs::PermissionsExt;
 
 use super::directory_entry;
-use super::directory_entry::normalize_path;
+use super::pathlib::normalize_path;
 use super::file_entry;
 
 pub fn get_path_from_entry(entry: &LuaValue, function_name: &str) -> LuaResult<String> {

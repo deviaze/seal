@@ -1,5 +1,9 @@
-use crate::*;
-use std::fs;
+use requirer::FsRequirer;
+
+use crate::{std_json::json_decode, *};
+use std::{collections::VecDeque, fs, path::PathBuf};
+
+mod requirer;
 
 pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
     let path = match path {
@@ -40,19 +44,6 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
             Ok(result)
         }
     }
-}
-
-// wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
-pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
-    Ok(LuaValue::Table(t?))
-}
-
-pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
-    Ok(LuaValue::Function(luau.create_function(f)?))
-}
-
-pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
-    Ok(LuaValue::String(luau.create_string(s)?))
 }
 
 fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
@@ -130,26 +121,125 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
 }
 
 fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {
-    let require_resolver = include_str!("./scripts/require_resolver.luau");
+    let require_resolver = include_str!("./resolver.luau");
     let r: LuaFunction = luau.load(require_resolver).eval()?;
     match r.call::<LuaValue>(path.to_owned()) {
-        // Ok(LuaValue::String(path)) => Ok(path.to_string_lossy()),
         Ok(LuaValue::Table(result_table)) => {
-            let ok: bool = result_table.raw_get("ok")?;
-            if ok {
-                let resolved_path: LuaString = result_table.raw_get("resolved_path")?;
-                Ok(resolved_path.to_string_lossy())
+            if let LuaValue::String(path) = result_table.raw_get("path")? {
+                Ok(path.to_string_lossy())
+            } else if let LuaValue::String(err) = result_table.raw_get("err")? {
+                wrap_err!("require: {}", err.to_string_lossy())
             } else {
-                let err_message: LuaString = result_table.raw_get("err")?;
-                let err_message = err_message.to_string_lossy();
-                wrap_err!("require: {}", err_message)
+                panic!("require: ./resolver.luau returned an unexpected table {:#?}", result_table);
             }
         },
         Ok(_other) => {
-            panic!("require: ./scripts/require_resolver.luau returned something that isn't a string or err table; this shouldn't be possible");
+            panic!("require: ./resolver.luau returned something that isn't a string or err table; this shouldn't be possible");
         },
         Err(err) => {
-            panic!("require: ./scripts/require_resolver.luau broke? this shouldn't happen; err: {}", err);
+            panic!("require: ./resolver.luau broke? this shouldn't happen; err: {}", err);
         }
     }
+}
+
+fn get_require_cache(luau: &Lua) -> LuaResult<LuaTable> {
+    // luau.globals().raw_get::<LuaTable>("_REQUIRE_CACHE")
+    let require_cache = match luau.globals().raw_get("_REQUIRE_CACHE")? {
+        LuaValue::Table(t) => t,
+        other => {
+            return wrap_err!("expected globals._REQUIRE_CACHE, got: {:?}", other);
+        }
+    };
+    Ok(require_cache)
+}
+
+pub fn _set_requirer(luau: &Lua, cwd: PathBuf, entrypoint_chunk: &str) -> LuaEmptyResult {
+    let current_chunk = PathBuf::from(entrypoint_chunk);
+    let requirer = FsRequirer::from(cwd, current_chunk, get_require_cache(luau)?);
+    let require_function = match luau.create_require_function(requirer) {
+        Ok(f) => f,
+        Err(err) => {
+            return wrap_err!("unable to create requirer function because {}", err);
+        }
+    };
+    luau.globals().raw_set("_REQUIRE_FUNCTION", require_function)?;
+    Ok(())
+}
+
+fn extract_alias<'a>(to_path: &'a str, function_name: &str) -> LuaResult<&'a str> {
+    let requested_path = to_path;
+    let to_path = to_path.trim_start_matches('@');
+    if to_path.contains("/") {
+        let mut components: VecDeque<&str> = to_path.split('/').collect();
+        if let Some(alias) = components.pop_front() {
+            Ok(alias)
+        } else {
+            wrap_err!("{}: unable to extract alias from requested path '{}'", requested_path, function_name)
+        }
+    } else {
+        Ok(to_path)
+    }
+}
+
+pub fn load(luau: &Lua, chunk_name: &str, to_path: &str) -> LuaValueResult {
+    // let requested_path = to_path;
+    let chunk_name = PathBuf::from(chunk_name);
+    let cwd = match env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(err) => {
+            return wrap_err!("navigate path cant get current dir: {}", err);
+        }
+    };
+    let temp_requirer = FsRequirer::from(cwd, chunk_name, get_require_cache(luau)?);
+    if to_path.starts_with("@") {
+        let aliases = temp_requirer.get_aliases()?;
+        let alias = extract_alias(to_path, "require.load")?;
+        let to_path = to_path.trim_start_matches('@').replace(alias, "");
+        if let Some(replacement_path) = aliases.get(alias) {
+            let replacement_path = replacement_path.trim_end_matches('/');
+            let to_path = replacement_path.to_owned() + &to_path;
+            temp_requirer.to_luaurc();
+            match temp_requirer.to_child(&to_path) {
+                Ok(_) => {
+                    temp_requirer.load(luau)
+                },
+                Err(_) => {
+                    let shown_path = temp_requirer.show_current_path();
+                    wrap_err!("Can't navigate from '{}' to '{}' due to navigate err", shown_path, to_path)
+                }
+            }
+        } else {
+            wrap_err!("Can't find extracted alias '{}' in .luaurc", alias)
+        }
+    } else {
+        println!("{:#?}", temp_requirer);
+        let mut to_path = to_path.to_owned();
+        if to_path.starts_with("..") {
+            let _ = temp_requirer.to_parent();
+            to_path = to_path.replace("..", ".");
+        }
+        println!("{}", to_path);
+        match temp_requirer.to_child(&to_path) {
+            Ok(_) => {
+                temp_requirer.load(luau)
+            },
+            Err(_) => {
+                let shown_path = temp_requirer.show_current_path();
+                wrap_err!("Can't navigate from '{}' to '{}' due to navigate err", shown_path, to_path)
+            }
+        }
+    }
+}
+
+pub fn get_luaurc(luau: &Lua, chunk_name: &str) -> LuaValueResult {
+    let current_chunk = PathBuf::from(chunk_name);
+    let cwd = match env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(err) => {
+            return wrap_err!("navigate path cant get current dir: {}", err);
+        }
+    };
+    let temp_requirer = FsRequirer::from(cwd, current_chunk, get_require_cache(luau)?);
+    let luaurc_contents = temp_requirer.read_luaurc()?;
+    json_decode(luau, luaurc_contents)
 }

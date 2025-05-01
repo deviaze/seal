@@ -1,9 +1,5 @@
-#![allow(dead_code)]
-
 use mlua::prelude::*;
 use crate::globals;
-
-type LuaValueResult = LuaResult<LuaValue>;
 
 pub fn parse_traceback(raw_traceback: String) -> String {
     let parse_traceback = include_str!("./scripts/parse_traceback.luau");
