@@ -3,7 +3,10 @@ use std::collections::VecDeque;
 use std::io;
 use std::fs;
 use std::path::{self, Path};
+use crate::ok_string;
 use crate::{colors, LuaValueResult, wrap_err, table_helpers::TableBuilder, std_fs::fs_exists};
+
+use super::validate_path_without_checking_fs;
 
 fn trim_path(path: &str) -> &str {
     path.trim_matches(['/', '\\'])
@@ -11,23 +14,24 @@ fn trim_path(path: &str) -> &str {
 
 pub fn path_join(mut components: VecDeque<String>) -> String {
     // we don't want to use PathBuf::join because it gives unexpected behavior ('./tests/luau/std\crypt\hash.luau' lol)
-    let mut result = String::new();
     let first_component = components.pop_front().unwrap_or_default();
     // we want to use forward slash paths as much as possible, and only use \ paths if we're dealing with
     // absolute paths on windows
     // but if a user passes ".\" as their first component they obviously want \ paths
     let path_sep = match first_component.as_str() {
         "./" | "../" | "." | "" | "/" => "/", // unix style '/' (default) that works on windows, linux, unix, macos, etc.
-        ".\\" | "..\\" if cfg!(windows) => "\\", // windows style '\' for windows absolute paths
+        ".\\" | "..\\" => "\\", // windows style '\' for windows absolute paths
         // stupid windows absolute path edge cases
-        component if cfg!(windows) && component.ends_with(':') => "\\", // handle drive letters like "C:"
-        component if cfg!(windows) && component.starts_with("\\") => "\\", // absolute paths starting with backslash (\\wsl\\)
-        component if cfg!(windows) && component.contains(':') => "\\",     // paths with drive letters (e.g., "C:\")
+        component if component.ends_with(':') => "\\", // handle drive letters like "C:"
+        component if component.starts_with("\\") => "\\", // absolute paths starting with backslash (\\wsl\\)
+        component if component.contains(':') => "\\",     // paths with drive letters (e.g., "C:\")
         _ => "/", // probably a path.join("dogs", "cats") partial path, default to /
     };
 
-    // avoid stripping unix root / on first component
-    result += if first_component.starts_with("/") {
+    let mut result = String::new();
+
+    // Avoid stripping unix root `/` on first component
+    result.push_str(if first_component.starts_with('/') {
         if first_component.len() > 1 {
             first_component.trim_end_matches(['/', '\\'])
         } else {
@@ -35,16 +39,46 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
         }
     } else {
         trim_path(&first_component)
-    };
+    });
 
-    while let Some(component) = components.pop_front() {
+    for component in components {
         let trimmed_component = trim_path(&component);
         if !trimmed_component.is_empty() {
-            result += path_sep;
-            result += trimmed_component;
+            result.push_str(path_sep);
+            result.push_str(trimmed_component);
         }
     }
+
     result
+}
+
+
+/// fixes `./tests/luau/std\fs\pathlib_join.luau` nonsense on windows
+pub fn normalize_path(path: &str) -> String {
+    // Check if the path is a Windows absolute path (drive letter or UNC path)
+    let is_windows_absolute = path.starts_with("\\\\") || path.chars().nth(1) == Some(':');
+
+    // Determine the separator to use
+    let separator = if is_windows_absolute { '\\' } else { '/' };
+
+    // dont allocate strings multiple times
+    let mut normalized = String::with_capacity(path.len());
+    let mut previous_was_separator = false;
+
+    for c in path.chars() {
+        if c == '/' || c == '\\' {
+            if previous_was_separator {
+                continue; // Skip duplicate separators
+            }
+            normalized.push(separator);
+            previous_was_separator = true;
+        } else {
+            normalized.push(c);
+            previous_was_separator = false;
+        }
+    }
+
+    normalized
 }
 
 fn fs_path_join(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
@@ -68,6 +102,19 @@ fn fs_path_join(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     }
     let result = path_join(components);
     Ok(LuaValue::String(luau.create_string(&result)?))
+}
+
+fn fs_path_normalize(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "path.normalize(path: string)";
+    let requested_path = match value {
+        LuaValue::String(s) => {
+            validate_path_without_checking_fs(&s, function_name)?
+        },
+        other => {
+            return wrap_err!("{} expected path to be a string, got: {:?}", function_name, other);
+        }
+    };
+    ok_string(normalize_path(&requested_path), luau)
 }
 
 fn fs_path_canonicalize(luau: &Lua, path: LuaValue) -> LuaValueResult {
@@ -214,6 +261,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("join", fs_path_join)?
         .with_function("exists", fs_exists)?
+        .with_function("normalize", fs_path_normalize)?
         .with_function("canonicalize", fs_path_canonicalize)?
         .with_function("absolutize", fs_path_absolutize)?
         .with_function("parent", fs_path_parent)?
