@@ -195,20 +195,30 @@ fn main() -> LuaResult<()> {
 
 fn seal_setup() -> LuaResult<()> {
     let cwd = std_env::get_cwd("seal setup")?;
-
     let typedefs_dir = cwd.join(".typedefs");
-    if let Err(err) = fs::create_dir(&typedefs_dir) {
-        return wrap_err!("seal setup - error creating directory: {}", err);
-    }
-
-    match TYPEDEFS_DIR.extract(typedefs_dir) {
-        Ok(()) => {
-            println!("seal setup .typedefs in your current directory!");
-        },
-        Err(err) => {
-            return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
+    let created_typedefs_dir = match fs::create_dir(&typedefs_dir) {
+        Ok(_) => true,
+        Err(err) => match err.kind() {
+            io::ErrorKind::AlreadyExists => {
+                println!("seal setup - .typedefs already exists; not replacing it");
+                false
+            },
+            _ => {
+                return wrap_err!("seal setup = error creating .typedefs: {}", err);
+            }
         }
     };
+
+    if created_typedefs_dir {
+        match TYPEDEFS_DIR.extract(typedefs_dir) {
+            Ok(()) => {
+                println!("seal setup .typedefs in your current directory!");
+            },
+            Err(err) => {
+                return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
+            }
+        };
+    }
 
     let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
     let temp_luau = Lua::new();

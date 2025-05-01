@@ -33,6 +33,8 @@ local test_files: { string } = {} do
 		end
 		table.insert(test_files, path)
 	end
+
+	table.insert(test_files, "./tests/scripts/seal_setup_test.luau")
 end
 
 --- functions ignored with key being the function name
