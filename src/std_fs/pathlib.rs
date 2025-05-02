@@ -23,7 +23,7 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
         ".\\" | "..\\" => "\\", // windows style '\' for windows absolute paths
         // stupid windows absolute path edge cases
         component if component.ends_with(':') => "\\", // handle drive letters like "C:"
-        component if component.starts_with("\\") => "\\", // absolute paths starting with backslash (\\wsl\\)
+        component if component.starts_with(r"\\") => "\\", // absolute paths starting with backslash (\\wsl\\)
         component if component.contains(':') => "\\",     // paths with drive letters (e.g., "C:\")
         _ => "/", // probably a path.join("dogs", "cats") partial path, default to /
     };
@@ -37,6 +37,9 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
         } else {
             "/"
         }
+    } else if first_component.starts_with(r"\\") {
+        // avoid stripping windows root `\\` (unc paths like \\?\C:\Users\sealey...) on first component
+        first_component.trim_end_matches(['/', '\\'])
     } else {
         trim_path(&first_component)
     });
@@ -56,7 +59,7 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
 /// fixes `./tests/luau/std\fs\pathlib_join.luau` nonsense on windows
 pub fn normalize_path(path: &str) -> String {
     // Check if the path is a Windows absolute path (drive letter or UNC path)
-    let is_windows_absolute = path.starts_with("\\\\") || path.chars().nth(1) == Some(':');
+    let is_windows_absolute = path.starts_with(r"\\") || path.chars().nth(1) == Some(':');
 
     // Determine the separator to use
     let separator = if is_windows_absolute { '\\' } else { '/' };
@@ -65,10 +68,14 @@ pub fn normalize_path(path: &str) -> String {
     let mut normalized = String::with_capacity(path.len());
     let mut previous_was_separator = false;
 
-    for c in path.chars() {
+    for (index, c) in path.chars().enumerate() {
         if c == '/' || c == '\\' {
             if previous_was_separator {
-                continue; // Skip duplicate separators
+                if index == 1 && is_windows_absolute && path.starts_with(r"\\") {
+                    // dont strip unc prefixes on windows :cry:
+                } else {
+                    continue;
+                }
             }
             normalized.push(separator);
             previous_was_separator = true;
@@ -127,7 +134,14 @@ fn fs_path_canonicalize(luau: &Lua, path: LuaValue) -> LuaValueResult {
 
     match fs::canonicalize(&path) {
         Ok(canonical_path) => {
-            Ok(LuaValue::String(luau.create_string(canonical_path.to_string_lossy().to_string())?))
+            #[allow(unused_mut, reason = "needs to be mut on windows")]
+            let mut canonical_path = canonical_path.to_string_lossy().to_string();
+            #[cfg(windows)]
+            {
+                // very cool unc paths windows
+                canonical_path = canonical_path.replace(r"\\?\", "");
+            }
+            Ok(LuaValue::String(luau.create_string(canonical_path)?))
         },
         Err(err) => {
             match err.kind() {

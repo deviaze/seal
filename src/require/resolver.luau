@@ -14,6 +14,7 @@ type RequireResolveResult = {
 }
 
 local fs = require("@std/fs")
+local env = require("@std/env")
 local json = require("@std/json")
 local colors = require("@std/colors")
 
@@ -246,6 +247,12 @@ local function resolve(
 	-- trim ./ and ../ from requested_path
 	if trim_after_index > 0 then
 		current_path = fs.path.join(current_path, string.sub(requested_path, trim_after_index))
+	end
+
+	if env.os == "Windows" then
+		-- it's possible we could've accidentally mixed \ and /s when combining paths
+		-- (especially when using alias replacements, which always use /)
+		current_path = fs.path.normalize(current_path)
 	end
 
 	assert(current_path ~= nil, "current_path should not be nil at this point")
