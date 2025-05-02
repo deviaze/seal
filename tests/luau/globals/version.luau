@@ -1,1 +1,0 @@
-assert(_VERSION:match("^seal %d%.%d%.%d | Luau %d%.%d%d%d$"), "_VERSION doesn't seem to match?")
