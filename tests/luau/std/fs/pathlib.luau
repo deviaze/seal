@@ -30,6 +30,7 @@ if env.os ~= "Windows" then
 		-- path.canonicalize can't canonicalize nonexistent path
 		local s, f = pcall(function()
 			path.canonicalize("./existence.jpeg")
+			return nil
 		end)
 		assert(s == false, "canonicalize cannot succeed on ./existence.jpeg??")
 		assert(tostring(f):match("doesn't exist on the filesystem"))
@@ -74,3 +75,35 @@ if env.os == "Windows" then
 	end
 	pathparent()
 end
+
+local function normalize()
+	local tp1 = [[./hi/i/am/a/cat.txt]]
+	assert(tp1 == path.normalize(tp1), "normalized simple path shouldn't change")
+
+	local relative_without_backslashes = [[.\hi\i\am\cat.txt]]
+
+	assert(
+		path.normalize(relative_without_backslashes) == "./hi/i/am/cat.txt", 
+		"path.normalize should always change relative paths to forward slashes"
+	)
+
+	local mixed_paths = [[./src\main.luau]]
+	assert(path.normalize(mixed_paths) == "./src/main.luau", "mixed path 1 should be fixed to /")
+
+	local windows_absolute = [[C:\Users\sealey\Desktop\Repositories\seal]]
+	assert(path.normalize(windows_absolute) == windows_absolute, "windows absolute paths shouldn't be forward slashed")
+
+	local mixed_windows_absolute = [[C:\Users\sealey\Desktop\Repositories\seal/main.luau]]
+	assert(
+		path.normalize(mixed_windows_absolute) == [[C:\Users\sealey\Desktop\Repositories\seal\main.luau]],
+		"mixed windows absolute paths should be normalized to backslash"
+	)
+
+	local with_repeated_slashes = [[C:\Users\sealey\\hehe\/weird\slashes.hmm]]
+	assert(
+		path.normalize(with_repeated_slashes) == [[C:\Users\sealey\hehe\weird\slashes.hmm]],
+		"repeated slashes not normalized?"
+	)
+end
+
+normalize()

@@ -12,6 +12,7 @@ local function canwriteentry()
 	local file = fs.file.create(testentrypath)
 	local s, f = pcall(function()
 		fs.file.create(testentrypath)
+		return nil
 	end)
 	assert(s == false, "shouldnt be able to create file that alr exists??")
 end

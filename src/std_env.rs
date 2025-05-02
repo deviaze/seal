@@ -1,7 +1,10 @@
 use std::env;
+use std::io;
+use std::path::PathBuf;
 use std::process::Command;
 
 use mlua::prelude::*;
+use crate::ok_string;
 use crate::table_helpers::TableBuilder;
 use crate::{wrap_err, LuaValueResult, colors};
 
@@ -70,6 +73,39 @@ pub fn get_current_shell() -> String {
 
     String::from("")
     // panic!("Could not determine the current shell path");
+}
+
+pub fn get_cwd(function_name: &str) -> LuaResult<PathBuf> {
+    let cwd = match std::env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(err) => {
+            match err.kind() {
+                io::ErrorKind::NotFound => { // yes this happened in testing
+                    return wrap_err!("{}: your current directory does not exist (try reloading your terminal/editor?)", function_name);
+                },
+                io::ErrorKind::PermissionDenied => {
+                    return wrap_err!("{}: insufficient permissions to access your current directory", function_name);
+                },
+                other => {
+                    return wrap_err!("{}: error getting your current directory: {}", function_name, other);
+                }
+            }
+        }
+    };
+    Ok(cwd)
+}
+
+fn env_cwd(luau: &Lua, _: LuaValue) -> LuaValueResult {
+    let function_name = "env.cwd()";
+    let cwd = match get_cwd(function_name) {
+        Ok(cwd) => {
+            cwd.to_string_lossy().to_string()
+        },
+        Err(err) => {
+            return wrap_err!("{}", err.to_string())
+        }
+    };
+    ok_string(cwd, luau)
 }
 
 fn env_environment_getvar(luau: &Lua, value: LuaValue) -> LuaValueResult {
@@ -175,8 +211,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
 		result_args
 	};
 
-	let current_working_directory = env::current_dir()?.to_str().unwrap().to_string();
-
 	TableBuilder::create(luau)?
 		.with_value("os", formatted_os)?
 		.with_value("args", luau_args)?
@@ -186,6 +220,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("getvar", env_environment_getvar)?
         .with_function("setvar", env_environment_setvar)?
         .with_function("removevar", env_environment_removevar)?
-		.with_value("current_working_directory", current_working_directory)?
+        .with_function("cwd", env_cwd)?
 		.build_readonly()
 }

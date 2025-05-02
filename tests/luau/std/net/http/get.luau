@@ -49,7 +49,7 @@ local x = nil
 local computed = x or nil
 
 local success, result = pcall(function()
-	http.get({
+	return http.get({
 		url = "memes.com",
 		body = {
 			x = 2,

@@ -39,7 +39,7 @@ listingdirectory()
 local function expecting()
 	-- expecting a dir cant result in file lol
 	local res, err = pcall(function()
-		data_dir:expect_dir("cats.json")
+		return data_dir:expect_dir("cats.json")
 	end)
 	assert(res == false, "expecting dir on a file can't succeed?")
 	assert(tostring(err):match("expected directory doesn't exist"), "unexpected error message")

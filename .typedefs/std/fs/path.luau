@@ -38,6 +38,25 @@ export type PathLib = {
 	]=]
 	absolutize: (path: string) -> string,
 	--[=[
+		Returns a normalized (cleaned) version of `path` with a consistent path separator and with duplicate separators removed.
+
+		Uses '/' as the path separator unless `path` is a Windows-style absolute path, in which case it'll use a backslash instead.
+
+		```luau
+		local mixed_path = [[./hi/im/a\file.txt]]
+		print(path.normalize(mixed_path)) --> "./hi/im/a/file.txt"
+
+		-- absolute paths on windows use \
+		local windows_path = [[C:\Users\Example\Documents\project/main.luau]]
+		print(path.normalize(windows_path)) --> "C:\Users\Example\Documents\project\main.luau"
+
+		-- paths with redundant separators get cleaned
+		local redundant_separators = [[C:\\Users\\Example//Documents////project\main.luau]]
+		print(path.normalize(redundant_separators)) --> "C:\Users\Example\Documents\project\main.luau"
+		```
+	]=]
+	normalize: (path: string) -> string,
+	--[=[
 		Returns the path of the parent directory `n` (default = 1) parents to the left of `path`
 
 		## Usage

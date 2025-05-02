@@ -14,6 +14,7 @@ local success, err = pcall(function()
 			error("how break traceback?")
 		end
 	end
+	return nil
 end)
 
 assert(success == false, "this should've broken")

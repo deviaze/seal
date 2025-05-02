@@ -25,6 +25,7 @@ meow.v = v
 local s, r = pcall(function()
     local fs = require("@std/fs")
     fs.readfile("we are an error. short days ago we were also error")
+    return nil
 end)
 
 meow.err = r

@@ -33,6 +33,8 @@ local test_files: { string } = {} do
 		end
 		table.insert(test_files, path)
 	end
+
+	table.insert(test_files, "./tests/scripts/seal_setup_test.luau")
 end
 
 --- functions ignored with key being the function name
@@ -232,8 +234,8 @@ local function parallel()
 			continue
 		end
 		current_fail_index += 1
-		print(`{current_fail_index}    {result.path}: {result.err}`)
-		-- we also want to write to stderr so that failing a test fails CI and Build Action
+		-- print(`{current_fail_index}    {result.path}: {result.err}`)
+		-- we want to write to stderr so that failing a test fails CI and Build Action
 		output.ewrite(`{current_fail_index}    {result.path}: {result.err}\n`)
 	end
 end

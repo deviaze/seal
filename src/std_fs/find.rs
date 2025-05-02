@@ -1,6 +1,6 @@
 use mlua::prelude::*;
 use std::{fs, io, path::PathBuf};
-use crate::{colors, require::ok_table, wrap_err, LuaValueResult, TableBuilder};
+use crate::{colors, ok_table, wrap_err, LuaValueResult, TableBuilder};
 use super::{entry::{self, wrap_io_read_errors}, validate_path, validate_path_without_checking_fs};
 
 fn fr_exists(_luau: &Lua, multivalue: LuaMultiValue) -> LuaValueResult {

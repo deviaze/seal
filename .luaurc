@@ -8,6 +8,6 @@
 		"interop": "./.typedefs/interop/",
 		"tests": "./tests/luau/",
 		"data": "./tests/data/",
-		"output_process_values": "./src/scripts/output_process_values"
+		"output_process_values": "./src/scripts/output_process_values.luau"
 	}
 }

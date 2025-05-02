@@ -2,8 +2,7 @@ use entry::{wrap_io_read_errors, wrap_io_read_errors_empty};
 use mlua::prelude::*;
 use std::path::{Path, PathBuf};
 use std::{fs, io};
-use crate::require::ok_table;
-use crate::{table_helpers::TableBuilder, LuaValueResult};
+use crate::{table_helpers::TableBuilder, LuaValueResult, ok_table};
 use crate::{std_io_colors as colors, wrap_err, LuaEmptyResult};
 use copy_dir::copy_dir;
 

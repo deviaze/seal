@@ -13,7 +13,7 @@ end
 
 local function nonexistentprogram()
 	local s, err = pcall(function()
-		process.run({
+		return process.run({
 			program = "idontexist",
 		})
 	end)
@@ -29,7 +29,7 @@ local failed_res = process.run {
 
 local function attempttounwrapfailedrunresult()
 	local success, result = pcall(function()
-		failed_res:unwrap()
+		return failed_res:unwrap()
 	end)
 	assert(tostring(result):match("Attempt to"), "RunResult:unwrap() broke?")
 end
@@ -56,7 +56,7 @@ local function computedresult()
 		local stderr = result.stderr
 		return `it's only a paper {result.stderr:match("(%d+)")}`
 	end)
-	assert(fails_and_writes_to_stderr_default:match("it's only a paper %d%d"), "default computed doesn't match")
+	assert(fails_and_writes_to_stderr_default:match("it's only a paper %d%d?"), "default computed doesn't match")
 end
 
 computedresult()

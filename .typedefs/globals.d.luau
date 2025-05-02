@@ -1,4 +1,4 @@
-declare function pcall(protected_callback: any): (boolean, unknown)
+declare function pcall<T>(protected_callback: (any) -> T): (boolean, T | error)
 
 declare function p<T...>(...: T...): T...
 
@@ -24,3 +24,6 @@ declare channel: {
 	readbytes_await: (self: any) -> buffer,
 	data: any?,
 }?
+
+--- an error returned from mlua, can be tostringed
+declare class error end

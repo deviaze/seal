@@ -1,7 +1,7 @@
 use mlua::prelude::*;
 use table_helpers::TableBuilder;
 use std::{fs, env, panic, path::Path};
-use std::io;
+use std::{io, path};
 
 mod table_helpers;
 mod std_io_output;
@@ -26,6 +26,8 @@ mod globals;
 mod require;
 mod interop;
 
+const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 use crate::std_io_colors as colors;
 
 use include_dir::{include_dir, Dir};
@@ -34,6 +36,19 @@ const TYPEDEFS_DIR: Dir = include_dir!(".typedefs");
 type LuaValueResult = LuaResult<LuaValue>;
 type LuaEmptyResult = LuaResult<()>;
 type LuaMultiResult = LuaResult<LuaMultiValue>;
+
+// wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
+pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
+    Ok(LuaValue::Table(t?))
+}
+
+pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::Function(luau.create_function(f)?))
+}
+
+pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::String(luau.create_string(s)?))
+}
 
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();
@@ -57,15 +72,26 @@ fn main() -> LuaResult<()> {
     let first_arg = args[1].clone();
 
     if first_arg == "--help" || first_arg == "-h" {
-        println!("seal help will be implemented SOON(TM)");
+        println!("Usage:\
+        \n `seal setup` - set up a project in an existing folder (at your cwd) with typedefs, config, etc.\
+        \n `seal ./filename.luau <arg1> <arg2>` - run a luau file with seal\
+        \n `seal run <arg1> <arg2>` - run the current project at your cwd\
+        \n `seal eval '<string src>'` - evaluate a string with seal with fs, process, and http loaded in\
+        \nProper seal help will be implemented SOON(TM)");
         return Ok(());
     }
     
     if first_arg == "setup" {
         return seal_setup();
     }
+
+    if first_arg == "--version" || first_arg == "-v" {
+        println!("{}", SEAL_VERSION);
+        return Ok(());
+    }
     
     let luau: Lua = Lua::new();
+    
     // luau.sandbox(true)?; // free performance boost
 
     let globals = luau.globals();
@@ -113,10 +139,15 @@ fn main() -> LuaResult<()> {
                 panic!("Wrong language! seal only runs .luau files")
             }
 
-            entry_path = file_path.clone();
+            // temp hacky fix for debug names not being absolute paths
+            // TODO: properly fix on main.rs rewrite
+            entry_path = match path::absolute(file_path.clone()) {
+                Ok(p) => p.to_string_lossy().to_string(),
+                Err(_e) => file_path.clone()
+            };
 
             globals.set("script", TableBuilder::create(&luau)?
-                .with_value("entry_path", file_path.to_owned())?
+                .with_value("entry_path", entry_path.to_owned())?
                 .with_function("path", globals::get_script_path)?
                 .with_function("parent", globals::get_script_parent)?
                 .build()?
@@ -157,6 +188,8 @@ fn main() -> LuaResult<()> {
     script.set("src", luau_code.to_owned())?;
 
     globals::set_globals(&luau)?;
+    // let cwd = std_env::get_cwd("main.rs")?;
+    // require::set_requirer(&luau, cwd, &entry_path)?;
 
     match luau.load(luau_code).set_name(&entry_path).exec() {
         Ok(()) => {
@@ -178,36 +211,31 @@ fn main() -> LuaResult<()> {
 }
 
 fn seal_setup() -> LuaResult<()> {
-    let cwd = match std::env::current_dir() {
-        Ok(cwd) => cwd,
-        Err(err) => {
-            match err.kind() {
-                io::ErrorKind::NotFound => { // yes this happened in testing
-                    return wrap_err!("seal setup - your current directory does not exist (try reloading your terminal/editor?)");
-                },
-                io::ErrorKind::PermissionDenied => {
-                    return wrap_err!("seal setup - insufficient permissions to access your current directory");
-                },
-                other => {
-                    return wrap_err!("seal setup - error getting your current directory: {}", other);
-                }
+    let cwd = std_env::get_cwd("seal setup")?;
+    let typedefs_dir = cwd.join(".typedefs");
+    let created_typedefs_dir = match fs::create_dir(&typedefs_dir) {
+        Ok(_) => true,
+        Err(err) => match err.kind() {
+            io::ErrorKind::AlreadyExists => {
+                println!("seal setup - .typedefs already exists; not replacing it");
+                false
+            },
+            _ => {
+                return wrap_err!("seal setup = error creating .typedefs: {}", err);
             }
         }
     };
 
-    let typedefs_dir = cwd.join(".typedefs");
-    if let Err(err) = fs::create_dir(&typedefs_dir) {
-        return wrap_err!("seal setup - error creating directory: {}", err);
+    if created_typedefs_dir {
+        match TYPEDEFS_DIR.extract(typedefs_dir) {
+            Ok(()) => {
+                println!("seal setup .typedefs in your current directory!");
+            },
+            Err(err) => {
+                return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
+            }
+        };
     }
-
-    match TYPEDEFS_DIR.extract(typedefs_dir) {
-        Ok(()) => {
-            println!("seal setup .typedefs in your current directory!");
-        },
-        Err(err) => {
-            return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
-        }
-    };
 
     let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
     let temp_luau = Lua::new();

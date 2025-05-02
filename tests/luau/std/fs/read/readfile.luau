@@ -21,6 +21,7 @@ do
 
 	local s, f = pcall(function()
 		fs.readfile(".")
+		return nil
 	end)
 	assert(s == false, "reading . as a file shouldn't work")
 end
