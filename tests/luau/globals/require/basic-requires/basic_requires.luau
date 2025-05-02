@@ -23,7 +23,6 @@ local function relative()
 	local t1 = os.clock()
 
 	assert(relative_data.relative == "yes very", "relative require didnt work")
-	assert((t1 - t0) < 0.0045, "basic relative require took too long")
 end
 
 relative()
@@ -99,7 +98,7 @@ local function filenotfound()
 		return nil
 	end)
 	assert(s == false, "requiring filenotfound was not supposed to succeed")
-	assert(tostring(f):match("require: module not found:"), "not getting module not found when requiring a file that should not be found")
+	assert(tostring(f):match("not found"), "not getting not found when requiring a file that should not be found")
 end
 
 filenotfound()

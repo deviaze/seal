@@ -121,23 +121,28 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
 }
 
 fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {
-    let require_resolver = include_str!("./resolver.luau");
-    let r: LuaFunction = luau.load(require_resolver).eval()?;
-    match r.call::<LuaValue>(path.to_owned()) {
+    let resolver_src = include_str!("./resolver.luau");
+    let LuaValue::Table(resolver) = luau.load(resolver_src).eval()? else {
+        panic!("require resolver didnt return table??");
+    };
+    let LuaValue::Function(resolve) = resolver.raw_get("resolve")? else {
+        panic!("require resolver.resolve not a function??");
+    };
+    match resolve.call::<LuaValue>(path.to_owned()) {
         Ok(LuaValue::Table(result_table)) => {
             if let LuaValue::String(path) = result_table.raw_get("path")? {
                 Ok(path.to_string_lossy())
             } else if let LuaValue::String(err) = result_table.raw_get("err")? {
                 wrap_err!("require: {}", err.to_string_lossy())
             } else {
-                panic!("require: ./resolver.luau returned an unexpected table {:#?}", result_table);
+                panic!("require: resolve() returned an unexpected table {:#?}", result_table);
             }
         },
         Ok(_other) => {
-            panic!("require: ./resolver.luau returned something that isn't a string or err table; this shouldn't be possible");
+            panic!("require: resolve() returned something that isn't a string or err table; this shouldn't be possible");
         },
         Err(err) => {
-            panic!("require: ./resolver.luau broke? this shouldn't happen; err: {}", err);
+            panic!("require: resolve() broke? this shouldn't happen; err: {}", err);
         }
     }
 }

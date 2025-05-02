@@ -1,7 +1,7 @@
 use mlua::prelude::*;
 use table_helpers::TableBuilder;
 use std::{fs, env, panic, path::Path};
-use std::io;
+use std::{io, path};
 
 mod table_helpers;
 mod std_io_output;
@@ -25,6 +25,8 @@ mod std_testing;
 mod globals;
 mod require;
 mod interop;
+
+const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use crate::std_io_colors as colors;
 
@@ -77,6 +79,11 @@ fn main() -> LuaResult<()> {
     if first_arg == "setup" {
         return seal_setup();
     }
+
+    if first_arg == "--version" || first_arg == "-v" {
+        println!("{}", SEAL_VERSION);
+        return Ok(());
+    }
     
     let luau: Lua = Lua::new();
     
@@ -127,10 +134,15 @@ fn main() -> LuaResult<()> {
                 panic!("Wrong language! seal only runs .luau files")
             }
 
-            entry_path = file_path.clone();
+            // temp hacky fix for debug names not being absolute paths
+            // TODO: properly fix on main.rs rewrite
+            entry_path = match path::absolute(file_path.clone()) {
+                Ok(p) => p.to_string_lossy().to_string(),
+                Err(_e) => file_path.clone()
+            };
 
             globals.set("script", TableBuilder::create(&luau)?
-                .with_value("entry_path", file_path.to_owned())?
+                .with_value("entry_path", entry_path.to_owned())?
                 .with_function("path", globals::get_script_path)?
                 .with_function("parent", globals::get_script_parent)?
                 .build()?

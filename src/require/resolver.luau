@@ -15,6 +15,7 @@ type RequireResolveResult = {
 
 local fs = require("@std/fs")
 local json = require("@std/json")
+local colors = require("@std/colors")
 
 type LuaurcConfig = {
 	languageMode: "strict" | "nonstrict"?,
@@ -26,7 +27,7 @@ type LuaurcConfig = {
 	}?,
 }
 
-type LuaurcAliases = {
+export type LuaurcAliases = {
 	path: string,
 	aliases: {
 		[string]: string
@@ -50,7 +51,6 @@ end
 local function str_endswith(s: string, component: string)
     return string.sub(s, -#component) == component
 end
-
 
 local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAliases}?, string?)
 	local aliases_by_luaurc: { LuaurcAliases } = {}
@@ -94,6 +94,18 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 			table.insert(aliases_by_luaurc, 1, current_luaurc)
 		end
 		current_path = fs.path.parent(current_path :: string)
+	end
+
+	if str_endswith(requiring_file_path, "init.luau") then
+		-- @self should refer to the direct parent dir of an init.luau
+		-- regardless of whichever meaning of ./relative we use in seal 
+		-- (seal should fallback to the new meaning)
+		table.insert(aliases_by_luaurc, 1, {
+			path = "self alias for init.luau (https://github.com/luau-lang/rfcs/pull/109)",
+			aliases = {
+				self = fs.path.parent(requiring_file_path) :: string
+			}
+		})
 	end
 	
 	return aliases_by_luaurc, nil
@@ -140,36 +152,63 @@ local function expand_aliases(requested_path: string, aliases_by_luaurc: { Luaur
 	else
 		local function list_aliases(aliases: { [string]: string }, indent: string)
 			return maptostring(aliases, function(key, replacement)
-				return `{indent}'@{key}' => '{replacement}'`
+				return ` {indent}- '{key}' => {colors.codes.GREEN}"{replacement}"{colors.codes.RESET}`
 			end)
 		end
 
-		local err_message =
+		local function display_aliases_by_luaurc(aliases_by_luaurc: { LuaurcAliases }): string
+			local result = ""
+			local current_luaurc = 1
+			for i = #aliases_by_luaurc, 1, -1 do -- go backwards
+				local luaurc: LuaurcAliases = aliases_by_luaurc[i]
+				result ..= `\n  {current_luaurc}: {luaurc.path}: {list_aliases(luaurc.aliases, "    ")}`
+				current_luaurc += 1
+			end
+			return result
+		end
+
+		local err_message = `unable to resolve requested path '{requested_path}'\n  ` .. colors.codes.RESET ..
 			if luaurcs_found == 0 then
 				`unable to expand alias '{extracted_alias}', no .luaurc configuration files found in requiring file's parent/ancestor directories`
 			elseif luaurcs_found == 1 and aliases_found == 0 then
 				`no aliases defined in the .luaurc at '{aliases_by_luaurc[1].path}' (looking for '{extracted_alias}')`
 			elseif luaurcs_found == 1 and aliases_found > 0 then
-				`alias '{extracted_alias}' not found in the .luaurc at '{aliases_by_luaurc[1].path}'; found aliases: {list_aliases(aliases_by_luaurc[1].aliases, "  ")}`
+				`alias '{colors.bold.red(extracted_alias)}' not found in the .luaurc at '{aliases_by_luaurc[1].path}'; found aliases: {list_aliases(aliases_by_luaurc[1].aliases, "  ")}`
 			else
-				`alias '{extracted_alias}' not found in the following .luaurcs:` ..
-					maptostring(aliases_by_luaurc, function(index: number, luaurc: LuaurcAliases)
-						return `  {#aliases_by_luaurc - index}. '{luaurc.path}': {list_aliases(luaurc.aliases, "    ")}`
-					end)
+				`alias '{colors.bold.red(extracted_alias)}' not found in the following .luaurcs:` .. display_aliases_by_luaurc(aliases_by_luaurc)
 		return nil, err_message
 	end
 end
 
-local function resolve(requested_path: string, test_debug_name: string?): RequireResolveResult
-	local debug_name: string = test_debug_name or debug.info(3, "s") --[[ 
+--[=[
+	Tries to resolve `requested_path` from the requiring file's debug name (optionally overridden by `override_debug_name`),
+	using the new `init.luau` semantics if `try_new_init_luau_semantics` is enabled.
+
+	seal uses the old semantics by default, and fallsback to the new semantics if a module wasn't found by the old semantics.
+	In either case, the alias @self should always be available and consistently refer to init.luau's direct parent directory
+]=]
+local function resolve(
+	requested_path: string,
+	override_debug_name: string?,
+	try_new_init_luau_semantics: boolean? --[[
+		seal defaults to old init.luau semantics since that's what luau-lsp currently supports
+		- old semantics = ./meow is in the same directory as the requiring init.luau
+		- new semantics = ./meow is in the parent directory of the requiring init.luau
+		but if the old semantics don't work (file not found) we try the new one by calling resolve again recursively
+		in the future we'll switch to new semantics by default and fallback to old semantics with a warning
+		but either way seal supports @self in either case
+	]]
+): RequireResolveResult
+	local debug_name: string = override_debug_name or debug.info(3, "s") --[[ 
 		this should give us the 
 		debug name (set by luau.load().set_name) for the chunk that called require(),
 		in the format `[string "./src/somewhere.luau"]`
 	]]
 	local requiring_file_path = string.sub(debug_name, 10, -3) -- grabs the part between `[string "` and `"]`
+	local use_new_init_luau_semantics = -- we only want to use new init.luau semantics if
+		try_new_init_luau_semantics and str_endswith(requiring_file_path, "init.luau")
 
 	local current_path = requiring_file_path
-	
 	local trim_after_index = 0
 	if string.sub(requested_path, 1, 1) == "@" then
 		local aliases_by_luaurc, err = get_aliases_by_luaurc(requiring_file_path)
@@ -186,24 +225,21 @@ local function resolve(requested_path: string, test_debug_name: string?): Requir
 		end
 		current_path = expanded_path
 	elseif string.sub(requested_path, 1, 2) == "./" then
-		current_path = fs.path.parent(current_path)
-		if not current_path then
-			return {
-				err = `first level parent ./ doesn't exist relative to '{requiring_file_path}'`
-			}
-		end
+		current_path = fs.path.parent(current_path, if use_new_init_luau_semantics then 2 else 1)
 		trim_after_index = 3
 	elseif string.sub(requested_path, 1, 3) == "../" then
-		current_path = fs.path.parent(current_path, 2)
-		if not current_path then
-			return {
-				err = `second level parent ../ doesn't exist relative to '{requiring_file_path}'`
-			}
-		end
+		current_path = fs.path.parent(current_path, if use_new_init_luau_semantics then 3 else 2)
 		trim_after_index = 4
 	else
 		return {
-			err = `requested path '{requested_path}' does not start with './', '../', or '@', it cannot be required`
+			err = `requested path '{requested_path}' does not start with './', '../', or '@'; it cannot be required.\n`
+			    .. '  note: implicitly relative requires (like require("sibling")) are no longer supported by seal'
+		}
+	end
+
+	if current_path == nil then
+		return {
+			err = `one or more parents could not be extracted from '{requested_path}'; is the requested path formatted correctly?`
 		}
 	end
 
@@ -223,7 +259,8 @@ local function resolve(requested_path: string, test_debug_name: string?): Requir
 		current_path ..= ".luau"
 	elseif find_result.type == "PermissionDenied" then
 		return {
-			err = `requested path '{requested_path}' resolved to '{current_path}', which cannot be required because permission denied`
+			err = `'{requested_path}' can't be required: requested path resolved to '{current_path}', \z
+			which cannot be required because permission denied :(`
 		}
 	end
 
@@ -235,13 +272,29 @@ local function resolve(requested_path: string, test_debug_name: string?): Requir
 		}
 	elseif trying_to_require_directory then
 		return {
-			err = `directory at '{fs.path.parent(current_path)}' missing an 'init.luau', it cannot be required`
+			err = `'{requested_path}' can't be required: requested path resolved to '{fs.path.parent(current_path)}', \z
+			which is a directory missing its init.luau (needed to treat filesystem directories as 'modules' in the Luau Require System)`
+		}
+	elseif try_new_init_luau_semantics == nil and str_endswith(requiring_file_path, "init.luau") then
+		return resolve(requested_path, debug_name, true)
+	elseif use_new_init_luau_semantics and string.match(requested_path, "%.%.?/") then
+		return {
+			err = `module '{requested_path}' not found: relative require from the init.luau at '{requiring_file_path}' resolved to '{current_path}', which wasn't found on the filesystem.\n`
+			     .. "  note on require resolution semantics:\n"
+			     .. "    - old: './meow' means meow.luau is in the same directory as the requiring init.luau\n"
+				 .. "    - new: './meow' means meow.luau is in the parent directory of the requiring init.luau\n"
+				 .. "    + for more information, check out: https://github.com/luau-lang/rfcs/pull/109\n"
+				 .. "  seal tried both old and new require resolution semantics but was unable to find your module :("
 		}
 	else
 		return {
-			err = `module not found: requested path '{requested_path}' resolved to '{current_path}', which wasn't found on the filesystem`
+			err = `module '{requested_path}' not found: requested path resolved to '{current_path}', which wasn't found on the filesystem`
 		}
 	end
 end
 
-return resolve
+return {
+	resolve = resolve,
+	get_aliases = get_aliases_by_luaurc,
+	expand_aliases = expand_aliases,
+}
