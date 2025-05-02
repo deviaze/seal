@@ -72,7 +72,12 @@ fn main() -> LuaResult<()> {
     let first_arg = args[1].clone();
 
     if first_arg == "--help" || first_arg == "-h" {
-        println!("seal help will be implemented SOON(TM)");
+        println!("Usage:\
+        \n `seal setup` - set up a project in an existing folder (at your cwd) with typedefs, config, etc.\
+        \n `seal ./filename.luau <arg1> <arg2>` - run a luau file with seal\
+        \n `seal run <arg1> <arg2>` - run the current project at your cwd\
+        \n `seal eval '<string src>'` - evaluate a string with seal with fs, process, and http loaded in\
+        \nProper seal help will be implemented SOON(TM)");
         return Ok(());
     }
     
