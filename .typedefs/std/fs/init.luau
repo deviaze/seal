@@ -1,8 +1,8 @@
 
-local dirlib = require("./dir")
-local pathlib = require("./path")
-local filelib = require("./file")
-local common_types = require("./_types")
+local dirlib = require("@self/dir")
+local pathlib = require("@self/path")
+local filelib = require("@self/file")
+local common_types = require("@self/_types")
 
 export type fs = {
 	-- fs.readfile(path: string) -> string

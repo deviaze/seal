@@ -5,7 +5,7 @@ function time.wait(seconds: number): true
 	return nil :: any
 end
 
-time.datetime = require("./datetime")
+time.datetime = require("@self/datetime")
 
 type time = typeof(time)
 

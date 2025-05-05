@@ -37,10 +37,10 @@ export type LuaurcAliases = {
 
 local function maptostring<K, V>(t: { [K]: V }, f: (key: K, val: V) -> string?): string
 	local result = ""
-	for k, v in t do
-		local s = f(k, v)
+	for k, v in t :: any do -- LUAU FIXME: solver fails to complete
+		local s = f(k, v) -- TypeError: Function only returns 0 values, but 1 is required here
 		if s then
-			result ..= "\n" .. s
+			result ..= "\n" .. s -- TypeError: Type function instance refine<*blocked-14022*, ~(false?)> is uninhabited
 		end
 	end
 	return result
@@ -185,27 +185,29 @@ end
 	Tries to resolve `requested_path` from the requiring file's debug name (optionally overridden by `override_debug_name`),
 	using the new `init.luau` semantics if `try_new_init_luau_semantics` is enabled.
 
-	seal uses the old semantics by default, and fallsback to the new semantics if a module wasn't found by the old semantics.
+	seal uses the new semantics by default, and falls back to the old semantics if a module wasn't found.
 	In either case, the alias @self should always be available and consistently refer to init.luau's direct parent directory
 ]=]
 local function resolve(
 	requested_path: string,
 	override_debug_name: string?,
 	try_new_init_luau_semantics: boolean? --[[
-		seal defaults to old init.luau semantics since that's what luau-lsp currently supports
+		seal defaults to new init.luau semantics since that's what the newest luau-lsp currently supports
 		- old semantics = ./meow is in the same directory as the requiring init.luau
 		- new semantics = ./meow is in the parent directory of the requiring init.luau
-		but if the old semantics don't work (file not found) we try the new one by calling resolve again recursively
-		in the future we'll switch to new semantics by default and fallback to old semantics with a warning
-		but either way seal supports @self in either case
+		but if the new semantics don't work (file not found) we try the old one by calling resolve again recursively
+		note that seal supports @self in either case
 	]]
 ): RequireResolveResult
-	local debug_name: string = override_debug_name or debug.info(3, "s") --[[ 
-		this should give us the 
-		debug name (set by luau.load().set_name) for the chunk that called require(),
-		in the format `[string "./src/somewhere.luau"]`
+local debug_name: string = override_debug_name or debug.info(3, "s") --[[ 
+	this should give us the 
+	debug name (set by luau.load().set_name) for the chunk that called require(),
+	in the format `[string "./src/somewhere.luau"]`
 	]]
 	local requiring_file_path = string.sub(debug_name, 10, -3) -- grabs the part between `[string "` and `"]`
+
+	local try_new_init_luau_semantics = -- luau lsp has updated, so let's use new semantics by default
+		if try_new_init_luau_semantics == nil or try_new_init_luau_semantics == true then true else false
 	local use_new_init_luau_semantics = -- we only want to use new init.luau semantics if
 		try_new_init_luau_semantics and str_endswith(requiring_file_path, "init.luau")
 
@@ -282,9 +284,9 @@ local function resolve(
 			err = `'{requested_path}' can't be required: requested path resolved to '{fs.path.parent(current_path)}', \z
 			which is a directory missing its init.luau (needed to treat filesystem directories as 'modules' in the Luau Require System)`
 		}
-	elseif try_new_init_luau_semantics == nil and str_endswith(requiring_file_path, "init.luau") then
-		return resolve(requested_path, debug_name, true)
-	elseif use_new_init_luau_semantics and string.match(requested_path, "%.%.?/") then
+	elseif try_new_init_luau_semantics and str_endswith(requiring_file_path, "init.luau") then
+		return resolve(requested_path, debug_name, false)
+	elseif use_new_init_luau_semantics == false and string.match(requested_path, "%.%.?/") then
 		return {
 			err = `module '{requested_path}' not found: relative require from the init.luau at '{requiring_file_path}' resolved to '{current_path}', which wasn't found on the filesystem.\n`
 			     .. "  note on require resolution semantics:\n"
