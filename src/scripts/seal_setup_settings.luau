@@ -19,6 +19,7 @@ local default_luaurc = {
 	aliases = {
 		std = "./.seal/typedefs/std/",
 		interop = "./.seal/typedefs/interop/",
+		extra = "./.seal/extra/",
 	} :: { [string]: string }
 }
 
