@@ -4,8 +4,8 @@
 		"LocalUnused": false
 	},
 	"aliases": {
-		"std": "./.typedefs/std/",
-		"interop": "./.typedefs/interop/",
+		"std": "./.seal/typedefs/std/",
+		"interop": "./.seal/typedefs/interop/",
 		"tests": "./tests/luau/",
 		"data": "./tests/data/",
 		"output_process_values": "./src/scripts/output_process_values.luau"

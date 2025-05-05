@@ -37,7 +37,7 @@ local function sealsetup()
 	-- assert(fs.path.exists(sealproject:join("src")), "sealproject/src dir not exists?")
 	assert(projectpathexists("src"), "sealproject/src dir not exists?")
 	assert(projectpathexists("src", "main.luau"), "sealproject/src/main.luau not exists?")
-	assert(projectpathexists(".typedefs"), "sealproject/.typedefs not exists?")
+	assert(projectpathexists(".seal"), "sealproject/.seal not exists?")
 	assert(projectpathexists(".luaurc"), "sealproject/.luaurc not exists?")
 	assert(projectpathexists(".vscode", "settings.json"), "sealproject/.vscode/settings.json not exists?")
 end

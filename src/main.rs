@@ -31,7 +31,7 @@ const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 use crate::std_io_colors as colors;
 
 use include_dir::{include_dir, Dir};
-const TYPEDEFS_DIR: Dir = include_dir!(".typedefs");
+const DOT_SEAL_DIR: Dir = include_dir!(".seal");
 
 type LuaValueResult = LuaResult<LuaValue>;
 type LuaEmptyResult = LuaResult<()>;
@@ -212,27 +212,27 @@ fn main() -> LuaResult<()> {
 
 fn seal_setup() -> LuaResult<()> {
     let cwd = std_env::get_cwd("seal setup")?;
-    let typedefs_dir = cwd.join(".typedefs");
-    let created_typedefs_dir = match fs::create_dir(&typedefs_dir) {
+    let dot_seal_dir = cwd.join(".seal");
+    let created_seal_dir = match fs::create_dir(&dot_seal_dir) {
         Ok(_) => true,
         Err(err) => match err.kind() {
             io::ErrorKind::AlreadyExists => {
-                println!("seal setup - .typedefs already exists; not replacing it");
+                println!("seal setup - '.seal' already exists; not replacing it");
                 false
             },
             _ => {
-                return wrap_err!("seal setup = error creating .typedefs: {}", err);
+                return wrap_err!("seal setup = error creating .seal: {}", err);
             }
         }
     };
 
-    if created_typedefs_dir {
-        match TYPEDEFS_DIR.extract(typedefs_dir) {
+    if created_seal_dir {
+        match DOT_SEAL_DIR.extract(dot_seal_dir) {
             Ok(()) => {
-                println!("seal setup .typedefs in your current directory!");
+                println!("seal setup .seal in your current directory!");
             },
             Err(err) => {
-                return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
+                return wrap_err!("seal setup - error extracting .seal directory: {}", err);
             }
         };
     }
