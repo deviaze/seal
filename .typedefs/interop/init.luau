@@ -1,4 +1,4 @@
 return {
-	mlua = require("./mlua"),
-	require = require("./require"),
+	mlua = require("@self/mlua"),
+	require = require("@self/require"),
 }

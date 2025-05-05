@@ -142,7 +142,7 @@ type FsMetadata = {
 	}
 }
 
-local pathlib = require("./path")
+local pathlib = require("@self/path")
 fs.path = {} :: pathlib.PathLib
 
 --[=[

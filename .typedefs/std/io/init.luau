@@ -33,8 +33,8 @@ clear() -- cls/clear
 ]=]
 local io = {}
 
-io.input = require("./input")
-io.colors = require("./colors")
-io.output = require("./output")
+io.input = require("@self/input")
+io.colors = require("@self/colors")
+io.output = require("@self/output")
 
 return io
