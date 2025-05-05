@@ -1,6 +1,6 @@
 --!nolint LocalShadow
 --- configures a directory's .vscode and .luaurc settings for seal
--- doesn't handle spawning in .typedefs (that's handled in rust)
+-- doesn't handle spawning in .seal (handled in rust)
 local fs = require("@std/fs")
 local json = require("@std/json")
 local process = require("@std/process")
@@ -11,14 +11,15 @@ type FileEntry = fs.FileEntry
 local default_vscode_settings = {
 	["luau-lsp.fflags.enableNewSolver"] = true,
 	["luau-lsp.platform.type"] = "standard",
-	["luau-lsp.types.definitionFiles"] = { "./.typedefs/globals.d.luau" },
+	["luau-lsp.types.definitionFiles"] = { "./.seal/typedefs/globals.d.luau" },
 }
 
 local default_luaurc = {
 	languageMode = "strict",
 	aliases = {
-		std = "./.typedefs/std/",
-		interop = "./.typedefs/interop/",
+		std = "./.seal/typedefs/std/",
+		interop = "./.seal/typedefs/interop/",
+		extra = "./.seal/extra/",
 	} :: { [string]: string }
 }
 

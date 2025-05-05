@@ -1,6 +1,6 @@
 [package]
 name = "seal"
-version = "0.0.5-rc.2"
+version = "0.0.6-rc.1"
 edition = "2021"
 
 [dependencies]

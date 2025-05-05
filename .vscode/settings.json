@@ -13,7 +13,7 @@
 		"**/init.server.luau": "${dirname}"
 	},
 	"luau-lsp.completion.imports.suggestRequires": true,
-	"luau-lsp.types.definitionFiles": ["./.typedefs/globals.d.luau"],
+	"luau-lsp.types.definitionFiles": ["./.seal/typedefs/globals.d.luau"],
 	"code-runner.executorMap": {
 		"luau": "cargo build && ./target/debug/seal $fullFileName",
 	},
