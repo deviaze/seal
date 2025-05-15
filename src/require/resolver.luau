@@ -14,6 +14,7 @@ type RequireResolveResult = {
 }
 
 local fs = require("@std/fs")
+local str = require("@std/str")
 local env = require("@std/env")
 local json = require("@std/json")
 local colors = require("@std/colors")
@@ -46,13 +47,6 @@ local function maptostring<K, V>(t: { [K]: V }, f: (key: K, val: V) -> string?):
 	return result
 end
 
-local function str_startswith(s: string, component: string)
-    return string.sub(s, 1, #component) == component
-end
-local function str_endswith(s: string, component: string)
-    return string.sub(s, -#component) == component
-end
-
 local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAliases}?, string?)
 	local aliases_by_luaurc: { LuaurcAliases } = {}
 
@@ -82,7 +76,7 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 				for key, replacement in config.aliases do
 					local absolutized_replacement = fs.path.join(
 						current_path :: string,
-						if str_startswith(replacement, "./") then
+						if str.startswith(replacement, "./") then
 							string.sub(replacement, 3)
 						else 
 							replacement
@@ -97,7 +91,7 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 		current_path = fs.path.parent(current_path :: string)
 	end
 
-	if str_endswith(requiring_file_path, "init.luau") then
+	if str.endswith(requiring_file_path, "init.luau") then
 		-- @self should refer to the direct parent dir of an init.luau
 		-- regardless of whichever meaning of ./relative we use in seal 
 		-- (seal should fallback to the new meaning)
@@ -136,17 +130,17 @@ local function expand_aliases(requested_path: string, aliases_by_luaurc: { Luaur
 	
 	if alias_replacement then
 		-- special case @file aliases
-		if str_endswith(alias_replacement, ".luau") then
+		if str.endswith(alias_replacement, ".luau") then
 			return alias_replacement, nil
 		end
 
 		local rest_of_path = requested_path
 		-- strip @alias prefix
 		rest_of_path = string.sub(rest_of_path, #extracted_alias + 2, #rest_of_path)
-		if str_startswith(rest_of_path, "/") then
+		if str.startswith(rest_of_path, "/") then
 			rest_of_path = string.sub(rest_of_path, 2, #rest_of_path)
 		end
-		if not str_endswith(alias_replacement, "/") then
+		if not str.endswith(alias_replacement, "/") then
 			alias_replacement ..= "/"
 		end
 		return alias_replacement .. rest_of_path, nil
@@ -209,7 +203,7 @@ local debug_name: string = override_debug_name or debug.info(3, "s") --[[
 	local try_new_init_luau_semantics = -- luau lsp has updated, so let's use new semantics by default
 		if try_new_init_luau_semantics == nil or try_new_init_luau_semantics == true then true else false
 	local use_new_init_luau_semantics = -- we only want to use new init.luau semantics if
-		try_new_init_luau_semantics and str_endswith(requiring_file_path, "init.luau")
+		try_new_init_luau_semantics and str.endswith(requiring_file_path, "init.luau")
 
 	local current_path = requiring_file_path
 	local trim_after_index = 0
@@ -284,7 +278,7 @@ local debug_name: string = override_debug_name or debug.info(3, "s") --[[
 			err = `'{requested_path}' can't be required: requested path resolved to '{fs.path.parent(current_path)}', \z
 			which is a directory missing its init.luau (needed to treat filesystem directories as 'modules' in the Luau Require System)`
 		}
-	elseif try_new_init_luau_semantics and str_endswith(requiring_file_path, "init.luau") then
+	elseif try_new_init_luau_semantics and str.endswith(requiring_file_path, "init.luau") then
 		return resolve(requested_path, debug_name, false)
 	elseif use_new_init_luau_semantics == false and string.match(requested_path, "%.%.?/") then
 		return {

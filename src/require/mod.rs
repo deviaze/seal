@@ -1,7 +1,8 @@
 use requirer::FsRequirer;
 
-use crate::{std_json::json_decode, *};
-use std::{collections::VecDeque, fs, path::PathBuf};
+use mlua::prelude::*;
+use crate::{*, std_json::json_decode};
+use std::{collections::VecDeque, fs, path::PathBuf, io};
 
 mod requirer;
 
@@ -88,6 +89,9 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/crypt/hash" => ok_table(std_crypt::create_hash(luau)),
         "@std/crypt/password" => ok_table(std_crypt::create_password(luau)),
 
+        "@std/str_internal" => ok_table(std_str_internal::create(luau)),
+        "@std/str" => ok_table(load_std_str(luau)),
+
         "@std/thread" => ok_table(std_thread::create(luau)),
 
         "@std/testing" => ok_table(std_testing::create(luau)),
@@ -96,6 +100,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std" => {
             ok_table(TableBuilder::create(luau)?
                 .with_value("fs", std_fs::create(luau)?)?
+                .with_value("str", load_std_str(luau)?)?
                 .with_value("env", std_env::create(luau)?)?
                 .with_value("io", std_io::create(luau)?)?
                 .with_value("colors", colors::create(luau)?)?
@@ -118,6 +123,11 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
             wrap_err!("program required an unexpected standard library: {}", other)
         }
     }
+}
+
+const STD_STR_SRC: &str = include_str!("../std_str.luau");
+fn load_std_str(luau: &Lua) -> LuaResult<LuaTable> {
+    luau.load(STD_STR_SRC).eval::<LuaTable>()
 }
 
 fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {

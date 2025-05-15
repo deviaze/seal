@@ -1,11 +1,13 @@
 use std::io;
-use std::fs;
+use std::fs::{self, OpenOptions};
 use mlua::prelude::*;
-use std::fs::OpenOptions;
-use crate::{LuaValueResult, LuaMultiResult, wrap_err, colors, TableBuilder, ok_table, ok_string};
-use super::entry::wrap_io_read_errors;
-use super::validate_path_without_checking_fs;
-use super::{entry, file_entry, validate_path};
+use crate::prelude::*;
+use super::{
+    entry::{self, wrap_io_read_errors},
+    file_entry,
+    validate_path,
+    validate_path_without_checking_fs
+};
 
 #[cfg(unix)]
 use std::os::unix::fs::FileExt;
