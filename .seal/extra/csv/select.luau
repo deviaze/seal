@@ -40,8 +40,11 @@ local function csv_select(c: Csv, query: SelectQuery): Csv
 		local match = true
 
 		for column_name, filter_fn in query.where do
-			local column_index_in_row = c.column_map[column_name] - 1
+			local column_index_in_row = c.column_map[column_name]
 			local value = row_data[column_index_in_row]
+			if not value then
+				value = row_data[column_index_in_row - 1] -- hacky fix for weird last col issue?
+			end
 			if (value :: any) == nil then
 				print(`missing value for column_name '{column_name}'?, tried index {column_index_in_row}`)
 				print(row_data)
