@@ -8,6 +8,7 @@ local tt = {}
 --- check if you can iterate through table `t` normally (does it support __iter without blowing up?)
 function tt.caniteratenormally(t: any): boolean
 	local tmeta = getmetatable(t)
+	-- stylua: ignore
 	return if tmeta and tmeta.__call then false
 		   elseif tmeta and tmeta.__iter then true
 		   else true
@@ -56,7 +57,7 @@ end
 function tt.values<K>(t: { [K]: unknown }): { K }
 	local values = {}
 	if tt.caniteratenormally(t) then
-		for _,  value in t do
+		for _, value in t do
 			-- LUAU FIXME: weird refinement of intersect<K, ~nil> not allowing table.insert overload
 			table.insert(values, value)
 		end
@@ -104,7 +105,7 @@ end
 	end)
 	```
 ]=]
-function tt.map<K, V, NK, NV>(t: { [K]: V }, mapper: <K, V, NK, NV>(key: K, val: V) -> (NK?, NV?)): {[NK]: NV}
+function tt.map<K, V, NK, NV>(t: { [K]: V }, mapper: <K, V, NK, NV>(key: K, val: V) -> (NK?, NV?)): { [NK]: NV }
 	local result: { [NK]: NV } = {}
 	if tt.caniteratenormally(t) then
 		for key, value in t do
@@ -123,6 +124,28 @@ function tt.map<K, V, NK, NV>(t: { [K]: V }, mapper: <K, V, NK, NV>(key: K, val:
 			end
 		end
 	end
+	return result
+end
+
+function tt.arraymap<T>(t: { T }, mapper: <T>(index: number, value: T) -> T?): { T }
+	local result: { T } = {}
+
+	if tt.caniteratenormally(t) then
+		for index, value in t do
+			local new_value = mapper(index, value)
+			if new_value ~= nil then
+				table.insert(result, new_value)
+			end
+		end
+	else
+		for index, value in ipairs(t) do
+			local new_value = mapper(index, value)
+			if new_value ~= nil then
+				table.insert(result, new_value)
+			end
+		end
+	end
+
 	return result
 end
 
@@ -170,13 +193,15 @@ end
 --- type functions are cursed
 type function Select(t: type, indexer: type?)
 	local function getvaluetype(value: any)
-		return 
-			if value == "string" then types.string
+		return
+			-- stylua: ignore
+			if value == "string"
+			then types.string
 			elseif value == "number" then types.number
 			elseif value == "boolean" then types.boolean
 			elseif value == "true" then types.singleton(true)
 			elseif value == "false" then types.singleton(false)
-			elseif (typeof)(value) == "type" then (value :: any)
+			elseif (typeof)(value) == "type" then value :: any
 			else types.unknown
 	end
 	if t:is("table") then
@@ -195,10 +220,7 @@ type function Select(t: type, indexer: type?)
 				print("value isn't a singleton or table, you probably need to :: cast it lol")
 			end
 			if key ~= nil and value ~= nil then
-				column_type:setproperty(
-					types.singleton(key),
-					getvaluetype(value)
-				)
+				column_type:setproperty(types.singleton(key), getvaluetype(value))
 			end
 		end
 		if indexer then
@@ -217,10 +239,7 @@ type function Select(t: type, indexer: type?)
 						print("value isn't a singleton or table, you probably need to :: cast it lol")
 					end
 					if key ~= nil and value ~= nil then
-						column_type:setindexer(
-							types.singleton(key),
-							getvaluetype(value)
-						)
+						column_type:setindexer(types.singleton(key), getvaluetype(value))
 					end
 				end
 			end
