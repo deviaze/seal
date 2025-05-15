@@ -1,7 +1,6 @@
 local column = {}
 
 local str = require("@std/str")
-local tt = require("@extra/tt")
 local row = require("./row.luau")
 
 type ColumnStruct = {
