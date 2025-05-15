@@ -1,9 +1,6 @@
 name: Run tests and build artifacts
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
@@ -79,5 +76,5 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: seal-v${{ needs.version.outputs.version }}-${{ runner.os }}-${{ runner.arch }}
+          name: seal-v${{ needs.version.outputs.version }}-${{ runner.os == 'macOS' && 'macos-darwin' || runner.os == 'Windows' && 'windows' || runner.os == 'Linux' && 'linux' }}-${{ runner.arch == 'X64' && 'x64' || runner.arch == 'ARM64' && 'arm64' }}
           path: ./target/release/seal*
