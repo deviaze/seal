@@ -51,11 +51,11 @@ end
 
 writeandretrieve()
 
-local sel = csv.select(merged, {
-	with_columns = { "CRN", "Student Name", "Class Name"},
-	where = {
-		["CRN"] = function(crn) return str.startswith(crn, "1") end,
-	}
-})
-print("students in classes that start with crn 1:\n")
-csv.show(sel, 1, 3)
+-- local sel = csv.select(merged, {
+-- 	with_columns = { "CRN", "Student Name", "Class Name"},
+-- 	where = {
+-- 		["CRN"] = function(crn) return str.startswith(crn, "1") end,
+-- 	}
+-- })
+-- print("students in classes that start with CRN 1:\n")
+-- csv.show(sel, 1, 3)
