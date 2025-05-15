@@ -1,0 +1,67 @@
+CRN,Class Name,Professor Name,Location,Student ID,Student Name,Major
+10101,Introduction to Computer Science ⚛️,Dr. John Smith,CS-101,20001,Alex Johnson,Computer Science
+10101,Introduction to Computer Science ⚛️,Dr. John Smith,CS-101,20002,Emily Carter,Computer Science
+10101,Introduction to Computer Science ⚛️,Dr. John Smith,CS-101,20022,田中良 (Tian Zhongliang),Computer Science
+10101,Introduction to Computer Science ⚛️,Dr. John Smith,CS-101,20028,Sofia Hernández,Computer Science
+10101,Introduction to Computer Science ⚛️,Dr. John Smith,CS-101,20033,Ethan Zhang,Computer Science
+10202,Data Structures and Algorithms 🎭,"Prof. María González, Prof. Javier Rodríguez",ENG-202,20001,Alex Johnson,Software Engineering
+10202,Data Structures and Algorithms 🎭,"Prof. María González, Prof. Javier Rodríguez",ENG-202,20003,Daniel Wright,Software Engineering
+10202,Data Structures and Algorithms 🎭,"Prof. María González, Prof. Javier Rodríguez",ENG-202,20004,Sophia Brown,Software Engineering
+10202,Data Structures and Algorithms 🎭,"Prof. María González, Prof. Javier Rodríguez",ENG-202,20022,田中良 (Tian Zhongliang),Software Engineering
+10202,Data Structures and Algorithms 🎭,"Prof. María González, Prof. Javier Rodríguez",ENG-202,20030,Lucia Bianchi,Software Engineering
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303,20002,Emily Carter,Mathematics
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303,20005,Benjamin Carter,Mathematics
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303,20006,Olivia Davis,Mathematics
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303,20021,张伟 (Zhang Wei),Mathematics
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303,20028,Sofia Hernández,Mathematics
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303,20033,Ethan Zhang,Mathematics
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303,20039,Elisa Müller,Mathematics
+10404,Physics I 🌍,"Prof. Олександр Бондаренко, Dr. Carlos Mendoza",PHY-404,20003,Daniel Wright,Physics
+10404,Physics I 🌍,"Prof. Олександр Бондаренко, Dr. Carlos Mendoza",PHY-404,20007,Ethan Lewis,Physics
+10404,Physics I 🌍,"Prof. Олександр Бондаренко, Dr. Carlos Mendoza",PHY-404,20008,Emma Robinson,Physics
+10404,Physics I 🌍,"Prof. Олександр Бондаренко, Dr. Carlos Mendoza",PHY-404,20021,张伟 (Zhang Wei),Physics
+10404,Physics I 🌍,"Prof. Олександр Бондаренко, Dr. Carlos Mendoza",PHY-404,20031,Matteo Rossi,Physics
+10505,Chemistry Basics 🔬,Dr. Sofia Hernández,CHEM-505,20004,Sophia Brown,Chemistry
+10505,Chemistry Basics 🔬,Dr. Sofia Hernández,CHEM-505,20009,Noah Martinez,Chemistry
+10505,Chemistry Basics 🔬,Dr. Sofia Hernández,CHEM-505,20010,Lucas White,Chemistry
+10505,Chemistry Basics 🔬,Dr. Sofia Hernández,CHEM-505,20023,陈芳 (Chen Fang),Chemistry
+10505,Chemistry Basics 🔬,Dr. Sofia Hernández,CHEM-505,20029,Carlos Mendoza,Chemistry
+10505,Chemistry Basics 🔬,Dr. Sofia Hernández,CHEM-505,20034,Emma Novak,Chemistry
+10606,Philosophy of Mind 🧠,"Prof. David Wright, Dr. Isabella Oliveira",PHIL-106,20005,Benjamin Carter,Philosophy
+10606,Philosophy of Mind 🧠,"Prof. David Wright, Dr. Isabella Oliveira",PHIL-106,20011,Mia Thompson,Philosophy
+10606,Philosophy of Mind 🧠,"Prof. David Wright, Dr. Isabella Oliveira",PHIL-106,20012,David Parker,Philosophy
+10606,Philosophy of Mind 🧠,"Prof. David Wright, Dr. Isabella Oliveira",PHIL-106,20029,Carlos Mendoza,Philosophy
+10707,Statistics and Probability 📊,Dr. Isabella Oliveira,STAT-207,20007,Ethan Lewis,Statistics
+10707,Statistics and Probability 📊,Dr. Isabella Oliveira,STAT-207,20013,Isabella Scott,Statistics
+10707,Statistics and Probability 📊,Dr. Isabella Oliveira,STAT-207,20014,Liam Nelson,Statistics
+10707,Statistics and Probability 📊,Dr. Isabella Oliveira,STAT-207,20024,Elena Petrova,Statistics
+10808,Economics Principles 💰,"Prof. Максим Коваленко, Dr. Emma White",ECO-308,20009,Noah Martinez,Economics
+10808,Economics Principles 💰,"Prof. Максим Коваленко, Dr. Emma White",ECO-308,20015,Charlotte Hall,Economics
+10808,Economics Principles 💰,"Prof. Максим Коваленко, Dr. Emma White",ECO-308,20016,James Green,Economics
+10909,Artificial Intelligence 🤖,Dr. Benjamin Carter,CS-409,20010,Lucas White,Artificial Intelligence
+10909,Artificial Intelligence 🤖,Dr. Benjamin Carter,CS-409,20017,Sophia Wilson,Artificial Intelligence
+10909,Artificial Intelligence 🤖,Dr. Benjamin Carter,CS-409,20018,Henry Baker,Artificial Intelligence
+10909,Artificial Intelligence 🤖,Dr. Benjamin Carter,CS-409,20023,陈芳 (Chen Fang),Artificial Intelligence
+10909,Artificial Intelligence 🤖,Dr. Benjamin Carter,CS-409,20032,Olivia Smith,Artificial Intelligence
+11010,Modern European History 🏰,"Prof. Lucia Bianchi, Prof. Alina Morozova",HIST-510,20011,Mia Thompson,History
+11010,Modern European History 🏰,"Prof. Lucia Bianchi, Prof. Alina Morozova",HIST-510,20019,Ava Adams,History
+11010,Modern European History 🏰,"Prof. Lucia Bianchi, Prof. Alina Morozova",HIST-510,20020,Michael Hughes,History
+11111,Creative Writing ✍️,Dr. Emily Carter,LIT-111,20013,Isabella Scott,Creative Writing
+11111,Creative Writing ✍️,Dr. Emily Carter,LIT-111,20027,Emre Kaya,Creative Writing
+11212,Biological Sciences 🧬,"Prof. Adrián Gutiérrez, Dr. Okan Aksoy",BIO-212,20034,Emma Novak,Biological Sciences
+11313,Machine Learning 🏎️,Doç. Dr. Emre Kaya,CS-313,20015,Charlotte Hall,Machine Learning
+11313,Machine Learning 🏎️,Doç. Dr. Emre Kaya,CS-313,20024,Elena Petrova,Machine Learning
+11313,Machine Learning 🏎️,Doç. Dr. Emre Kaya,CS-313,20037,Priya Desai,Machine Learning
+11414,Organic Chemistry 🧪,"Dr. Julia Novak, Prof. Valentina Ivanova",CHEM-414,20016,James Green,Organic Chemistry
+11515,Environmental Science 🌱,Prof. Валентина Іванова,ENV-515,20018,Henry Baker,Environmental Science
+11515,Environmental Science 🌱,Prof. Валентина Іванова,ENV-515,20025,Ahmed Khalid,Environmental Science
+11515,Environmental Science 🌱,Prof. Валентина Іванова,ENV-515,20031,Matteo Rossi,Environmental Science
+11515,Environmental Science 🌱,Prof. Валентина Іванова,ENV-515,20040,Valentina Ivanova,Environmental Science
+11616,Music Theory 🎶,"Dr. Matteo Rossi, Prof. Isabella Fernández",MUS-616,20019,Ava Adams,Music Theory
+11717,Digital Marketing 📈,Prof. Emma Robinson,MKT-717,20032,Olivia Smith,Digital Marketing
+11818,Physics II ⚙️,"Dr. Carlos Mendoza, Prof. Mateo Lozano",PHY-818,20027,Emre Kaya,Physics II
+11919,Programming Languages 💻,Prof. Надія Коваленко,CS-919,20026,Надія Коваленко (Nadiya Kovalenko),Programming Languages
+12020,Modern Art History 🎨,"Dr. Sophia Brown, Prof. Cemre Başoğlu",ART-020,20025,Ahmed Khalid,Modern Art History
+12727,Business Analytics 💼,Dr. Emma White,BUS-727,20035,David Wright,Environmental Policy
+12828,Medical Ethics ⚕️,"Prof. Аліна Морозова, Dr. Thomas Nguyen",MED-828,20036,Kai Nakamura,Advanced Machine Learning
+12929,Electrical Engineering ⚡,Dr. Robert Wilson,ENG-929,20038,Samuel Garcia,Political Philosophy

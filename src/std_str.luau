@@ -86,6 +86,76 @@ function str.len(s: string): number
 	end
 end
 
+--[=[
+    `str.width` estimates the number of monospace space characters required to correctly format/pad a utf8-encoded string.
+
+    ## Handles (or attempts to):
+    - **ASCII** characters and strings.
+    - Adjusts for **CJK (Chinese, Japanese, and Korean) characters**, which often take up double width.
+    - Accounts for **emoji width**, ensuring proper alignment in terminal/monospace output.
+    
+    ## Simple usage:
+    ```luau
+    print(str.width("Hello")) -- 5
+    print(str.width("田中良")) -- 6 (each character takes 2 spaces)
+    print(str.width("🔥🎉")) -- 4 (each emoji takes 2 spaces)
+    ```
+
+	## Actual example:
+	```luau
+	local students = {
+		{ name = "Alex Johnson", score = 95 },
+		{ name = "田中良", score = 88 },
+		{ name = "🔥🎉 Emily Carter", score = 92 },
+		{ name = "Nadiya Kovalenko", score = 85 },
+	}
+
+	-- Calculate column widths dynamically using `str.width`
+	local max_name_width = 0
+	for _, student in students do
+		max_name_width = math.max(max_name_width, str.width(student.name))
+	end
+
+	-- Print formatted table
+	print("Name" .. string.rep(" ", max_name_width - str.width("Name")) .. " | Score")
+	print(string.rep("-", max_name_width) .. "-|------")
+
+	for _, student in students do
+		print(
+			student.name
+			.. string.rep(" ", max_name_width - str.width(student.name)) 
+			.. " | " .. student.score
+		)
+	end
+	```
+]=]
+function str.width(s: string): number
+    local length = str.len(s)
+
+    for _, grapheme in str.graphemes(s) do
+        local codepoint = utf8.codepoint(grapheme)
+
+        -- Detect **CJK wide characters**
+        if (codepoint >= 0x4E00 and codepoint <= 0x9FFF) -- Common CJK
+        or (codepoint >= 0x3400 and codepoint <= 0x4DBF) -- CJK Extension A
+        or (codepoint >= 0x20000 and codepoint <= 0x2A6DF) -- CJK Extension B
+        or (codepoint >= 0x2A700 and codepoint <= 0x2B73F) -- CJK Extension C
+        or (codepoint >= 0x2B740 and codepoint <= 0x2B81F) -- CJK Extension D
+        or (codepoint >= 0x2B820 and codepoint <= 0x2CEAF) -- CJK Extension E
+        or (codepoint >= 0xF900 and codepoint <= 0xFAFF) -- CJK Compatibility Ideographs
+        then
+            length += 1 -- Treat CJK characters as wide
+        end
+
+        -- Detect **emoji width**
+        if codepoint >= 0x1F300 and codepoint <= 0x1FAFF then
+            length += 1 -- Emoji takes extra width
+        end
+    end
+
+    return length
+end
+
 --- left pads `s` to make it at least `width` characters long, using `pad` as the padding character.
 function str.leftpad(s: string, width: number, pad: string?): string
     pad = pad or " " -- default to space if no padding character is provided

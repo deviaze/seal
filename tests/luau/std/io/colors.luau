@@ -1,1 +1,1 @@
-local colors = require("@std/io/colors")
+local _colors = require("@std/io/colors")
