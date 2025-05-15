@@ -6,6 +6,7 @@
 	"aliases": {
 		"std": "./.seal/typedefs/std/",
 		"interop": "./.seal/typedefs/interop/",
+		"extra": "./.seal/extra/",
 		"tests": "./tests/luau/",
 		"data": "./tests/data/",
 		"output_process_values": "./src/scripts/output_process_values.luau"
