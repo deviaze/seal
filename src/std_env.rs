@@ -4,9 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use mlua::prelude::*;
-use crate::ok_string;
-use crate::table_helpers::TableBuilder;
-use crate::{wrap_err, LuaValueResult, colors};
+use crate::prelude::*;
 
 pub fn get_current_shell() -> String {
     #[cfg(target_family = "unix")]

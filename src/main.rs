@@ -1,9 +1,10 @@
 use mlua::prelude::*;
-use table_helpers::TableBuilder;
 use std::{fs, env, panic, path::Path};
 use std::{io, path};
+use crate::prelude::*;
 
-mod table_helpers;
+pub mod table_helpers;
+pub mod prelude;
 mod std_io_output;
 mod std_fs;
 mod std_process;
@@ -13,7 +14,7 @@ mod std_time;
 #[macro_use]
 mod error_handling;
 mod std_io;
-mod std_io_colors;
+pub mod std_io_colors;
 mod std_io_input;
 mod std_net;
 mod std_net_http;
@@ -22,33 +23,15 @@ mod std_thread;
 mod std_serde;
 mod std_crypt;
 mod std_testing;
+mod std_str_internal;
 mod globals;
 mod require;
 mod interop;
 
 const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-use crate::std_io_colors as colors;
-
 use include_dir::{include_dir, Dir};
-const DOT_SEAL_DIR: Dir = include_dir!(".seal");
-
-type LuaValueResult = LuaResult<LuaValue>;
-type LuaEmptyResult = LuaResult<()>;
-type LuaMultiResult = LuaResult<LuaMultiValue>;
-
-// wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
-pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
-    Ok(LuaValue::Table(t?))
-}
-
-pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
-    Ok(LuaValue::Function(luau.create_function(f)?))
-}
-
-pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
-    Ok(LuaValue::String(luau.create_string(s)?))
-}
+const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
 
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();

@@ -1,7 +1,11 @@
 use mlua::prelude::*;
+use crate::prelude::*;
 use std::{fs, io, path::PathBuf};
-use crate::{colors, ok_table, wrap_err, LuaValueResult, TableBuilder};
-use super::{entry::{self, wrap_io_read_errors}, validate_path, validate_path_without_checking_fs};
+use super::{
+    entry::{self, wrap_io_read_errors}, 
+    validate_path, 
+    validate_path_without_checking_fs
+};
 
 fn fr_exists(_luau: &Lua, multivalue: LuaMultiValue) -> LuaValueResult {
     let function_name = "FindResult:exists()";
