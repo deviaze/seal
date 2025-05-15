@@ -9,3 +9,6 @@
 
 *.bat text eol=crlf
 *.sh text eol=lf
+
+*.html linguist-detectable=false
+*.csv linguist-detectable=false

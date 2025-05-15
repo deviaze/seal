@@ -1,9 +1,10 @@
 use mlua::prelude::*;
-use table_helpers::TableBuilder;
 use std::{fs, env, panic, path::Path};
 use std::{io, path};
+use crate::prelude::*;
 
-mod table_helpers;
+pub mod table_helpers;
+pub mod prelude;
 mod std_io_output;
 mod std_fs;
 mod std_process;
@@ -13,7 +14,7 @@ mod std_time;
 #[macro_use]
 mod error_handling;
 mod std_io;
-mod std_io_colors;
+pub mod std_io_colors;
 mod std_io_input;
 mod std_net;
 mod std_net_http;
@@ -22,33 +23,15 @@ mod std_thread;
 mod std_serde;
 mod std_crypt;
 mod std_testing;
+mod std_str_internal;
 mod globals;
 mod require;
 mod interop;
 
 const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-use crate::std_io_colors as colors;
-
 use include_dir::{include_dir, Dir};
-const TYPEDEFS_DIR: Dir = include_dir!(".typedefs");
-
-type LuaValueResult = LuaResult<LuaValue>;
-type LuaEmptyResult = LuaResult<()>;
-type LuaMultiResult = LuaResult<LuaMultiValue>;
-
-// wraps returns of stdlib::create functions with Ok(LuaValue::Table(t))
-pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
-    Ok(LuaValue::Table(t?))
-}
-
-pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
-    Ok(LuaValue::Function(luau.create_function(f)?))
-}
-
-pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
-    Ok(LuaValue::String(luau.create_string(s)?))
-}
+const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
 
 fn main() -> LuaResult<()> {
     let args: Vec<String> = env::args().collect();
@@ -212,27 +195,27 @@ fn main() -> LuaResult<()> {
 
 fn seal_setup() -> LuaResult<()> {
     let cwd = std_env::get_cwd("seal setup")?;
-    let typedefs_dir = cwd.join(".typedefs");
-    let created_typedefs_dir = match fs::create_dir(&typedefs_dir) {
+    let dot_seal_dir = cwd.join(".seal");
+    let created_seal_dir = match fs::create_dir(&dot_seal_dir) {
         Ok(_) => true,
         Err(err) => match err.kind() {
             io::ErrorKind::AlreadyExists => {
-                println!("seal setup - .typedefs already exists; not replacing it");
+                println!("seal setup - '.seal' already exists; not replacing it");
                 false
             },
             _ => {
-                return wrap_err!("seal setup = error creating .typedefs: {}", err);
+                return wrap_err!("seal setup = error creating .seal: {}", err);
             }
         }
     };
 
-    if created_typedefs_dir {
-        match TYPEDEFS_DIR.extract(typedefs_dir) {
+    if created_seal_dir {
+        match DOT_SEAL_DIR.extract(dot_seal_dir) {
             Ok(()) => {
-                println!("seal setup .typedefs in your current directory!");
+                println!("seal setup .seal in your current directory!");
             },
             Err(err) => {
-                return wrap_err!("seal setup - error extracting .typedefs directory: {}", err);
+                return wrap_err!("seal setup - error extracting .seal directory: {}", err);
             }
         };
     }

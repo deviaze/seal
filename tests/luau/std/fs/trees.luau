@@ -32,12 +32,12 @@ assert(path.exists(path.join(mymoduledir, "meow", "child.json")), "where mymodul
 
 fs.removetree(writetreesdir)
 
-local dot_typedefs = fs.readtree("./.typedefs")
+local typedefs = fs.readtree("./.seal/typedefs")
 local typedefs_clone_dir = path.join(datadir, ".typedefs")
 if fs.find(typedefs_clone_dir):exists() then
     fs.removetree(typedefs_clone_dir)
 end
 
-fs.writetree(typedefs_clone_dir, dot_typedefs)
+fs.writetree(typedefs_clone_dir, typedefs)
 assert(path.exists(path.join(typedefs_clone_dir, "std", "fs")), "expected datadir/.typedefs/std/fs to exist")
 fs.removetree(typedefs_clone_dir)

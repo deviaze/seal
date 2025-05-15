@@ -3,8 +3,7 @@ use std::collections::VecDeque;
 use std::io;
 use std::fs;
 use std::path::{self, Path};
-use crate::ok_string;
-use crate::{colors, LuaValueResult, wrap_err, table_helpers::TableBuilder, std_fs::fs_exists};
+use crate::prelude::*;
 
 use super::validate_path_without_checking_fs;
 
@@ -274,7 +273,7 @@ fn fs_path_home(luau: &Lua, _value: LuaValue) -> LuaValueResult {
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("join", fs_path_join)?
-        .with_function("exists", fs_exists)?
+        .with_function("exists", super::fs_exists)?
         .with_function("normalize", fs_path_normalize)?
         .with_function("canonicalize", fs_path_canonicalize)?
         .with_function("absolutize", fs_path_absolutize)?

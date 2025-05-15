@@ -1,0 +1,42 @@
+CRN,Class Name,Professor Name,Location
+10101,Introduction to Computer Science ⚛️,Dr. John Smith,CS-101
+10202,"Data Structures and Algorithms 🎭","Prof. María González, Prof. Javier Rodríguez",ENG-202
+10303,Linear Algebra 📐,Doç. Dr. Ahmet Yılmaz,MATH-303
+10404,"Physics I 🌍","Prof. Олександр Бондаренко, Dr. Carlos Mendoza",PHY-404
+10505,Chemistry Basics 🔬,Dr. Sofia Hernández,CHEM-505
+10606,"Philosophy of Mind 🧠","Prof. David Wright, Dr. Isabella Oliveira",PHIL-106
+10707,Statistics and Probability 📊,Dr. Isabella Oliveira,STAT-207
+10808,"Economics Principles 💰","Prof. Максим Коваленко, Dr. Emma White",ECO-308
+10909,Artificial Intelligence 🤖,Dr. Benjamin Carter,CS-409
+11010,"Modern European History 🏰","Prof. Lucia Bianchi, Prof. Alina Morozova",HIST-510
+11111,Creative Writing ✍️,Dr. Emily Carter,LIT-111
+11212,"Biological Sciences 🧬","Prof. Adrián Gutiérrez, Dr. Okan Aksoy",BIO-212
+11313,Machine Learning 🏎️,Doç. Dr. Emre Kaya,CS-313
+11414,"Organic Chemistry 🧪","Dr. Julia Novak, Prof. Valentina Ivanova",CHEM-414
+11515,Environmental Science 🌱,Prof. Валентина Іванова,ENV-515
+11616,Music Theory 🎶,"Dr. Matteo Rossi, Prof. Isabella Fernández",MUS-616
+11717,Digital Marketing 📈,Prof. Emma Robinson,MKT-717
+11818,"Physics II ⚙️","Dr. Carlos Mendoza, Prof. Mateo Lozano",PHY-818
+11919,Programming Languages 💻,Prof. Надія Коваленко,CS-919
+12020,"Modern Art History 🎨","Dr. Sophia Brown, Prof. Cemre Başoğlu",ART-020
+12222,"Software Engineering 🚀","Dr. Henry Walker, Prof. Liam Patterson",CS-222
+12323,Advanced Spanish 🇪🇸,Prof. Javier Rodríguez,LANG-323
+12424,Database Systems 🗄️,Doç. Dr. Selin Demir,CS-424
+12525,Public Speaking 🎤,Dr. Olivia Scott,COM-525
+12626,"Political Science 🏛️","Prof. Federico Martín, Dr. Elizabeth Green",POL-626
+12727,Business Analytics 💼,Dr. Emma White,BUS-727
+12828,"Medical Ethics ⚕️","Prof. Аліна Морозова, Dr. Thomas Nguyen",MED-828
+12929,Electrical Engineering ⚡,Dr. Robert Wilson,ENG-929
+13030,"Artificial Neural Networks 🤯","Prof. Marco Ferrari, Dr. Benjamin Carter",CS-030
+13131,Introduction to Psychology 🧠,Dr. Elizabeth Green,PSY-131
+13232,"Data Science 📊","Prof. Sebastián Ortega, Dr. Hugo Fontaine",CS-232
+13333,Astrophysics 🔭,Dr. Mateo Lozano,ASTRO-333
+13434,"Corporate Finance 💰","Prof. Martin Becker, Dr. Emma White",FIN-434
+13535,Modern Turkish Literature 📖,Doç. Dr. Cemre Başoğlu,LIT-535
+13636,"Quantum Computing ⚛️","Dr. Eva Schröder, Prof. Carlos Mendoza",CS-636
+13737,Human Anatomy 🦴,Prof. Thomas Nguyen,MED-737
+13838,"Architecture & Design 🏗️","Dr. Carla Russo, Prof. Cem Çelik",ARCH-838
+13939,Genetics and Evolution 🧬,Prof. Okan Aksoy,BIO-939
+14040,"Game Development 🎮","Dr. Hugo Fontaine, Prof. Sebastián Ortega",CS-040
+14141,Creative Media Studies 🎥,Prof. Isabella Fernández,ART-141
+14242,"Entrepreneurship 🚀","Dr. Liam Patterson, Prof. Henry Walker, ""The best startup mentor""",BUS-242
