@@ -1,7 +1,7 @@
 // pub use crate::{LuaValueResult, LuaEmptyResult, LuaMultiResult, colors, wrap_err};
 use mlua::prelude::*;
 
-pub use crate::{std_io_colors as colors, wrap_err, table_helpers::TableBuilder};
+pub use crate::{std_io::colors as colors, wrap_err, table_helpers::TableBuilder};
 
 pub type LuaValueResult = LuaResult<LuaValue>;
 pub type LuaEmptyResult = LuaResult<()>;

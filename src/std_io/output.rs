@@ -6,8 +6,7 @@ use std::io::{self, Write};
 use regex::Regex;
 use mlua::prelude::*;
 
-use crate::{table_helpers::TableBuilder, wrap_err, LuaValueResult};
-use crate::std_io_colors as colors;
+use crate::prelude::*;
 
 fn process_raw_values(value: LuaValue, result: &mut String, depth: usize) -> LuaResult<()> {
     let left_padding = " ".repeat(2 * depth);
@@ -67,7 +66,7 @@ fn format_debug(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
     luau.create_string(&result)
 }
 
-const OUTPUT_PROCESS_VALUES: &str = include_str!("./scripts/output_process_values.luau");
+const OUTPUT_PROCESS_VALUES: &str = include_str!("./output_formatter.luau");
 
 pub fn simple_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
@@ -166,7 +165,7 @@ pub fn format_output(luau: &Lua, value: LuaValue) -> LuaResult<String> {
     Ok(result)
 }
 
-pub fn output_format(luau: &Lua, value: LuaValue) -> LuaValueResult {
+pub fn format(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let formatted = format_output(luau, value)?;
     Ok(LuaValue::String(luau.create_string(formatted)?))
 }
@@ -190,7 +189,7 @@ fn output_unformat(luau: &Lua, value: LuaValue) -> LuaValueResult {
     ))
 }
 
-pub fn output_clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
+pub fn clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
     let mut clear_command = if cfg!(target_os = "windows") {
         // use "cmd.exe /C cls" for Windows
         let mut com = Command::new("cmd");
@@ -251,8 +250,8 @@ pub fn output_ewrite(_luau: &Lua, value: LuaValue) -> LuaValueResult {
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
-        .with_function("format", output_format)?
-        .with_function("clear", output_clear)?
+        .with_function("format", format)?
+        .with_function("clear", clear)?
         .with_function("write", output_write)?
         .with_function("ewrite", output_ewrite)?
         .with_function("unformat", output_unformat)?

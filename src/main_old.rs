@@ -5,6 +5,7 @@ use crate::prelude::*;
 
 pub mod table_helpers;
 pub mod prelude;
+mod std_io_output;
 mod std_fs;
 mod std_process;
 mod std_env;
@@ -13,7 +14,11 @@ mod std_time;
 #[macro_use]
 mod error_handling;
 mod std_io;
+pub mod std_io_colors;
+mod std_io_input;
 mod std_net;
+mod std_net_http;
+mod std_net_serve;
 mod std_thread;
 mod std_serde;
 mod std_crypt;
@@ -82,7 +87,7 @@ fn main() -> LuaResult<()> {
             let globals = luau.globals();
             globals.set("fs", table(std_fs::create(&luau)?))?;
             globals.set("process", table(std_process::create(&luau)?))?;
-            globals.set("http", table(std_net::http::create(&luau)?))?;
+            globals.set("http", table(std_net_http::create(&luau)?))?;
 
             globals.set("script", TableBuilder::create(&luau)?
                 .with_value("entry_path", "eval")?

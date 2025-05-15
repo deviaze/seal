@@ -1,8 +1,7 @@
 use ureq::{self, Error as UreqError};
 use mlua::prelude::*;
-
-use crate::{std_io_colors as colors, std_json};
-use crate::{table_helpers::TableBuilder, LuaValueResult};
+use crate::prelude::*;
+use crate::std_json;
 
 pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
     match get_config {
@@ -718,7 +717,7 @@ fn http_delete(luau: &Lua, delete_config: LuaValue) -> LuaValueResult {
     }
 }
 
-pub fn http_request(luau: &Lua, request_options: LuaValue) -> LuaValueResult {
+pub fn request(luau: &Lua, request_options: LuaValue) -> LuaValueResult {
     match request_options {
         LuaValue::Table(options) => {
             let method: String = match options.raw_get("method") {
@@ -759,6 +758,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("get", http_get)?
         .with_function("post", http_post)?
-        .with_function("request", http_request)?
+        .with_function("request", request)?
         .build_readonly()
 }

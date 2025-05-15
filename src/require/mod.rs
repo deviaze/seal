@@ -57,11 +57,11 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/env" => ok_table(std_env::create(luau)),
 
         "@std/io" => ok_table(std_io::create(luau)),
-        "@std/io/input" => ok_table(std_io_input::create(luau)),
-        "@std/io/output" => ok_table(std_io_output::create(luau)),
+        "@std/io/input" => ok_table(std_io::input::create(luau)),
+        "@std/io/output" => ok_table(std_io::output::create(luau)),
         "@std/io/colors" => ok_table(colors::create(luau)),
-        "@std/io/clear" => ok_function(std_io_output::output_clear, luau),
-        "@std/io/format" => ok_function(std_io_output::output_format, luau),
+        "@std/io/clear" => ok_function(std_io::output::clear, luau),
+        "@std/io/format" => ok_function(std_io::output::format, luau),
         "@std/colors" => ok_table(colors::create(luau)),
 
         "@std/time" => ok_table(std_time::create(luau)),
@@ -79,9 +79,9 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/json" => ok_table(std_json::create(luau)),
 
         "@std/net" => ok_table(std_net::create(luau)),
-        "@std/net/http" => ok_table(std_net_http::create(luau)),
-        "@std/net/http/server" => ok_table(std_net_serve::create(luau)),
-        "@std/net/request" => ok_function(std_net_http::http_request, luau),
+        "@std/net/http" => ok_table(std_net::http::create(luau)),
+        "@std/net/http/server" => ok_table(std_net::serve::create(luau)),
+        "@std/net/request" => ok_function(std_net::http::request, luau),
 
         "@std/crypt" => ok_table(std_crypt::create(luau)),
         "@std/crypt/aes" => ok_table(std_crypt::create_aes(luau)),
@@ -104,7 +104,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .with_value("env", std_env::create(luau)?)?
                 .with_value("io", std_io::create(luau)?)?
                 .with_value("colors", colors::create(luau)?)?
-                .with_function("format", std_io_output::format_output)?
+                .with_function("format", std_io::output::format)?
                 .with_value("time", std_time::create(luau)?)?
                 .with_value("datetime", std_time::create_datetime(luau)?)?
                 .with_value("process", std_process::create(luau)?)?
