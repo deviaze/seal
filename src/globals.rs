@@ -12,9 +12,9 @@ pub fn warn(luau: &Lua, warn_value: LuaValue) -> LuaValueResult {
     Ok(LuaNil)
 }
 
-const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn set_globals(luau: &Lua) -> LuaValueResult {
+pub fn set_globals(luau: &Lua, entry_path: String) -> LuaValueResult {
     let globals: LuaTable = luau.globals();
     let luau_version: LuaString = globals.raw_get("_VERSION")?;
     globals.raw_set("require", luau.create_function(require::require)?)?;
@@ -25,14 +25,14 @@ pub fn set_globals(luau: &Lua) -> LuaValueResult {
     globals.raw_set("print", luau.create_function(std_io::output::pretty_print)?)?;
     globals.raw_set("warn", luau.create_function(warn)?)?;
     globals.raw_set("_VERSION", format!("seal {} | {}", SEAL_VERSION, luau_version.to_string_lossy()))?;
-    globals.raw_set("_G", TableBuilder::create(luau)?
-        // .with_metatable(TableBuilder::create(luau)?
-        //     .with_value("__index", luau.globals())?
-        //     .build_readonly()?
-        // )?
-        .build()?
-    )?;
+    globals.raw_set("_G", TableBuilder::create(luau)?.build()?)?;
     globals.raw_set("_REQUIRE_CACHE", TableBuilder::create(luau)?.build()?)?;
+    globals.raw_set("script", TableBuilder::create(luau)?
+        .with_value("entry_path", entry_path)?
+        .with_function("path", get_script_path)?
+        .with_function("parent", get_script_parent)?
+        .build_readonly()?
+    )?;
 
     Ok(LuaNil)
 }

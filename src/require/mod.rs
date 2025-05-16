@@ -1,7 +1,7 @@
 use requirer::FsRequirer;
 
 use mlua::prelude::*;
-use crate::{*, std_json::json_decode};
+use crate::{std_fs::pathlib::normalize_path, std_json::json_decode, *};
 use std::{collections::VecDeque, fs, path::PathBuf, io};
 
 mod requirer;
@@ -166,6 +166,31 @@ fn get_require_cache(luau: &Lua) -> LuaResult<LuaTable> {
         }
     };
     Ok(require_cache)
+}
+
+/// luau's require semantics classify meow.luau and meow/init.luau as the same thing
+/// to get a reliable chunk name we want to get the absolute path and make sure we can figure out
+/// if it's a dir w/ init.luau or not
+pub fn get_chunk_name_for_module(path: &String, function_name: &'static str) -> LuaResult<Option<String>> {
+    let path = match std::path::absolute(path) {
+        Ok(path) => path,
+        Err(err) => {
+            return wrap_err!("{} can't figure out an absolute path for '{}' (we're trying to get a chunk_name): {}", function_name, &path, err);
+        }
+    };
+
+    if path.is_file() && path.exists() && let Some(path) = path.to_str() {
+        Ok(Some(normalize_path(path)))
+    } else if path.is_dir() {
+        let possible_init_path = path.join("init.luau");
+        if possible_init_path.exists() && let Some(init_path) = possible_init_path.to_str() {
+            Ok(Some(normalize_path(init_path)))
+        } else {
+            wrap_err!("{}: directory at '{}' missing its init.luau, cannot assign it a chunk_name", function_name, path.display())
+        }
+    } else {
+        Ok(None)
+    }
 }
 
 pub fn _set_requirer(luau: &Lua, cwd: PathBuf, entrypoint_chunk: &str) -> LuaEmptyResult {
