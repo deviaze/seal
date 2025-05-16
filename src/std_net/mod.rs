@@ -1,9 +1,12 @@
 use mlua::prelude::*;
 
-use crate::{std_net_http, table_helpers::TableBuilder};
+pub mod http;
+pub mod serve;
+
+use crate::prelude::*;
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
-        .with_value("http", std_net_http::create(luau)?)?
+        .with_value("http", self::http::create(luau)?)?
         .build_readonly()
 }

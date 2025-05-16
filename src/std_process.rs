@@ -591,7 +591,7 @@ fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaValueResult {
     }
 }
 
-pub fn handle_exit_callback(luau: &Lua, exit_code: i32) -> LuaResult<()> {
+pub fn _handle_exit_callback(luau: &Lua, exit_code: i32) -> LuaResult<()> {
     match luau.globals().get("_process_exit_callback_function")? {
         LuaValue::Function(f) => {
             let _ = f.call::<i32>(exit_code);
@@ -632,7 +632,6 @@ fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
         wrap_err!("process.exit: your exit code is too big ({}), we can't convert it to i32.", exit_code)
     }
 }
-
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?

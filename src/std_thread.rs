@@ -86,7 +86,7 @@ fn thread_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
             let handle = thread::spawn(move || {
                 let new_luau = mlua::Lua::new();
 
-                globals::set_globals(&new_luau).unwrap();
+                globals::set_globals(&new_luau, String::default()).unwrap();
 
                 new_luau.globals().raw_set("script",
                     TableBuilder::create(&new_luau).unwrap()

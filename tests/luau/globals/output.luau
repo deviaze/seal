@@ -112,7 +112,7 @@ local array_with_many_values = {}; for i = 1, 1001 do table.insert(array_with_ma
 
 local fs = require("@std/fs")
 
-local src = fs.readfile("./src/error_handling.rs")
+local src = fs.readfile("./src/err.rs")
 
 local with_newline_strings = {
 	"tafwtfatfwtfwaw\n2321tsartfwat hrsdasrad \n \n 22312",
