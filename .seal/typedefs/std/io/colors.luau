@@ -297,6 +297,13 @@ function colors.bold.red(text: string): string
     return nil :: any
 end
 
+--- Use different styles such as dim or bold
+colors.style = {
+    --- dim style
+    dim = function(text: string): string return nil :: any end,
+    --- bold style
+    bold = function(text: string): string return nil :: any end,
+}
 
 --[=[
 An assorted collection of ANSI color codes to help you colorize your text however you want!!
