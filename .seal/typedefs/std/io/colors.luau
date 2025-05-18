@@ -1,3 +1,4 @@
+--!nonstrict
 --[=[
 The `@std/io/colors` lib, because if your terminal output isn't colorized, is it even output?
 
