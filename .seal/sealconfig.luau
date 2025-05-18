@@ -1,6 +1,6 @@
 local seal_config: SealConfig = {
 	entry_path = "./src/main.luau",
-	test_path = "./tests/run_tests.luau",
+	test_path = "./tests/run.luau",
 	package_manager = "None",
 }
 
