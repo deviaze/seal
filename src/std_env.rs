@@ -57,16 +57,14 @@ pub fn get_current_shell() -> String {
         ""
     };
 
-    if !which_cmd.is_empty() {
-        if let Ok(output) = Command::new(which_cmd)
-            .arg("sh") // You can replace "sh" with "bash" or "cmd" depending on what you want to check
+    if !which_cmd.is_empty() 
+        && let Ok(output) = Command::new(which_cmd)
+            .arg("sh")
             .output()
-        {
-            if output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                return path;
-            }
-        }
+        && output.status.success()
+    {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        return path;
     }
 
     String::from("")

@@ -119,11 +119,11 @@ local function aliases()
 	)
 
 	local opv_result = resolver.resolve(
-		"@output_process_values",
+		"@output_formatter",
 		bibdebugname
 	) :: any
 	assert(
-		opv_result.path == fs.path.join(fs.path.cwd(), "src", "scripts", "output_process_values.luau"),
+		opv_result.path == fs.path.join(fs.path.cwd(), "src", "std_io", "output_formatter.luau"),
 		"requiring aliases defined upwards (not closest .luaurc) should also resolve"
 	)
 end

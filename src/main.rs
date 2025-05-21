@@ -1,199 +1,231 @@
-use mlua::prelude::*;
-use std::{fs, env, panic, path::Path};
-use std::{io, path};
 use crate::prelude::*;
-
-pub mod table_helpers;
-pub mod prelude;
-mod std_io_output;
-mod std_fs;
-mod std_process;
-mod std_env;
-mod std_json;
-mod std_time;
-#[macro_use]
-mod error_handling;
-mod std_io;
-pub mod std_io_colors;
-mod std_io_input;
-mod std_net;
-mod std_net_http;
-mod std_net_serve;
-mod std_thread;
-mod std_serde;
-mod std_crypt;
-mod std_testing;
-mod std_str_internal;
-mod globals;
-mod require;
-mod interop;
-
-const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
-
+use mlua::prelude::*;
 use include_dir::{include_dir, Dir};
-const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
+
+use std::{collections::VecDeque, env, ffi::OsString, fs, io};
+
+pub mod prelude;
+mod std_env;
+mod std_fs;
+mod std_json;
+mod std_process;
+mod std_time;
+pub mod table_helpers;
+#[macro_use]
+mod err;
+mod globals;
+mod interop;
+mod require;
+mod std_crypt;
+mod std_io;
+mod std_net;
+mod std_serde;
+mod std_str_internal;
+mod std_testing;
+mod std_thread;
+mod sealconfig;
+
+use err::display_error_and_exit;
+use sealconfig::SealConfig;
+use globals::SEAL_VERSION;
+
+type LuauLoadResult = LuaResult<Option<LuauLoadInfo>>;
+struct LuauLoadInfo {
+    luau: Lua,
+    src: String,
+    /// chunk_name is basically the entry_path except it's always an absolute path
+    chunk_name: String,
+}
+
+type Args = VecDeque<OsString>;
+#[derive(Debug)]
+enum SealCommand {
+    /**
+    Runs `seal` with a valid luau module path/filename (must be `*.luau` or directory w/ `init.luau`)
+
+    ## Examples:
+    * `seal ./hi.luau`
+    * `seal ./hi.luau meow1 meow2`
+    */
+    Default { filename: String },
+    /** 
+    Evaluate some string `src` with `seal`; `fs`, `http`, and `process` libs are already loaded in for convenience.
+    
+    ## Examples:
+    * `seal eval 'print("hi")'`
+    * `seal eval 'print(process.shell({ program = "seal -h" }):unwrap())'` 
+    */ 
+    Eval(Args),
+    /** 
+    Run `seal` at the project (at your cwd)'s entrypoint, usually `./src/main.luau` unless configured otherwise.
+    
+    ## Examples:
+    * `seal run arg1 arg2`
+    */ 
+    Run,
+    /// Set up a new project for `seal`, spawning in a `.vscode`, `.luaurc`, `./src/main.luau` etc.
+    Setup,
+    /// Display `seal` help.
+    DefaultHelp,
+    CommandHelp(Box<SealCommand>),
+    HelpCommandHelp,
+    SealConfigHelp,
+    /// `seal test` (runs test_path from sealconfig.luau)
+    Test,
+    Version,
+    /// not yet implemented
+    Repl,
+}
+
+impl SealCommand {
+    fn from(s: &str, args: Args) -> Self {
+        match s {
+            "version" | "--version" | "-V" => Self::Version,
+            "setup" | "s" => Self::Setup,
+            "eval" | "e" => Self::Eval(args.clone()),
+            "run" | "r" => Self::Run,
+            "test" | "t" => Self::Test,
+            "repl" | "i" => Self::Repl,
+            "help" | "h" => Self::figure_out_which_command_we_need_help_with(args),
+            // default case `seal ./myfile.luau`
+            filename => Self::Default { filename: filename.to_owned() },
+        }
+    }
+    // rest of the SealCommand impl defined at the bottom of main.rs
+}
 
 fn main() -> LuaResult<()> {
-    let args: Vec<String> = env::args().collect();
+    err::setup_panic_hook(); // seal panic = seal bug; we shouldn't panic in normal operation
 
-    if args.len() == 3 && args[2] == "--debug" {
-        // don't mess with panic formatting
-    } else {
-        panic::set_hook(Box::new(|info| {
-            let payload = info.payload().downcast_ref::<&str>().map(|s| s.to_string())
-                .or_else(|| info.payload().downcast_ref::<String>().cloned())
-                .unwrap_or_else(|| "Unknown error running the custom panic hook, please report this to the manager (deviaze)".to_string());
-            
-            eprintln!("{}[ERR]{}{} {}{}", colors::BOLD_RED, colors::RESET, colors::RED, payload, colors::RESET);
-        }));
-    }
+    let args: VecDeque<OsString> = env::args_os().collect();
 
-    if args.len() <= 1 {
-        panic!("seal: did you forget to pass me a file?")
-    }
-
-    let first_arg = args[1].clone();
-
-    if first_arg == "--help" || first_arg == "-h" {
-        println!("Usage:\
-        \n `seal setup` - set up a project in an existing folder (at your cwd) with typedefs, config, etc.\
-        \n `seal ./filename.luau <arg1> <arg2>` - run a luau file with seal\
-        \n `seal run <arg1> <arg2>` - run the current project at your cwd\
-        \n `seal eval '<string src>'` - evaluate a string with seal with fs, process, and http loaded in\
-        \nProper seal help will be implemented SOON(TM)");
-        return Ok(());
-    }
-    
-    if first_arg == "setup" {
-        return seal_setup();
-    }
-
-    if first_arg == "--version" || first_arg == "-v" {
-        println!("{}", SEAL_VERSION);
-        return Ok(());
-    }
-    
-    let luau: Lua = Lua::new();
-    
-    // luau.sandbox(true)?; // free performance boost
-
-    let globals = luau.globals();
-    let mut entry_path = String::from("");
-
-    let mut luau_code: String = {
-        if first_arg == "eval" {
-            let table = LuaValue::Table;
-
-            let globals = luau.globals();
-            globals.set("fs", table(std_fs::create(&luau)?))?;
-            globals.set("process", table(std_process::create(&luau)?))?;
-            globals.set("http", table(std_net_http::create(&luau)?))?;
-
-            globals.set("script", TableBuilder::create(&luau)?
-                .with_value("entry_path", "eval")?
-                .build()?
-            )?;
-
-            if args.len() <= 2 {
-                panic!("seal eval got nothing to eval, did you forget to pass in a string?");
-            } else {
-                args[2].clone()
-            }
-        } else {
-            let file_path = {
-                if first_arg == "run" {
-                    if args.len() == 2 { // `seal run` (workspace)
-                        find_entry_path()
-                    } else if args.len() >= 3 { 
-                        if args[2].ends_with(".luau") { // `seal run myfile.luau`
-                            args[2].clone()
-                        } else { // `seal run somearg somearg2` (workspace)
-                            find_entry_path()
-                        }
-                    } else {
-                        panic!("seal run: invalid number of arguments provided. Use `seal run` to run the current workspace or `seal run ./somefile.luau` to run a specific file.");
-                    }
-                } else { // `seal myfile.luau`
-                    first_arg.clone()
-                }
-            };
-
-            if !file_path.ends_with(".luau") {
-                panic!("Wrong language! seal only runs .luau files")
-            }
-
-            // temp hacky fix for debug names not being absolute paths
-            // TODO: properly fix on main.rs rewrite
-            entry_path = match path::absolute(file_path.clone()) {
-                Ok(p) => p.to_string_lossy().to_string(),
-                Err(_e) => file_path.clone()
-            };
-
-            globals.set("script", TableBuilder::create(&luau)?
-                .with_value("entry_path", entry_path.to_owned())?
-                .with_function("path", globals::get_script_path)?
-                .with_function("parent", globals::get_script_parent)?
-                .build()?
-            )?;
-
-            let path_metadata = fs::metadata(&file_path);
-            match path_metadata {
-                Ok(metadata) => {
-                    if metadata.is_file() && file_path.ends_with(".luau") {
-                        fs::read_to_string(&file_path)?
-                    } else if metadata.is_dir() {
-                        // we should be able to 'run' directories that contain an init.luau
-                        let find_init_filepath = Path::new(&file_path).join("init.luau");
-                        if find_init_filepath.exists() {
-                            fs::read_to_string(&find_init_filepath)?
-                        } else {
-                            panic!(r#"seal: Requested file is actually a directory: "{}{}{}"{}{}"#, colors::RESET, &file_path, colors::RED, colors::RESET, "\n  Hint: add a file named 'init.luau' to run this directory itself :)");
-                        }
-                    } else {
-                        panic!(r#"Invalid file extension: expected file path to end with .luau (or be a directory containing an init.luau), got path: "{}{}{}"{}"#, colors::RESET, &file_path, colors::RED, colors::RESET);
-                    }
-                },
-                Err(err) => {
-                    panic!("seal: Provided path is Not Ok: {}", err);
-                }
-            }
-        }
+    let command = match SealCommand::parse(args) {
+        Ok(command) => command,
+        Err(err) => display_error_and_exit(err),
     };
-    
-    // handle shebangs by stripping first line by slicing from first newline
-    if luau_code.starts_with("#!") {
-        if let Some(first_newline_pos) = luau_code.find('\n') {
-            luau_code = luau_code[first_newline_pos + 1..].to_string();
-        }
-    }
 
-    let script: LuaTable = globals.get("script")?;
-    script.set("src", luau_code.to_owned())?;
-
-    globals::set_globals(&luau)?;
-    // let cwd = std_env::get_cwd("main.rs")?;
-    // require::set_requirer(&luau, cwd, &entry_path)?;
-
-    match luau.load(luau_code).set_name(&entry_path).exec() {
-        Ok(()) => {
-            std_process::handle_exit_callback(&luau, 0)?;
-            Ok(())
+    let info_result = match command {
+        SealCommand::Default { filename } => {
+            resolve_file(filename, "seal")
         },
-        Err(err) => {
-            // let replace_main_re = Regex::new(r#"\[string \"[^\"]+\"\]"#).unwrap();
-            let mut err_message = error_handling::parse_traceback(err.to_string());
-            let script: LuaTable = globals.get("script")?;
-            let err_context: Option<String> = script.get("context")?;
-            if let Some(context) = err_context {
-                let context = format!("{}[CONTEXT] {}{}: {}", colors::BOLD_RED, context, colors::RESET, colors::RED);
-                err_message = context + &err_message;
-            }
-            panic!("{}", err_message);
+        SealCommand::Eval(args) => seal_eval(args),
+        SealCommand::Run => seal_run(),
+        SealCommand::Setup => seal_setup(),
+        SealCommand::Test => seal_test(),
+        SealCommand::Version => {
+            println!("{}", SEAL_VERSION);
+            Ok(None)
         },
+        SealCommand::CommandHelp(command) => command.help(),
+        help @ SealCommand::DefaultHelp | 
+        help @ SealCommand::HelpCommandHelp |
+        help @ SealCommand::SealConfigHelp => help.help(),
+        SealCommand::Repl => {
+            wrap_err!("seal repl coming SOON (tm)")
+        },
+    };
+
+    let LuauLoadInfo { luau, src, chunk_name } = match info_result {
+        Ok(Some(info)) => info,
+        Ok(None) => return Ok(()),
+        Err(err) => display_error_and_exit(err),
+    };
+
+    match luau.load(src).set_name(chunk_name).exec() {
+        Ok(_) => Ok(()),
+        Err(err) => display_error_and_exit(err),
     }
 }
 
-fn seal_setup() -> LuaResult<()> {
+fn resolve_file(requested_path: String, function_name: &'static str) -> LuauLoadResult {
+    if requested_path.ends_with(".lua") {
+        return wrap_err!("{}: wrong language! seal only runs .luau files", function_name);
+    }
+    let Some(chunk_name) = require::get_chunk_name_for_module(&requested_path, function_name)? else {
+        return wrap_err!("'{}' not found; does it exist and is it either a .luau file or directory with an init.luau?", requested_path);
+    };
+    
+    let luau = Lua::default();
+    globals::set_globals(&luau, chunk_name.clone())?;
+
+    let mut src = match fs::read_to_string(&chunk_name) {
+        Ok(src) => src,
+        Err(err) => {
+            return wrap_err!("{}: unable to read file at '{}' due to err: {}", function_name, chunk_name, err);
+        }
+    };
+
+    // handle shebangs by stripping first line from \n
+    if src.starts_with("#!") && let Some(first_newline_pos) = src.find('\n') {
+        src = src[first_newline_pos + 1..].to_string();
+    }
+
+    Ok(Some(LuauLoadInfo { luau, src, chunk_name }))
+}
+
+fn seal_eval(mut args: Args) -> LuauLoadResult {
+    let Some(os_src) = args.pop_front() else {
+        return wrap_err!("seal eval got nothing to eval, did you forget to pass me the src?");
+    };
+    let Ok(src) = os_src.into_string() else {
+        return wrap_err!("seal eval: luau code must be valid utf-8");
+    };
+
+    let luau = Lua::default();
+    let globals = luau.globals();
+    globals::set_globals(&luau, String::from("eval"))?;
+    
+    // eval comes with a few libs builtin
+    globals.raw_set("fs", ok_table(std_fs::create(&luau))?)?;
+    globals.raw_set("process", ok_table(std_process::create(&luau))?)?;
+    globals.raw_set("http", ok_table(std_net::http::create(&luau))?)?;
+
+    Ok(Some(LuauLoadInfo {
+        luau,
+        src,
+        // relative require probs wont work atm
+        chunk_name: std_env::get_cwd("seal eval")?
+            .to_string_lossy()
+            .into_owned(),
+    }))
+}
+
+/// seal run basically just tries to run the entrypoint of the codebase if present
+/// defaulting to ./src/main.luau and optionally specified/overriden in a .seal/sealconfig.luau
+fn seal_run() -> LuauLoadResult {
+    let function_name = "seal run";
+    let luau = Lua::default();
+    let entry_path = match SealConfig::read(&luau, None, function_name)? {
+        Some(config) => config.entry_path,
+        None => {
+            return wrap_err!("{}: no .seal/sealconfig.luau located upwards of your cwd; \
+            use seal ./filename.luau to run a specific file", function_name);
+        },
+    };
+    globals::set_globals(&luau, entry_path.clone())?;
+    resolve_file(entry_path, function_name)
+}
+
+fn seal_test() -> LuauLoadResult {
+    let function_name = "seal test";
+    let luau = Lua::default();
+    let test_path = match SealConfig::read(&luau, None, function_name)? {
+        Some(config) => config.test_path,
+        None => {
+            return wrap_err!("{}: no .seal/sealconfig.luau located upwards of your cwd; \
+            use seal ./filename.luau to run a specific file", function_name);
+        },
+    };
+    if let Some(test_path) = test_path {
+        globals::set_globals(&luau, test_path.clone())?;
+        resolve_file(test_path, function_name)
+    } else {
+        wrap_err!("{}: attempt to test a project without a 'test_path' field set in .seal/sealconfig.luau", function_name)
+    }
+}
+
+fn seal_setup() -> LuauLoadResult {
+    const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
     let cwd = std_env::get_cwd("seal setup")?;
     let dot_seal_dir = cwd.join(".seal");
     let created_seal_dir = match fs::create_dir(&dot_seal_dir) {
@@ -202,18 +234,18 @@ fn seal_setup() -> LuaResult<()> {
             io::ErrorKind::AlreadyExists => {
                 println!("seal setup - '.seal' already exists; not replacing it");
                 false
-            },
+            }
             _ => {
                 return wrap_err!("seal setup = error creating .seal: {}", err);
             }
-        }
+        },
     };
 
     if created_seal_dir {
         match DOT_SEAL_DIR.extract(dot_seal_dir) {
             Ok(()) => {
                 println!("seal setup .seal in your current directory!");
-            },
+            }
             Err(err) => {
                 return wrap_err!("seal setup - error extracting .seal directory: {}", err);
             }
@@ -222,30 +254,93 @@ fn seal_setup() -> LuaResult<()> {
 
     let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
     let temp_luau = Lua::new();
-    globals::set_globals(&temp_luau)?;
+    globals::set_globals(&temp_luau, cwd.to_string_lossy().into_owned())?;
     match temp_luau.load(seal_setup_settings).exec() {
-        Ok(_) => {
-            Ok(())
-        },
+        Ok(_) => Ok(None),
         Err(err) => {
             wrap_err!("Hit an error running seal_setup_settings.luau: {}", err)
         }
     }
 }
 
-fn find_entry_path() -> String {
-    let src_dir = Path::new("src");
-    let init_luau = src_dir.join("init.luau");
-    if init_luau.exists() && init_luau.is_file() {
-        init_luau.to_string_lossy().to_string()
-    } else if src_dir.exists() && src_dir.is_dir() {
-        let main_luau = src_dir.join("main.luau");
-        if main_luau.exists() && main_luau.is_file() {
-            main_luau.to_string_lossy().to_string()
-        } else {
-            panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
+impl SealCommand {
+    fn parse(mut args: Args) -> LuaResult<SealCommand> {
+        // discard first arg (always "seal")
+        let _ = args.pop_front();
+
+        // show help if user runs seal w/out anything else
+        let Some(first_arg) = args.pop_front() else {
+            eprintln!("seal: you didn't pass me anything :(\n  (expected file to run or command, displaying help)");
+            return Ok(Self::DefaultHelp);
+        };
+
+        // command/filename should be utf-8
+        let Some(first_arg) = first_arg.to_str() else {
+            return wrap_err!("seal: filename/command not valid utf-8");
+        };
+
+        if first_arg == "--help" || first_arg == "-h" {
+            return Ok(Self::DefaultHelp)
         }
-    } else {
-        panic!("seal run: cannot run workspace, missing `@workspace/src/main.luau` or `@workspace/init.luau`\n{}  Tips: use `seal run ./path/to/myfile.luau` or `seal ./path/to/myfile.luau` to run a specific file.\n  To run the current workspace with `seal run`, you must be in the workspace's root path and have a valid entry path (@workspace/src/main.luau or @workspace/init.luau).\n  Run `seal setup` to start a default seal project in your current working directory.", colors::RESET);
+
+        let command = Self::from(first_arg, args.clone());
+        // `seal ./mycli.luau --help` should be passed to ./mycli.luau not directly to seal
+        if !command.is_default() && command.next_is_help(&args) {
+            Ok(Self::CommandHelp(Box::new(command)))
+        } else {
+            Ok(command)
+        }
+    }
+    fn is_default(&self) -> bool {
+        matches!(self, Self::Default { .. })
+    }
+    fn help(&self) -> LuauLoadResult {
+        let luau_to_run_help = Lua::default();
+        globals::set_globals(&luau_to_run_help, String::from("seal help"))?;
+        let help_src = include_str!("./scripts/seal_help.luau");
+        let help_table = match luau_to_run_help.load(help_src).eval() {
+            Ok(LuaValue::Table(t)) => t,
+            Ok(other) => {
+                panic!("what did seal help return other than the help table?? (got {:?})", other);
+            },
+            Err(err) => {
+                panic!("seal help errored at runtime: {}", err);
+            }
+        };
+        let help_function: LuaFunction = help_table.raw_get::<LuaFunction>(match self {
+            Self::Default {..} | Self::DefaultHelp => "default",
+            Self::Eval(_) => "eval",
+            Self::Run => "run",
+            Self::Setup => "setup",
+            Self::Test => "test",
+            Self::HelpCommandHelp => "help",
+            Self::SealConfigHelp => "config",
+            other => {
+                return wrap_err!("help not yet implemented for command {:#?}", other);
+            },
+        })?;
+        println!("{}", help_function.call::<String>(LuaNil)?);
+        Ok(None)
+    }
+    fn next_is_help(&self, args: &Args) -> bool {
+        if let Some(next) = args.front() && let Some(arg) = next.to_str() {
+            matches!(arg, "-h" | "--help")
+        } else {
+            false
+        }
+    }
+    fn figure_out_which_command_we_need_help_with(mut args: Args) -> SealCommand {
+        if let Some(arg) = args.pop_front() && let Ok(arg) = arg.into_string() {
+            if arg == "config" {
+                Self::SealConfigHelp
+            } else if arg == "help" || arg == "h" {
+                // `seal help help` or `seal help h`
+                Self::HelpCommandHelp
+            } else {
+                Self::CommandHelp(Box::new(Self::from(&arg, args)))
+            }
+        } else {
+            Self::DefaultHelp
+        }
     }
 }

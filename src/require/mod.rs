@@ -1,7 +1,7 @@
 use requirer::FsRequirer;
 
 use mlua::prelude::*;
-use crate::{*, std_json::json_decode};
+use crate::{std_fs::pathlib::normalize_path, std_json::json_decode, *};
 use std::{collections::VecDeque, fs, path::PathBuf, io};
 
 mod requirer;
@@ -57,11 +57,11 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/env" => ok_table(std_env::create(luau)),
 
         "@std/io" => ok_table(std_io::create(luau)),
-        "@std/io/input" => ok_table(std_io_input::create(luau)),
-        "@std/io/output" => ok_table(std_io_output::create(luau)),
+        "@std/io/input" => ok_table(std_io::input::create(luau)),
+        "@std/io/output" => ok_table(std_io::output::create(luau)),
         "@std/io/colors" => ok_table(colors::create(luau)),
-        "@std/io/clear" => ok_function(std_io_output::output_clear, luau),
-        "@std/io/format" => ok_function(std_io_output::output_format, luau),
+        "@std/io/clear" => ok_function(std_io::output::clear, luau),
+        "@std/io/format" => ok_function(std_io::output::format, luau),
         "@std/colors" => ok_table(colors::create(luau)),
 
         "@std/time" => ok_table(std_time::create(luau)),
@@ -79,9 +79,9 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/json" => ok_table(std_json::create(luau)),
 
         "@std/net" => ok_table(std_net::create(luau)),
-        "@std/net/http" => ok_table(std_net_http::create(luau)),
-        "@std/net/http/server" => ok_table(std_net_serve::create(luau)),
-        "@std/net/request" => ok_function(std_net_http::http_request, luau),
+        "@std/net/http" => ok_table(std_net::http::create(luau)),
+        "@std/net/http/server" => ok_table(std_net::serve::create(luau)),
+        "@std/net/request" => ok_function(std_net::http::request, luau),
 
         "@std/crypt" => ok_table(std_crypt::create(luau)),
         "@std/crypt/aes" => ok_table(std_crypt::create_aes(luau)),
@@ -104,7 +104,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .with_value("env", std_env::create(luau)?)?
                 .with_value("io", std_io::create(luau)?)?
                 .with_value("colors", colors::create(luau)?)?
-                .with_function("format", std_io_output::format_output)?
+                .with_function("format", std_io::output::format)?
                 .with_value("time", std_time::create(luau)?)?
                 .with_value("datetime", std_time::create_datetime(luau)?)?
                 .with_value("process", std_process::create(luau)?)?
@@ -166,6 +166,31 @@ fn get_require_cache(luau: &Lua) -> LuaResult<LuaTable> {
         }
     };
     Ok(require_cache)
+}
+
+/// luau's require semantics classify meow.luau and meow/init.luau as the same thing
+/// to get a reliable chunk name we want to get the absolute path and make sure we can figure out
+/// if it's a dir w/ init.luau or not
+pub fn get_chunk_name_for_module(path: &String, function_name: &'static str) -> LuaResult<Option<String>> {
+    let path = match std::path::absolute(path) {
+        Ok(path) => path,
+        Err(err) => {
+            return wrap_err!("{} can't figure out an absolute path for '{}' (we're trying to get a chunk_name): {}", function_name, &path, err);
+        }
+    };
+
+    if path.is_file() && path.exists() && let Some(path) = path.to_str() {
+        Ok(Some(normalize_path(path)))
+    } else if path.is_dir() {
+        let possible_init_path = path.join("init.luau");
+        if possible_init_path.exists() && let Some(init_path) = possible_init_path.to_str() {
+            Ok(Some(normalize_path(init_path)))
+        } else {
+            wrap_err!("{}: directory at '{}' missing its init.luau, cannot assign it a chunk_name", function_name, path.display())
+        }
+    } else {
+        Ok(None)
+    }
 }
 
 pub fn _set_requirer(luau: &Lua, cwd: PathBuf, entrypoint_chunk: &str) -> LuaEmptyResult {

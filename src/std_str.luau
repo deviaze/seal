@@ -228,7 +228,7 @@ function str.chars(s: string): (...any) -> (number, string)
 			current_index += 1
 			return current_index, grapheme
 		else
-			return nil, nil :: any
+			return nil :: any, nil :: any
 		end
 	end
 end
