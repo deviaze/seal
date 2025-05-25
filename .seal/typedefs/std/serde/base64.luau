@@ -7,5 +7,13 @@ return {
 	end,
 	decode = function(data: string): buffer
 		return nil :: any 
-	end
+	end,
+	urlsafe = {
+		encode = function(data: string | buffer): string
+			return nil :: any
+		end,
+		decode = function(data: string): buffer
+			return nil :: any
+		end,
+	}
 }

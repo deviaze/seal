@@ -5,12 +5,12 @@ use crate::prelude::*;
 use crate::std_fs::{self, entry::wrap_io_read_errors_empty, validate_path};
 use serde_json_lenient as serde_json;
 
-struct EncodeOptions {
-    pretty: bool,
-    sorted: bool,
+pub struct EncodeOptions {
+    pub pretty: bool,
+    pub sorted: bool,
 }
 impl EncodeOptions {
-    fn from_table(options_table: LuaTable) -> LuaResult<Self> {
+    pub fn from_table(options_table: LuaTable) -> LuaResult<Self> {
         let pretty = match options_table.raw_get::<LuaValue>("pretty")? {
             LuaValue::Boolean(pretty) => pretty,
             LuaNil => true,
@@ -31,11 +31,32 @@ impl EncodeOptions {
             sorted,
         })
     }
-    fn default() -> Self {
+    pub fn default() -> Self {
         Self {
             pretty: true,
             sorted: false,
         }
+    }
+}
+
+pub fn encode(luau: &Lua, table_to_encode: LuaTable, encode_options: EncodeOptions) -> LuaResult<String> {
+    match if encode_options.pretty && !encode_options.sorted { 
+        serde_json::to_string_pretty(&table_to_encode) 
+    } else if !encode_options.pretty && !encode_options.sorted { 
+        serde_json::to_string(&table_to_encode) 
+    } else {
+        let mut json_value: serde_json::Value = luau.from_value(LuaValue::Table(table_to_encode))?;
+        if encode_options.sorted {
+            json_value.sort_all_objects();
+        }
+        if encode_options.pretty {
+            serde_json::to_string_pretty(&json_value)
+        } else {
+            serde_json::to_string(&json_value)
+        }
+    } {
+        Ok(s) => Ok(s),
+        Err(err) => wrap_err!("json.encode: {}", err)
     }
 }
 
@@ -66,24 +87,7 @@ pub fn json_encode(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<Strin
         }
     };
 
-    match if encode_options.pretty && !encode_options.sorted { 
-        serde_json::to_string_pretty(&table_to_encode) 
-    } else if !encode_options.pretty && !encode_options.sorted { 
-        serde_json::to_string(&table_to_encode) 
-    } else {
-        let mut json_value: serde_json::Value = luau.from_value(LuaValue::Table(table_to_encode))?;
-        if encode_options.sorted {
-            json_value.sort_all_objects();
-        }
-        if encode_options.pretty {
-            serde_json::to_string_pretty(&json_value)
-        } else {
-            serde_json::to_string(&json_value)
-        }
-    } {
-        Ok(s) => Ok(s),
-        Err(err) => wrap_err!("json.encode: {}", err)
-    }
+    encode(luau, table_to_encode, encode_options)    
 }
 
 pub fn json_raw_encode(_luau: &Lua, table: LuaValue) -> LuaResult<String> {

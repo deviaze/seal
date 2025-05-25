@@ -1,6 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::{table_helpers::TableBuilder, LuaValueResult, colors};
+use base64::Engine;
 use mlua::prelude::*;
 
 use ring::pbkdf2::{self, PBKDF2_HMAC_SHA256};
@@ -10,6 +11,8 @@ use pkcs8::{EncodePrivateKey, EncodePublicKey, DecodePublicKey};
 
 use rsa::{pkcs8::{self, DecodePrivateKey}, Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
 use rand::rngs::OsRng;
+
+use base64::engine::general_purpose::STANDARD as base64_standard;
 
 fn generate_aes_key(luau: &Lua, _value: LuaValue) -> LuaValueResult {
     // 32 bytes = 256 bits len for AES-256 key
@@ -22,7 +25,8 @@ fn generate_aes_key(luau: &Lua, _value: LuaValue) -> LuaValueResult {
             return wrap_err!("crypt: error creating aes key (filling the buffer)");
         }
     };
-    let key_encoded64 = base64::encode(key_buff);
+    // let key_encoded64 = base64::engine::GeneralPurpose::encode(key_buff);
+    let key_encoded64 = base64_standard.encode(key_buff);
     Ok(LuaValue::String(luau.create_string(key_encoded64)?))
 }
 
@@ -44,7 +48,7 @@ fn aes_encrypt(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         }
     };
 
-    let aes_key_bytes = match base64::decode(aes_key) {
+    let aes_key_bytes = match base64_standard.decode(aes_key) {
         Ok(key) => key,
         Err(_err) => {
             return wrap_err!("crypt.aes.encode: unable to decode AES key from base64");
@@ -56,7 +60,7 @@ fn aes_encrypt(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     }
 
     let encrypted_text = match simple_crypt::encrypt(plaintext.as_bytes(), &aes_key_bytes) {
-        Ok(encrypted_bytes) => base64::encode(encrypted_bytes),
+        Ok(encrypted_bytes) => base64_standard.encode(encrypted_bytes),
         Err(err) => {
             return wrap_err!("crypt.aes.encrypt: unable to encrypt: {}", err)
         } 
@@ -76,7 +80,7 @@ fn aes_decrypt(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         }
     };
 
-    let encrypted_bytes = match base64::decode(&encrypted_text) {
+    let encrypted_bytes = match base64_standard.decode(&encrypted_text) {
         Ok(bytes) => bytes,
         Err(_err) => {
             return wrap_err!("crypt.aes.decrypt: unable to decode ciphertext from base64");
@@ -92,7 +96,7 @@ fn aes_decrypt(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         }
     };
 
-    let aes_key_bytes = match base64::decode(aes_key) {
+    let aes_key_bytes = match base64_standard.decode(aes_key) {
         Ok(key) => key,
         Err(_err) => {
             return wrap_err!("crypt.aes.decrypt: cannot decode AES key from base64");
@@ -190,7 +194,7 @@ fn rsa_encrypt(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         }
     };
 
-    let encoded64 = base64::encode(&encrypted_data);
+    let encoded64 = base64_standard.encode(&encrypted_data);
     Ok(LuaValue::String(
         luau.create_string(&encoded64)?
     ))
@@ -222,7 +226,7 @@ fn rsa_decrypt(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         }
     };
 
-    let encrypted_bytes = match base64::decode(encrypted_text) {
+    let encrypted_bytes = match base64_standard.decode(encrypted_text) {
         Ok(bytes) => bytes,
         Err(_err) => {
             return wrap_err!("crypt.rsa.decrypt: unable to decode encrypted text from base64");

@@ -19,6 +19,7 @@ mod require;
 mod std_crypt;
 mod std_io;
 mod std_net;
+// mod std_serde_old;
 mod std_serde;
 mod std_str_internal;
 mod std_testing;

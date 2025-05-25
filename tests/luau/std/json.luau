@@ -2,6 +2,10 @@
 local json = require("@std/json")
 local str = require("@std/str")
 
+local function unindent(s: string): string
+    return str.unindent(s, "Spaces", 4)
+end
+
 local function unencodable()
     local bad = {
         c = 5,
@@ -48,7 +52,7 @@ local function objectdecode()
         ]
     }
     ]]
-    data = str.unindent(data, "Spaces", 4)
+    data = unindent(data)
     local de = json.decode(data) :: CatOwnerData
     assert(de.cats[1].age == 8, "Taz age not 8, was arbitrary precision enabled??")
 end
@@ -62,7 +66,7 @@ local function hasnull()
         "children": null, // trailing commas and comment allowed
     }
     ]]
-    maybecat = str.unindent(maybecat, "Spaces", 4)
+    maybecat = unindent(maybecat)
     local hmm = json.decode(maybecat)
     -- print(tostring(hmm.children))
     assert(hmm.children == json.null(), "null should be null")
