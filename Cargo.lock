@@ -149,7 +149,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "234113d19d0d7d613b40e86fb654acf958910802bcceab913a4f9e7cda03b1a4"
 dependencies = [
  "memchr",
- "regex-automata",
  "serde",
 ]
 
@@ -1224,7 +1223,6 @@ version = "0.0.6-rc.1"
 dependencies = [
  "aho-corasick",
  "base64 0.13.1",
- "bstr",
  "chrono",
  "copy_dir",
  "crossbeam-channel",
