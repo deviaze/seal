@@ -11,12 +11,12 @@ local str = {}
 
 --- check if a string starts with `prefix`
 function str.startswith(s: string, prefix: string): boolean
-    return nil :: any
+	return nil :: any
 end
 
 --- check if a string ends with `suffix`
 function str.endswith(s: string, suffix: string): boolean
-    -- return string.sub(s, -#suffix) == suffix
+	-- return string.sub(s, -#suffix) == suffix
 	return nil :: any
 end
 
@@ -24,7 +24,7 @@ end
 ---
 --- if no strings provided as ..., `str.trimfront` will trim whitespace (" ", "\n", etc.)
 function str.trimfront(s: string, ...: string): string
-    -- local patterns = {...}
+	-- local patterns = {...}
 	-- if #patterns == 0 then
 	-- 	s = string.gsub(s, "^%s*", "")
 	-- else
@@ -34,8 +34,8 @@ function str.trimfront(s: string, ...: string): string
 	-- 		end
 	-- 	end
 	-- end
-    
-    -- return s
+
+	-- return s
 	return nil :: any
 end
 
@@ -43,7 +43,7 @@ end
 ---
 --- if no strings provided as ..., `str.trimback` will trim whitespace (" ", "\n", etc.)
 function str.trimback(s: string, ...: string): string
-    -- local patterns = {...}
+	-- local patterns = {...}
 	-- if #patterns == 0 then
 	-- 	s = string.gsub(s, "%s*$", "")
 	-- else
@@ -53,13 +53,13 @@ function str.trimback(s: string, ...: string): string
 	-- 		end
 	-- 	end
 	-- end
-	
-    -- return s
+
+	-- return s
 	return nil :: any
 end
 
 --- trims one or many strings/characters/patterns from both front and back of string `s`
---- 
+---
 --- if no strings provided to `...`, then default is whitespace
 function str.trim(s: string, ...: string): string
 	-- return str.trimback(str.trimfront(s, ...), ...)
@@ -71,13 +71,13 @@ end
 function str.splitlines(s: string, trim_trailing_whitespace: boolean?): { string }
 	-- trim_trailing_whitespace = trim_trailing_whitespace ~= false -- handle true and nil
 	-- local lines = {}
-    -- for line in string.gmatch(s, "[^\r\n]+") do
-    --     if trim_trailing_whitespace then
-    --         line = string.gsub(line, "%s*$", "")
-    --     end
-    --     table.insert(lines, line)
-    -- end
-    -- return lines
+	-- for line in string.gmatch(s, "[^\r\n]+") do
+	--     if trim_trailing_whitespace then
+	--         line = string.gsub(line, "%s*$", "")
+	--     end
+	--     table.insert(lines, line)
+	-- end
+	-- return lines
 	return nil :: any
 end
 
@@ -136,70 +136,104 @@ end
 	```
 ]=]
 function str.width(s: string): number
-    -- local length = str.len(s)
+	-- local length = str.len(s)
 
-    -- for _, grapheme in str.graphemes(s) do
-    --     local codepoint = utf8.codepoint(grapheme)
+	-- for _, grapheme in str.graphemes(s) do
+	--     local codepoint = utf8.codepoint(grapheme)
 
-    --     -- Detect **CJK wide characters**
-    --     if (codepoint >= 0x4E00 and codepoint <= 0x9FFF) -- Common CJK
-    --     or (codepoint >= 0x3400 and codepoint <= 0x4DBF) -- CJK Extension A
-    --     or (codepoint >= 0x20000 and codepoint <= 0x2A6DF) -- CJK Extension B
-    --     or (codepoint >= 0x2A700 and codepoint <= 0x2B73F) -- CJK Extension C
-    --     or (codepoint >= 0x2B740 and codepoint <= 0x2B81F) -- CJK Extension D
-    --     or (codepoint >= 0x2B820 and codepoint <= 0x2CEAF) -- CJK Extension E
-    --     or (codepoint >= 0xF900 and codepoint <= 0xFAFF) -- CJK Compatibility Ideographs
-    --     then
-    --         length += 1 -- Treat CJK characters as wide
-    --     end
+	--     -- Detect **CJK wide characters**
+	--     if (codepoint >= 0x4E00 and codepoint <= 0x9FFF) -- Common CJK
+	--     or (codepoint >= 0x3400 and codepoint <= 0x4DBF) -- CJK Extension A
+	--     or (codepoint >= 0x20000 and codepoint <= 0x2A6DF) -- CJK Extension B
+	--     or (codepoint >= 0x2A700 and codepoint <= 0x2B73F) -- CJK Extension C
+	--     or (codepoint >= 0x2B740 and codepoint <= 0x2B81F) -- CJK Extension D
+	--     or (codepoint >= 0x2B820 and codepoint <= 0x2CEAF) -- CJK Extension E
+	--     or (codepoint >= 0xF900 and codepoint <= 0xFAFF) -- CJK Compatibility Ideographs
+	--     then
+	--         length += 1 -- Treat CJK characters as wide
+	--     end
 
-    --     -- Detect **emoji width**
-    --     if codepoint >= 0x1F300 and codepoint <= 0x1FAFF then
-    --         length += 1 -- Emoji takes extra width
-    --     end
-    -- end
+	--     -- Detect **emoji width**
+	--     if codepoint >= 0x1F300 and codepoint <= 0x1FAFF then
+	--         length += 1 -- Emoji takes extra width
+	--     end
+	-- end
 
-    -- return length
+	-- return length
 	return nil :: any
 end
 
 --- left pads `s` to make it at least `width` characters long, using `pad` as the padding character.
 function str.leftpad(s: string, width: number, pad: string?): string
-    -- pad = pad or " " -- default to space if no padding character is provided
-    -- local padding_needed = width - #s
-    -- if padding_needed > 0 then
-    --     return string.rep(pad, padding_needed) .. s
-    -- end
-    -- return s
+	-- pad = pad or " " -- default to space if no padding character is provided
+	-- local padding_needed = width - #s
+	-- if padding_needed > 0 then
+	--     return string.rep(pad, padding_needed) .. s
+	-- end
+	-- return s
 	return nil :: any
 end
 
 --- escapes special characters like `\n`, `\t`, `\\` for easier debugging
 function str.escape(s: string): string
-    -- return (string.gsub(s, "[\\\n\t\r]", {
-    --     ["\\"] = "\\\\",
-    --     ["\n"] = "\\n",
-    --     ["\t"] = "\\t",
-    --     ["\r"] = "\\r"
-    -- }))
+	-- return (string.gsub(s, "[\\\n\t\r]", {
+	--     ["\\"] = "\\\\",
+	--     ["\n"] = "\\n",
+	--     ["\t"] = "\\t",
+	--     ["\r"] = "\\r"
+	-- }))
 	return nil :: any
 end
 
 --- reverts `str.escape`
 function str.unescape(s: string): string
-    -- local unescape_map = {
-    --     ["\\n"] = "\n",
-    --     ["\\t"] = "\t",
-    --     ["\\r"] = "\r",
-    --     ["\\\\"] = "\\"
-    -- }
-    -- return (string.gsub(s, "\\(.)", unescape_map))
+	-- local unescape_map = {
+	--     ["\\n"] = "\n",
+	--     ["\\t"] = "\t",
+	--     ["\\r"] = "\r",
+	--     ["\\\\"] = "\\"
+	-- }
+	-- return (string.gsub(s, "\\(.)", unescape_map))
 	return nil :: any
 end
 
 --- alias for string.sub
 function str.slice(s: string, first: number, final: number)
 	-- return string.sub(s, first, final)
+	return nil :: any
+end
+
+--- indents multiline string `count` characters; lines separated by `sep` (default "\n")
+function str.indent(s: string, whitespace_type: "Tabs" | "Spaces", count: number, sep: ("\n" | "\r\n")?): string
+	-- local indent = if whitespace_type == "Tabs" then string.rep("\t", count) else string.rep(" ", count)
+	-- local sep = sep or "\n" -- allows users to pass in \r\n or w/e if needed
+
+	-- local result = {}
+	-- local lines = str.splitlines(s)
+	-- for _, line in lines do
+	--     table.insert(result, indent .. line)
+	-- end
+
+	-- return table.concat(result, sep)
+	return nil :: any
+end
+
+--- unindents multiline string by `count` characters; lines separated by `sep` (default "\n")
+function str.unindent(s: string, whitespace_type: "Tabs" | "Spaces", count: number, sep: ("\n" | "\r\n")?): string
+	-- local indent = if whitespace_type == "Tabs" then string.rep("\t", count) else string.rep(" ", count)
+	-- local sep = sep or "\n"
+
+	-- local result = {}
+	-- for _, line in str.splitlines(s) do
+	--     if str.startswith(line, indent) then
+	--         local trimmed_line = string.gsub(line, "^" .. indent, "")
+	--         table.insert(result, trimmed_line)
+	--     else
+	--         table.insert(result, line)
+	--     end
+	-- end
+
+	-- return table.concat(result, sep)
 	return nil :: any
 end
 
