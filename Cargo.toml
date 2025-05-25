@@ -17,8 +17,9 @@ include_dir = { version = "0.7.4" }
 ureq = { version = "3.0.11", features = ["json", "rustls", "gzip"] }
 # faster than std::mpsc, needed for @std/thread
 crossbeam-channel = { version = "0.5.15" }
-# serde_json blows up when reading json5 or jsonc so we use lenient instead
-serde_json_lenient = { version = "0.2.4", features = ["arbitrary_precision", "preserve_order"] }
+# serde_json blows up when reading jsonc so we use lenient instead
+# feature "arbitrary_precision" causes headaches, we can just provide bigint/bigdecimal bindings instead
+serde_json_lenient = { version = "0.2.4", features = ["preserve_order"] }
 base64 = { version = "0.13.0" }
 serde_yaml = "0.9.21"
 toml = "0.5.9"

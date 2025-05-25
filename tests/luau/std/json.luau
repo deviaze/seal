@@ -1,70 +1,109 @@
 --!strict
 local json = require("@std/json")
+local str = require("@std/str")
 
-local x = {
-	c = 5,
-	b = "meow",
-}
+local function unencodable()
+    local bad = {
+        c = 5,
+        d = {
+            f = function() return "hi" end,
+        }
+    }
+    local s, result = pcall(function()
+        return json.encode(bad)
+    end)
+    assert(s == false, "encoding table w/ a function should not succeed")
+    assert(
+        tostring(result):match("cannot serialize <function>"), 
+        "didn't get expected cannot serialize <function> err message"
+    )
+end
 
-local unencodable = {
-	name = "deviaze",
-	says = function()
-		return "hi"
-	end
-}
-
-local s, e = pcall(function()
-	return json.encode(unencodable)
-end)
-
-assert(s == false and tostring(e):match("cannot serialize <function>"))
-
-local got_data = [[
-{
-  "name": "deviaze", 
-  "age": 23, 
-  "reality": false, 
-  "cats": [{
-    "name": "Taz",
-	"age": 8
-  }, {
-    "name": "Nanuk",
-	"age": 0.95
-  }]
-}
-]]
+unencodable()
 
 type CatOwnerData = {
-	reality: boolean,
-	name: string,
-	age: number,
-	cats: {
-		{ name: string, age: number }
-	},
+    reality: boolean,
+    name: string,
+    age: number,
+    cats: {
+        { name: string, age: number }
+    },
 }
 
--- local t0 = os.clock()
-local json_result = json.decode(got_data) :: CatOwnerData
--- print(os.clock() - t0)
--- print(json_result)
+local function objectdecode()
+    local data = [[
+    {
+        "name": "deviaze",
+        "age": 23,
+        "reality": false,
+        "cats": [
+            {
+                "name": "Taz",
+                "age": 8
+            },
+            {
+                "name": "Nanuk",
+                "age": 0.95
+            }
+        ]
+    }
+    ]]
+    data = str.unindent(data, "Spaces", 4)
+    local de = json.decode(data) :: CatOwnerData
+    assert(de.cats[1].age == 8, "Taz age not 8, was arbitrary precision enabled??")
+end
 
-json.writefile("./tests/data/cats.json", json_result :: any)
+objectdecode()
 
--- print(fs.entries("./tests/data/"))
-local deviazecats = json.readfile("./tests/data/cats.json")
--- print(deviazecats)
+local function hasnull()
+    local maybecat = [[
+    {
+        "name": "Taz",
+        "children": null, // trailing commas and comment allowed
+    }
+    ]]
+    maybecat = str.unindent(maybecat, "Spaces", 4)
+    local hmm = json.decode(maybecat)
+    -- print(tostring(hmm.children))
+    assert(hmm.children == json.null(), "null should be null")
+end
 
+hasnull()
 
-local t = {
-	something = 2,
-	nothing = 3,
-	other = {
-		something = 1,
-		["21"] = { 1, 2, 3 }
-	}
-}
+local function serializenull()
+    local d = {
+        name = "hi",
+        payload = json.null(),
+    }
+    local raw = json.raw(d)
+    assert(raw == [[{"name":"hi","payload":null}]], "null not serializing properly?")
+end
 
-local encode_attempt_1 = json.encode(t, { pretty = true, sorted = true })
-local encode_attempt_2 = json.encode(t, { pretty = true, sorted = true })
+serializenull()
 
-assert(encode_attempt_1 == encode_attempt_2, "not actually sorted in same order???")
+local function sortorder()
+    local data = {
+        hi = 2,
+        bye = 3,
+    }
+    local encoded = json.encode(data, { sorted = true })
+    local chars = str.split(encoded)
+    assert(chars[6] == "b", "chars[6] not b? (start of bye)?")
+end
+
+sortorder()
+
+local function encodearrays()
+    local basic = {1, 2, 3, 4}
+    assert(json.raw(basic) == "[1,2,3,4]", "simple array encoding not work?")
+    local object = {}
+    assert(json.raw(object) == "{}", "empty table should be encoded as json object not array")
+    local json_array = json.array()
+    assert(json.raw(json_array) == "[]", "empty json.array encodes as array")
+    table.insert(json_array, "hi")
+    assert(json.raw(json_array) == `["hi"]`, "adding an element to json array should work")
+    table.remove(json_array, 1)
+    assert(json.raw(json_array) == "[]", "removing all elements from json array should continue being json array")
+end
+
+encodearrays()

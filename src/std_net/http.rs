@@ -73,7 +73,7 @@ pub fn http_get(luau: &Lua, get_config: LuaValue) -> LuaValueResult {
                     LuaValue::String(body) => Some(body.to_str()?.to_string()),
                     LuaValue::Table(body_table) => {
                         get_builder = get_builder.header("Content-Type", "application/json");
-                        Some(std_json::json_encode_raw(luau, LuaValue::Table(body_table))?)
+                        Some(std_json::json_raw_encode(luau, LuaValue::Table(body_table))?)
                     },
                     LuaValue::Nil => None,
                     other => {
@@ -224,7 +224,7 @@ pub fn http_post(luau: &Lua, post_config: LuaValue) -> LuaValueResult {
                     LuaValue::String(body) => body.to_str()?.to_string(),
                     LuaValue::Table(body_table) => {
                         post_builder = post_builder.header("Content-Type", "application/json");
-                        std_json::json_encode_raw(luau, LuaValue::Table(body_table))?
+                        std_json::json_raw_encode(luau, LuaValue::Table(body_table))?
                     },
                     other => {
                         return wrap_err!("net.post PostOptions.body expected table (to serialize as json) or string, got: {:?}", other)
@@ -361,7 +361,7 @@ fn http_put(luau: &Lua, put_config: LuaValue) -> LuaValueResult {
                     LuaValue::String(body) => body.to_str()?.to_string(),
                     LuaValue::Table(body_table) => {
                         put_builder = put_builder.header("Content-Type", "application/json");
-                        std_json::json_encode_raw(luau, LuaValue::Table(body_table))?
+                        std_json::json_raw_encode(luau, LuaValue::Table(body_table))?
                     },
                     other => {
                         return wrap_err!("net.get PutOptions.body expected table (to serialize as json) or string, got: {:?}", other)
@@ -498,7 +498,7 @@ fn http_patch(luau: &Lua, patch_config: LuaValue) -> LuaValueResult {
                     LuaValue::String(body) => body.to_str()?.to_string(),
                     LuaValue::Table(body_table) => {
                         patch_builder = patch_builder.header("Content-Type", "application/json");
-                        std_json::json_encode_raw(luau, LuaValue::Table(body_table))?
+                        std_json::json_raw_encode(luau, LuaValue::Table(body_table))?
                     },
                     other => {
                         return wrap_err!("net.request: PATCH: PatchOptions.body expected to be table (to serialize as json) or string, got: {:?}", other)
