@@ -1,12 +1,13 @@
+--!nolint LocalShadow
 -- @std/str is partially implemented in rust as well as luau
 -- turns out operations like startswith are faster in luau
 -- but stuff like utf-8 aware string manipulation really prefer to just be rust bindings
 
 --[=[
-	Features ergonomic methods like `str.startwith`, `str.trimfront/trimback`, etc.
+    Features ergonomic methods like `str.startwith`, `str.trimfront/trimback`, etc.
 
-	This library features utf-8-aware string handling, including easy access to splitting utf-8 strings,
-	iterating over the graphemes of a string, etc.
+    This library features utf-8-aware string handling, including easy access to splitting utf-8 strings,
+    iterating over the graphemes of a string, etc.
 ]=]
 local str = {}
 
@@ -25,15 +26,15 @@ end
 --- if no strings provided as ..., `str.trimfront` will trim whitespace (" ", "\n", etc.)
 function str.trimfront(s: string, ...: string): string
     local patterns = {...}
-	if #patterns == 0 then
-		s = string.gsub(s, "^%s*", "")
-	else
-		for _, pattern in patterns do
-			while string.find(s, "^" .. pattern) do
-				s = string.gsub(s, "^" .. pattern, "")
-			end
-		end
-	end
+    if #patterns == 0 then
+        s = string.gsub(s, "^%s*", "")
+    else
+        for _, pattern in patterns do
+            while string.find(s, "^" .. pattern) do
+                s = string.gsub(s, "^" .. pattern, "")
+            end
+        end
+    end
     
     return s
 end
@@ -43,16 +44,16 @@ end
 --- if no strings provided as ..., `str.trimback` will trim whitespace (" ", "\n", etc.)
 function str.trimback(s: string, ...: string): string
     local patterns = {...}
-	if #patterns == 0 then
-		s = string.gsub(s, "%s*$", "")
-	else
-		for _, pattern in patterns do
-			while string.find(s, pattern .. "$") do
-				s = string.gsub(s, pattern .. "$", "")
-			end
-		end
-	end
-	
+    if #patterns == 0 then
+        s = string.gsub(s, "%s*$", "")
+    else
+        for _, pattern in patterns do
+            while string.find(s, pattern .. "$") do
+                s = string.gsub(s, pattern .. "$", "")
+            end
+        end
+    end
+    
     return s
 end
 
@@ -60,30 +61,62 @@ end
 --- 
 --- if no strings provided to `...`, then default is whitespace
 function str.trim(s: string, ...: string): string
-	return str.trimback(str.trimfront(s, ...), ...)
+    return str.trimback(str.trimfront(s, ...), ...)
+end
+
+--- indents multiline string `count` characters; lines separated by `sep` (default "\n")
+function str.indent(s: string, whitespace_type: "Tabs" | "Spaces", count: number, sep: ("\n" | "\r\n")?): string
+    local indent = if whitespace_type == "Tabs" then string.rep("\t", count) else string.rep(" ", count)
+    local sep = sep or "\n" -- allows users to pass in \r\n or w/e if needed
+
+    local result = {}
+    local lines = str.splitlines(s)
+    for _, line in lines do
+        table.insert(result, indent .. line)
+    end
+
+    return table.concat(result, sep)
+end
+
+--- unindents multiline string by `count` characters; lines separated by `sep` (default "\n")
+function str.unindent(s: string, whitespace_type: "Tabs" | "Spaces", count: number, sep: ("\n" | "\r\n")?): string
+    local indent = if whitespace_type == "Tabs" then string.rep("\t", count) else string.rep(" ", count)
+    local sep = sep or "\n"
+
+    local result = {}
+    for _, line in str.splitlines(s) do
+        if str.startswith(line, indent) then
+            local trimmed_line = string.gsub(line, "^" .. indent, "")
+            table.insert(result, trimmed_line)
+        else
+            table.insert(result, line)
+        end
+    end
+
+    return table.concat(result, sep)
 end
 
 --- splits `s` by newlines, correctly handling carriage returns, trimming trailing whitespace,
 --- without an extra empty string, etc.
 function str.splitlines(s: string, trim_trailing_whitespace: boolean?): { string }
-	trim_trailing_whitespace = trim_trailing_whitespace ~= false -- handle true and nil
-	local splitted = str.split(s, "\n", "\r\n")
-	if trim_trailing_whitespace then
-		for i, sp in splitted do
-			splitted[i] = str.trimback(sp)
-		end
-	end
-	return splitted
+    trim_trailing_whitespace = trim_trailing_whitespace ~= false -- handle true and nil
+    local splitted = str.split(s, "\n", "\r\n")
+    if trim_trailing_whitespace then
+        for i, sp in splitted do
+            splitted[i] = str.trimback(sp)
+        end
+    end
+    return splitted
 end
 
 --- returns the utf-8 length if `s` is utf-8 or the regular string length #
 function str.len(s: string): number
-	local utf8_len = utf8.len(s)
-	if utf8_len then
-		return utf8_len
-	else
-		return #s
-	end
+    local utf8_len = utf8.len(s)
+    if utf8_len then
+        return utf8_len
+    else
+        return #s
+    end
 end
 
 --[=[
@@ -101,33 +134,33 @@ end
     print(str.width("🔥🎉")) -- 4 (each emoji takes 2 spaces)
     ```
 
-	## Actual example:
-	```luau
-	local students = {
-		{ name = "Alex Johnson", score = 95 },
-		{ name = "田中良", score = 88 },
-		{ name = "🔥🎉 Emily Carter", score = 92 },
-		{ name = "Nadiya Kovalenko", score = 85 },
-	}
+    ## Actual example:
+    ```luau
+    local students = {
+        { name = "Alex Johnson", score = 95 },
+        { name = "田中良", score = 88 },
+        { name = "🔥🎉 Emily Carter", score = 92 },
+        { name = "Nadiya Kovalenko", score = 85 },
+    }
 
-	-- Calculate column widths dynamically using `str.width`
-	local max_name_width = 0
-	for _, student in students do
-		max_name_width = math.max(max_name_width, str.width(student.name))
-	end
+    -- Calculate column widths dynamically using `str.width`
+    local max_name_width = 0
+    for _, student in students do
+        max_name_width = math.max(max_name_width, str.width(student.name))
+    end
 
-	-- Print formatted table
-	print("Name" .. string.rep(" ", max_name_width - str.width("Name")) .. " | Score")
-	print(string.rep("-", max_name_width) .. "-|------")
+    -- Print formatted table
+    print("Name" .. string.rep(" ", max_name_width - str.width("Name")) .. " | Score")
+    print(string.rep("-", max_name_width) .. "-|------")
 
-	for _, student in students do
-		print(
-			student.name
-			.. string.rep(" ", max_name_width - str.width(student.name)) 
-			.. " | " .. student.score
-		)
-	end
-	```
+    for _, student in students do
+        print(
+            student.name
+            .. string.rep(" ", max_name_width - str.width(student.name)) 
+            .. " | " .. student.score
+        )
+    end
+    ```
 ]=]
 function str.width(s: string): number
     local length = str.len(s)
@@ -189,48 +222,48 @@ end
 
 --- Like string.sub, but unicode graphemes instead.
 function str.slice(s: string, first: number, final: number?): string
-	local chars = str.split(s)
-	local b = ""
-	for i, ch in chars do
-		if i < first then
-			continue
-		elseif final and i == final then
-			b ..= ch
-			break
-		elseif i >= first then
-			b ..= ch
-		end
-	end
-	return b
+    local chars = str.split(s)
+    local b = ""
+    for i, ch in chars do
+        if i < first then
+            continue
+        elseif final and i == final then
+            b ..= ch
+            break
+        elseif i >= first then
+            b ..= ch
+        end
+    end
+    return b
 end
 
 local str_internal = (require)("@std/str_internal")
 
 --[=[
-	str.split is an improvement on luau's string.split in that you can split on multiple different choices of characters/strings
-	(not just a single string) and that the splitting is fully unicode grapheme aware.
+    str.split is an improvement on luau's string.split in that you can split on multiple different choices of characters/strings
+    (not just a single string) and that the splitting is fully unicode grapheme aware.
 
-	by default, str.split splits the string by unicode characters (graphemes)
+    by default, str.split splits the string by unicode characters (graphemes)
 ]=]
 str.split = str_internal.split :: (s: string, ...string) -> { string }
 
 --[=[
-	Iterate over the human-readable characters (graphemes) of a string
+    Iterate over the human-readable characters (graphemes) of a string
 
-	this function counts by 'characters', whereas `str.graphemes` provides byte indices for `string.sub`
+    this function counts by 'characters', whereas `str.graphemes` provides byte indices for `string.sub`
 ]=]
 function str.chars(s: string): (...any) -> (number, string)
-	local current_index = 0
-	local next_grapheme = str_internal.graphemes(s)
-	return function()
-		local bytes, grapheme = next_grapheme()
-		if bytes ~= nil then
-			current_index += 1
-			return current_index, grapheme
-		else
-			return nil :: any, nil :: any
-		end
-	end
+    local current_index = 0
+    local next_grapheme = str_internal.graphemes(s)
+    return function()
+        local bytes, grapheme = next_grapheme()
+        if bytes ~= nil then
+            current_index += 1
+            return current_index, grapheme
+        else
+            return nil :: any, nil :: any
+        end
+    end
 end
 
 str.graphemes = str_internal.graphemes :: (s: string) -> (...any) -> (number, string)
@@ -299,7 +332,7 @@ str.graphemes = str_internal.graphemes :: (s: string) -> (...any) -> (number, st
 --         if buffer ~= "" then
 --             coroutine.yield(index, buffer)
 --         end
-		
+        
 -- 		return nil, nil
 --     end)
 -- end
@@ -356,66 +389,66 @@ str.graphemes = str_internal.graphemes :: (s: string) -> (...any) -> (number, st
 -- end
 
 local function _verytest()
-	-- local t1 = "we are the dead"
-	-- print(str.splitchars(t1))
-	
-	-- local willthiswork = "Hello, world!\n\twith tab characters.\r\n"
-	--     .. "Here’s a mix: naïve café élan résumé!\n"
-	--     .. "Whitespace test: \t\t\r\nMultiple spaces.\n"
-	--     .. "Combining marks: é å ö\n"
-	--     .. "Emoji sequences: 👨‍👩‍👧‍👦 👩🏽‍🚀 🏳️‍🌈 🇺🇸 🚀🌍❤️\n"
-	--     .. "Special Unicode chars: Æ Ø ß ¿ ¡ ₿ € ©® ™\n"
-	--     .. "Math symbols: ∑ ∞ ∫ √ ∂ Δ Π\n"
-	
-	-- print(str.splitchars(willthiswork))
-	
-	-- credit: song is Далекі Обрії by Ukranian metal band Ignea
-	local daleki_obriyi_lyrics = [[
-	"Далекі Обрії" by Ignea
-	
-	Неначе у золотій клітці
-	Охоплена гамою барв
-	Не cтерплять ми бідні зіниці
-	Щодня - небуденний чар
-	Міцні татуйовані лиця
-	Боронять минуле своє
-	Прощальне слово "верніться"
-	Спіткає усюди мене
-	Там де жодних листів не буває
-	Скільки років кому не питають
-	Полюю на кадри світу, що зникає
-	Далекі обрії кличуть і манять
-	Тремтіла, ламалась, благала
-	Звивалась фільмова тасьма
-	Дно пропасті - карна виправа
-	Розсудить пралісна імла
-	Коралеві скелі і мури
-	Квітковий вівтар на ножах
-	Тепер мене звати Теура
-	Тепер я - багряний птах!
-	Мої світлини не в змозі передати
-	Неземної краси і омани
-	Люди там не живуть - виживають
-	Далекі обрії ваблять, жахають
-	]]
-	
-	local chars = {}
-	local t0 = os.clock()
-	for index, char in str.chars(daleki_obriyi_lyrics) do
-		-- print(`index: {index}, grapheme: {char}`)
-		table.insert(chars, char)
-	end
-	-- print(os.clock() - t0)
-	local t1 = os.clock() - t0
-	print(chars)
-	local badchars = {}
-	local t2 = os.clock()
-	for i, bad in string.split(daleki_obriyi_lyrics, "") do
-		table.insert(badchars, bad)
-	end
-	print(t1)
-	print(os.clock() - t2)
-	-- print(badchars)
+    -- local t1 = "we are the dead"
+    -- print(str.splitchars(t1))
+    
+    -- local willthiswork = "Hello, world!\n\twith tab characters.\r\n"
+    --     .. "Here’s a mix: naïve café élan résumé!\n"
+    --     .. "Whitespace test: \t\t\r\nMultiple spaces.\n"
+    --     .. "Combining marks: é å ö\n"
+    --     .. "Emoji sequences: 👨‍👩‍👧‍👦 👩🏽‍🚀 🏳️‍🌈 🇺🇸 🚀🌍❤️\n"
+    --     .. "Special Unicode chars: Æ Ø ß ¿ ¡ ₿ € ©® ™\n"
+    --     .. "Math symbols: ∑ ∞ ∫ √ ∂ Δ Π\n"
+    
+    -- print(str.splitchars(willthiswork))
+    
+    -- credit: song is Далекі Обрії by Ukranian metal band Ignea
+    local daleki_obriyi_lyrics = [[
+    "Далекі Обрії" by Ignea
+    
+    Неначе у золотій клітці
+    Охоплена гамою барв
+    Не cтерплять ми бідні зіниці
+    Щодня - небуденний чар
+    Міцні татуйовані лиця
+    Боронять минуле своє
+    Прощальне слово "верніться"
+    Спіткає усюди мене
+    Там де жодних листів не буває
+    Скільки років кому не питають
+    Полюю на кадри світу, що зникає
+    Далекі обрії кличуть і манять
+    Тремтіла, ламалась, благала
+    Звивалась фільмова тасьма
+    Дно пропасті - карна виправа
+    Розсудить пралісна імла
+    Коралеві скелі і мури
+    Квітковий вівтар на ножах
+    Тепер мене звати Теура
+    Тепер я - багряний птах!
+    Мої світлини не в змозі передати
+    Неземної краси і омани
+    Люди там не живуть - виживають
+    Далекі обрії ваблять, жахають
+    ]]
+    
+    local chars = {}
+    local t0 = os.clock()
+    for index, char in str.chars(daleki_obriyi_lyrics) do
+        -- print(`index: {index}, grapheme: {char}`)
+        table.insert(chars, char)
+    end
+    -- print(os.clock() - t0)
+    local t1 = os.clock() - t0
+    print(chars)
+    local badchars = {}
+    local t2 = os.clock()
+    for i, bad in string.split(daleki_obriyi_lyrics, "") do
+        table.insert(badchars, bad)
+    end
+    print(t1)
+    print(os.clock() - t2)
+    -- print(badchars)
 end
 
 return table.freeze(str)

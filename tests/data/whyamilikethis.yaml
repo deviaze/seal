@@ -1,16 +1,12 @@
-i_like:
-  $serde_json_lenient::private::Number: '3'
-am:
-  $serde_json_lenient::private::Number: '2'
-why:
-  $serde_json_lenient::private::Number: '1'
+i_like: 3
+am: 2
+why: 1
 this:
-- $serde_json_lenient::private::Number: '1'
-- $serde_json_lenient::private::Number: '2'
-- $serde_json_lenient::private::Number: '3'
-- $serde_json_lenient::private::Number: '4'
+- 1
+- 2
+- 3
+- 4
 - hi
 are:
   you:
-    too:
-      $serde_json_lenient::private::Number: '1'
+    too: 1

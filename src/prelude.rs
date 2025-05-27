@@ -19,3 +19,7 @@ pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaVa
 pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::String(luau.create_string(s)?))
 }
+
+pub fn ok_buffy<B: AsRef<[u8]>>(b: B, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::Buffer(luau.create_buffer(b)?))
+}

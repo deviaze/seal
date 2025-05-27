@@ -1,14 +1,16 @@
+type YamlValue = { [any]: any }
+
 return {
-	encode = function(t: any): string
+	encode = function(t: YamlValue): string
 		return nil :: any
 	end,
-	decode = function(toml_data: string): any
+	decode = function(toml_data: string): YamlValue
 		return nil :: any
 	end,
-	readfile = function(file_path: string): any
+	readfile = function(path: string): YamlValue
 		return nil :: any
 	end,
-	writefile = function(config: {path: string, content: any}): ()
+	writefile = function(path: string, content: YamlValue): ()
 		return nil :: any
 	end
 }

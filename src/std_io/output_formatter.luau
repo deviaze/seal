@@ -246,12 +246,10 @@ local function stringify_simple_type(value: any): string
     elseif type(value) == "userdata" then
         local userdata_id = string.match(tostring(value), ID_CATCHER_PATTERN)
         local typeof_userdata = typeof(value)
-        if typeof_userdata ~= "userdata" then -- userdatas with custom names
-            if typeof_userdata ~= "null" and typeof_userdata ~= "undefined" then -- json null & undefined dont need address printed
-                return BOLD_MAGENTA .. typeof_userdata .. RESET .. LEFT_ANGLED .. MAGENTA .. userdata_id .. RESET .. RIGHT_ANGLED
-            else
-                return colors.bold.magenta(typeof_userdata)
-            end
+        if userdata_id == "0" then -- mlua's json null uses address 0x0000000000000000 which gets caught as "0"
+            return colors.bold.red("null")
+        elseif typeof_userdata ~= "userdata" then -- userdatas with custom names
+            return colors.bold.magenta(typeof_userdata)
         else
             return BOLD_MAGENTA .. "userdata" .. RESET .. LEFT_ANGLED .. "0x" .. userdata_id .. RIGHT_ANGLED
         end

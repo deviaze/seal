@@ -72,7 +72,7 @@ type Filesystem = {}; local back: TableOfContents do
 	local new_dir = fs.dir.ensure(new_dir_path)
 
 	-- now we have a DirectoryEntry, so let's add some files and trees to it
-	new_dir:add_file("config.json", json.encode_raw({ cats = 2 }))
+	new_dir:add_file("config.json", json.raw({ cats = 2 }))
 	new_dir:add_tree("dependencies", fs.tree()
 		:with_file("dep1.luau", "return 'hi'")
 		:with_file("dep2.luau", 'return "bye"')

@@ -1,8 +1,5 @@
 {
 	"luau-lsp.fflags.enableNewSolver": true,
-	"luau-lsp.fflags.override": {
-		"LuauSolverV2": "true",
-	},
 	"files.eol": "\n",
 	"luau-lsp.platform.type": "standard",
 	"workbench.layoutControl.enabled": false,
@@ -22,4 +19,8 @@
 	"luau-lsp.inlayHints.parameterNames": "literals",
 	"luau-lsp.plugin.enabled": false,
 	"luau-lsp.inlayHints.variableTypes": false,
+	"[rust]": {
+		"editor.tabSize": 4,
+		"editor.insertSpaces": true,
+	}
 }

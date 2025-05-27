@@ -71,11 +71,11 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/process" => ok_table(std_process::create(luau)),
 
         "@std/serde" => ok_table(std_serde::create(luau)),
-        "@std/serde/base64" => ok_table(std_serde::create_base64(luau)),
-        "@std/serde/toml" => ok_table(std_serde::create_toml(luau)),
-        "@std/serde/yaml" => ok_table(std_serde::create_yaml(luau)),
+        "@std/serde/base64" => ok_table(std_serde::base64::create(luau)),
+        "@std/serde/toml" => ok_table(std_serde::toml::create(luau)),
+        "@std/serde/yaml" => ok_table(std_serde::yaml::create(luau)),
         "@std/serde/json" => ok_table(std_json::create(luau)),
-        "@std/serde/hex" => ok_table(std_serde::create_hex(luau)),
+        "@std/serde/hex" => ok_table(std_serde::hex::create(luau)),
         "@std/json" => ok_table(std_json::create(luau)),
 
         "@std/net" => ok_table(std_net::create(luau)),
