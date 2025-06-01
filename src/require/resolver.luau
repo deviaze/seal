@@ -94,7 +94,6 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 	if str.endswith(requiring_file_path, "init.luau") then
 		-- @self should refer to the direct parent dir of an init.luau
 		-- regardless of whichever meaning of ./relative we use in seal 
-		-- (seal should fallback to the new meaning)
 		table.insert(aliases_by_luaurc, 1, {
 			path = "self alias for init.luau (https://github.com/luau-lang/rfcs/pull/109)",
 			aliases = {
