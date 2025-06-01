@@ -83,10 +83,11 @@ function str.unindent(s: string, whitespace_type: "Tabs" | "Spaces", count: numb
     local indent = if whitespace_type == "Tabs" then string.rep("\t", count) else string.rep(" ", count)
     local sep = sep or "\n"
 
-    local result = {}
-    for _, line in str.splitlines(s) do
-        if str.startswith(line, indent) then
-            local trimmed_line = string.gsub(line, "^" .. indent, "")
+    local result: { string } = {}
+    -- LUAU FIXME: removing :: { string } cast causes blocked types + solver fails to complete
+    for _, line in str.splitlines(s) :: { string } do
+        if str.startswith(line :: string, indent) then
+            local trimmed_line: string = string.gsub(line, "^" .. indent, "")
             table.insert(result, trimmed_line)
         else
             table.insert(result, line)
