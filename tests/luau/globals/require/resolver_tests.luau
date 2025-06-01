@@ -20,6 +20,14 @@ local luaurc_contents = [[
 	}
 ]]
 
+local badluaurc_contents = [[
+	{
+		"aliases": {
+			"samename": "../samename/"
+		}
+	}
+]]
+
 local testtree = fs.tree()
 	:with_file(".luaurc", luaurc_contents)
 	:with_tree("src", fs.tree()
@@ -27,7 +35,12 @@ local testtree = fs.tree()
 		:with_file("hi.luau", "return 'hi'")
 		:with_tree("biblicallyaccuratemodule", fs.tree()
 			:with_file("init.luau", "return 'bib'")
+			:with_file(".luaurc", badluaurc_contents)
 			:with_file("bibinternal.luau", "return 'secret bib internals'")
+		)
+		:with_file("samename.luau", "return 'samename'")
+		:with_tree("samename", fs.tree()
+			:with_file("samename.luau", "error 'i shouldnt be required'")
 		)
 	)
 	:with_tree("libraries", fs.tree()
@@ -107,6 +120,33 @@ local function newsemantics()
 end
 
 newsemantics()
+
+local function dirwithsamenameexists()
+	local result = resolver.resolve(
+		"./samename",
+		main_luau_debugname
+	) :: any
+	assert(result.path ~= nil, "should be able to resolve samename.luau when folder named samename doesn't exist")
+	assert(
+		result.path == fs.path.join(abs_proj_path, "src", "samename.luau"),
+		`resolved path should be src/samename.luau, got: {result.path}`
+	)
+end
+
+dirwithsamenameexists()
+
+local function initshouldntresolvesiblingluaurc()
+	local result = resolver.resolve(
+		"@samename/samename",
+		bibdebugname
+	) :: any
+	assert(
+		string.match(result.err, "not found in the following"),
+		"alias in sibling .luaurc of init.luau shouldn't be found"
+	)
+end
+
+initshouldntresolvesiblingluaurc()
 
 local function aliases()
 	local leaf_res = resolver.resolve(

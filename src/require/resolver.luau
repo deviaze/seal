@@ -50,7 +50,11 @@ end
 local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAliases}?, string?)
 	local aliases_by_luaurc: { LuaurcAliases } = {}
 
-	local current_path = fs.path.parent(requiring_file_path)
+	local current_path = fs.path.parent(
+		requiring_file_path, 
+		-- init.luaus should not be able to resolve aliases in sibling .luaurcs
+		if str.endswith(requiring_file_path, "init.luau") then 2 else 1
+	)
 	while current_path ~= nil do
 		local possible_luaurc_path = fs.path.join(current_path :: string, ".luaurc")
 		local contents, result = fs.file.try_read(possible_luaurc_path)
@@ -94,7 +98,6 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 	if str.endswith(requiring_file_path, "init.luau") then
 		-- @self should refer to the direct parent dir of an init.luau
 		-- regardless of whichever meaning of ./relative we use in seal 
-		-- (seal should fallback to the new meaning)
 		table.insert(aliases_by_luaurc, 1, {
 			path = "self alias for init.luau (https://github.com/luau-lang/rfcs/pull/109)",
 			aliases = {
@@ -240,10 +243,15 @@ local debug_name: string = override_debug_name or debug.info(3, "s") --[[
 		}
 	end
 
+	local fs = fs -- LUAU FIXME: you won't believe this,
+	-- but this noop fixes fs.path.* functions suddenly disappearing and becoming never in the below code
+
 	-- trim ./ and ../ from requested_path
 	if trim_after_index > 0 then
 		current_path = fs.path.join(current_path, string.sub(requested_path, trim_after_index))
 	end
+
+	assert(current_path ~= nil, "current_path should not be nil at this point 1")
 
 	if env.os == "Windows" then
 		-- it's possible we could've accidentally mixed \ and /s when combining paths
@@ -251,13 +259,32 @@ local debug_name: string = override_debug_name or debug.info(3, "s") --[[
 		current_path = fs.path.normalize(current_path)
 	end
 
-	assert(current_path ~= nil, "current_path should not be nil at this point")
+	assert(current_path ~= nil, "current_path should not be nil at this point 2")
 
 	local trying_to_require_directory = false
 	local find_result: fs.FindResult = fs.find(current_path, { error_if_permission_denied = false })
 	if find_result.type == "Directory" then
-		current_path = fs.path.join(current_path, "init.luau")
-		trying_to_require_directory = true
+		local possible_init_path = fs.path.join(current_path, "init.luau")
+		local possible_concat_path = current_path .. ".luau"
+		
+		local init_path_exists = fs.path.exists(possible_init_path)
+		local concat_path_exists = fs.path.exists(possible_concat_path)
+
+		if init_path_exists and concat_path_exists then
+			-- both foo.luau and foo/init.luau exist (which one do we want??)
+			return {
+				err = `'{requested_path}' is ambiguous!! and can't be resolved.\nBoth '{possible_init_path}' and '{possible_concat_path}' exist; \z
+				rename either the directory '{fs.path.child(current_path)}/' or file '{fs.path.child(possible_concat_path)}' so we can figure out which one you meant`
+			}
+		elseif init_path_exists then
+			-- foo/init.luau exists
+			current_path = possible_init_path
+		elseif concat_path_exists then
+			-- foo/ exists and foo/init.luau doesn't exist BUT foo.luau exists (we should resolve to foo.luau)
+			current_path ..= ".luau"
+		else
+			trying_to_require_directory = true
+		end
 	elseif find_result.type == "NotFound" then
 		current_path ..= ".luau"
 	elseif find_result.type == "PermissionDenied" then

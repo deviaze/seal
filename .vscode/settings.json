@@ -1,5 +1,6 @@
 {
 	"luau-lsp.fflags.enableNewSolver": true,
+	"luau-lsp.fflags.enableByDefault": true,
 	"files.eol": "\n",
 	"luau-lsp.platform.type": "standard",
 	"workbench.layoutControl.enabled": false,
