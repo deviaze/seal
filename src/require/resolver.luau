@@ -50,7 +50,11 @@ end
 local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAliases}?, string?)
 	local aliases_by_luaurc: { LuaurcAliases } = {}
 
-	local current_path = fs.path.parent(requiring_file_path)
+	local current_path = fs.path.parent(
+		requiring_file_path, 
+		-- init.luaus should not be able to resolve aliases in sibling .luaurcs
+		if str.endswith(requiring_file_path, "init.luau") then 2 else 1
+	)
 	while current_path ~= nil do
 		local possible_luaurc_path = fs.path.join(current_path :: string, ".luaurc")
 		local contents, result = fs.file.try_read(possible_luaurc_path)
