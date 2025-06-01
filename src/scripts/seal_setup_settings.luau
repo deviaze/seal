@@ -10,6 +10,7 @@ type FileEntry = fs.FileEntry
 
 local default_vscode_settings = {
 	["luau-lsp.fflags.enableNewSolver"] = true,
+	["luau-lsp.fflags.enableByDefault"] = true,
 	["luau-lsp.platform.type"] = "standard",
 	["luau-lsp.types.definitionFiles"] = { "./.seal/typedefs/globals.d.luau" },
 }
