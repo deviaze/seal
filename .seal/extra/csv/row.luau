@@ -36,7 +36,7 @@ function impl.display(self: CsvRow): string
 	end
 
 	-- pad/format row
-	local function format_row(row_data)
+	local function format_row(row_data: { string })
 		local formatted = {}
 		for column_index, value in row_data do
 			table.insert(

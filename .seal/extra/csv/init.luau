@@ -58,7 +58,7 @@ local function parse_line(line: string): { string }
 end
 
 --- read csv from file into a `Csv`
-function csv.readfile(path: string)
+function csv.readfile(path: string): Csv
 	local text = fs.readfile(path)
 	return csv.parse(text)
 end
