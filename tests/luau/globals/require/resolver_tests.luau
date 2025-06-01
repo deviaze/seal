@@ -121,6 +121,20 @@ end
 
 newsemantics()
 
+local function dirwithsamenameexists()
+	local result = resolver.resolve(
+		"./samename",
+		main_luau_debugname
+	) :: any
+	assert(result.path ~= nil, "should be able to resolve samename.luau when folder named samename doesn't exist")
+	assert(
+		result.path == fs.path.join(abs_proj_path, "src", "samename.luau"),
+		`resolved path should be src/samename.luau, got: {result.path}`
+	)
+end
+
+dirwithsamenameexists()
+
 local function initshouldntresolvesiblingluaurc()
 	local result = resolver.resolve(
 		"@samename/samename",
