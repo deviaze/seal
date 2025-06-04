@@ -1,3 +1,4 @@
+#![feature(default_field_values)]
 use crate::prelude::*;
 use mlua::prelude::*;
 use include_dir::{include_dir, Dir};

@@ -1,4 +1,3 @@
---!nonstrict
 local thread = require("@std/thread")
 
 local data = {
@@ -20,7 +19,7 @@ print("PARENT: child is waiting for 1.25 seconds while we can do w/e we want")
 -- do smth here
 
 local response = child_thread:read_await() :: { message: string }
-print(response)
+assert(response.message:match("I daresay"), "unexpected data received from child thread?")
 
 print("PARENT: okay time to send child a buffer")
 local buffy = buffer.fromstring("hello there")

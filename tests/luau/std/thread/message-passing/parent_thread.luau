@@ -1,5 +1,3 @@
---!nonstrict
-
 local thread = require("@std/thread")
 local time = require("@std/time")
 local process = require("@std/process")
@@ -23,7 +21,7 @@ while time.wait(1) do
 		}?
 
 		if response then
-			if response.t > 8 then
+			if response.t > 6 then
 				print("done")
 				handle:send {
 					t = t,
