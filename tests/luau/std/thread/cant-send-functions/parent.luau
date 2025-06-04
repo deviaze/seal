@@ -17,7 +17,7 @@ print(child_handle:read())
 local try = require("@std/testing/try")
 try(function()
 	child_handle:send(function() end)
-end):expect_err("thread.send expected")
+end):expect_err("expected data to be")
 
 try(function()
 	child_handle:send({

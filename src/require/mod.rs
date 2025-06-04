@@ -171,7 +171,7 @@ fn get_require_cache(luau: &Lua) -> LuaResult<LuaTable> {
 /// luau's require semantics classify meow.luau and meow/init.luau as the same thing
 /// to get a reliable chunk name we want to get the absolute path and make sure we can figure out
 /// if it's a dir w/ init.luau or not
-pub fn get_chunk_name_for_module(path: &String, function_name: &'static str) -> LuaResult<Option<String>> {
+pub fn get_chunk_name_for_module(path: &str, function_name: &'static str) -> LuaResult<Option<String>> {
     let path = match std::path::absolute(path) {
         Ok(path) => path,
         Err(err) => {

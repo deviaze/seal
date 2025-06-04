@@ -47,11 +47,12 @@ const SCRIPT_PATH_SRC: &str = r#"
     return requiring_file
 "#;
 
+pub fn get_debug_name(luau: &Lua) -> LuaResult<String> {
+    luau.load(SCRIPT_PATH_SRC).eval::<String>()
+}
+
 pub fn get_script_path(luau: &Lua, _multivalue: LuaMultiValue) -> LuaValueResult {
-    let requiring_file = {
-        let result: LuaString = luau.load(SCRIPT_PATH_SRC).eval()?;
-        result.to_string_lossy()
-    };
+    let requiring_file = get_debug_name(luau)?;
     let requiring_file = luau.create_string(&requiring_file)?;
     Ok(LuaValue::String(requiring_file))
 }
