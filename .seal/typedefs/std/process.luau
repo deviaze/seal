@@ -36,12 +36,55 @@ export type RunOptions = {
 }
 
 type ChildProcessStdout = {
-	read: (self: ChildProcessStdout, buffer_size: number?) -> string?,
+	--[=[
+		Reads exactly `buffer_size` bytes from the child process' stdout, returning it as a Luau string (without any intermediate utf-8 conversion).
+
+		This method returns `nil` if it was unable to read *exactly* the number of bytes requested, including when it
+		encounters an `EOF` before completely filling its buffer.
+
+		If used within a `while` loop, I recommend using an extremely small `buffer_size` like 1, because it's extremely easy to lose data
+		otherwise.
+
+		Depending on your usecase, consider using `:read_to` instead.
+	]=]
+	read_exact: (self: ChildProcessStdout, buffer_size: number?) -> string?,
+	--[=[
+		Iterate over the lines of the child process' stdout, blocking the current VM (Rust Thread) until all lines are read.
+
+		## Usage
+
+		```luau
+		local process = require("@std/process")
+		local child = process.spawn({
+			program = "someutil --watch",
+			shell = "sh",
+		})
+		
+		for line in child.stdout:lines() do
+			local thing_changed = line:match("([%w]+) changed!")
+			print(`Change detected: {thing_changed}`)
+		end
+		```
+	]=]
 	lines: (self: ChildProcessStdout) -> (() -> string)
 }
 
 type ChildProcessStderr = {
-	read: (self: ChildProcessStderr, buffer_size: number?) -> string?,
+	--[=[
+		Reads exactly `buffer_size` bytes from the child process' stderr, returning it as a Luau string (without any intermediate utf-8 conversion).
+
+		This method returns `nil` if it was unable to read *exactly* the number of bytes requested, including when it
+		encounters an `EOF` before completely filling its buffer.
+
+		If used within a `while` loop, I recommend using an extremely small `buffer_size` like 1, because it's extremely easy to lose data
+		otherwise.
+
+		Depending on your usecase, consider using `:read_to` instead.
+	]=]
+	read_exact: (self: ChildProcessStderr, buffer_size: number?) -> string?,
+	--[=[
+		Iterate over the lines of the child process' stderr, blocking the current VM (Rust Thread) until all lines are read.
+	]=]
 	lines: (self: ChildProcessStderr) -> (() -> string)
 }
 

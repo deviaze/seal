@@ -102,11 +102,11 @@ type Stream = index<process.ChildProcess, "stdout"> | index<process.ChildProcess
 local function read_until(stream: Stream, hit: string?): string?
 	local result = ""
 	local token = ""
-	local current: string? = stream:read(1)
+	local current: string? = stream:read_exact(1)
 	if current then
 		result ..= current :: string
 		while current ~= nil do
-			current = stream:read(1)
+			current = stream:read_exact(1)
 			if hit and #token < #hit then
 				token ..= current :: string
 				if token == hit then
