@@ -164,6 +164,7 @@ local function parallel()
 	local start_time = os.clock()
 	local tests_passed = 0
 	local tests_failed = 0
+	local tests_ignored = 0
 
 	while (os.clock() - start_time) < 20 do -- 20 seconds
 		for path, handle in handles do
@@ -178,6 +179,8 @@ local function parallel()
 							ok = false,
 							err = err,
 						})
+					else
+						tests_ignored += 1
 					end
 				else
 					tests_passed += 1
@@ -204,7 +207,8 @@ local function parallel()
 				end
 			end
 		end
-		if #results == #test_files then
+		local completed_tests = tests_passed + tests_failed + tests_ignored
+		if completed_tests == #test_files then
 			break
 		end
 	end
