@@ -16,6 +16,7 @@ pub const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn set_globals(luau: &Lua, entry_path: String) -> LuaValueResult {
     let globals: LuaTable = luau.globals();
+    // must use globals().get instead of globals().raw_get due to safeenv/sandbox (which requires newindex); raw_get incorrectly returns nil when safeenv enabled
     let luau_version: LuaString = globals.get("_VERSION")?;
     globals.raw_set("require", luau.create_function(require::require)?)?;
     globals.raw_set("error", luau.create_function(error)?)?;	
