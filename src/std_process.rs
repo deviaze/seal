@@ -406,7 +406,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     let arc_stdin = Arc::new(Mutex::new(stdin));
 
     let stdout_handle = TableBuilder::create(luau)?
-        .with_function("read", {
+        .with_function("read_exact", {
             let stdout = Arc::clone(&arc_stdout);
             move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
                 let buffer_size = match multivalue.pop_back() {
@@ -415,7 +415,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                         if n.trunc() == n {
                             n as usize
                         } else {
-                            return wrap_err!("ChildProcess.stdout:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                            return wrap_err!("ChildProcess.stdout:read_exact(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
                         }
                     },
                     _ => 32,
@@ -426,7 +426,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                     Ok(_) => {
                         let result_string = luau.create_string(buffy)?;
                         Ok(LuaValue::String(result_string))
-                    },
+                    }, // this method returns nil if EOF was reached before filling whole buffer
                     Err(_err) => Ok(LuaValue::Nil)
                 }
             }
@@ -459,7 +459,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
         .build_readonly()?;
 
     let stderr_handle = TableBuilder::create(luau)?
-        .with_function("read", {
+        .with_function("read_exact", {
             let stderr = Arc::clone(&arc_stderr);
             move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
                 let buffer_size = match multivalue.pop_back() {
@@ -468,7 +468,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                         if n.trunc() == n {
                             n as usize
                         } else {
-                            return wrap_err!("ChildProcess.stderr:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                            return wrap_err!("ChildProcess.stderr:read_exact(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
                         }
                     },
                     _ => 32,
