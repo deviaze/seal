@@ -50,6 +50,7 @@ fn thread_spawn(luau: &Lua, value: LuaValue) -> LuaValueResult {
 
     let join_handle_result = thread_builder.spawn(move || -> LuaEmptyResult {
         let new_luau = Lua::default();
+        new_luau.sandbox(true)?;
         let data = match options.data {
             Some(data) => deserialize_data_from_transit(&new_luau, data)?,
             None => LuaNil,
