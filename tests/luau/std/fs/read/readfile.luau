@@ -10,18 +10,10 @@ local res = fs.readfile("./tests/data/nanuk.png")
 local bytes = fs.readbytes("./tests/data/nanuk.png")
 assert(#res == buffer.len(bytes), "fs.readfile and fs.readbytes giving different length?")
 
-local try = require("@std/testing/try")
+local success, result = pcall(function()
+	return fs.readfile("./trsastar")
+end)
 
--- handle invalid stuffs
-do
-	try(function()
-		fs.readfile("./trsatar")
-		return nil
-	end):expect_err("File/directory not found")
-
-	local s, f = pcall(function()
-		fs.readfile(".")
-		return nil
-	end)
-	assert(s == false, "reading . as a file shouldn't work")
-end
+assert(success == false, "fs.readfile invalid file should fail")
+print(typeof(result))
+assert(typeof(result) == "error" and tostring(result):match("File/directory not found"), "Unexpected error message")

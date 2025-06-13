@@ -23,7 +23,6 @@ mod std_net;
 // mod std_serde_old;
 mod std_serde;
 mod std_str_internal;
-mod std_testing;
 mod std_thread;
 mod sealconfig;
 
@@ -148,6 +147,10 @@ fn resolve_file(requested_path: String, function_name: &'static str) -> LuauLoad
     };
     
     let luau = Lua::default();
+    if let Err(err) = luau.sandbox(true) {
+        return wrap_err!("{}: unable to enable Luau safeenv (sandbox mode) on chunk '{}' due to err: {}", function_name, chunk_name, err);
+    };
+
     globals::set_globals(&luau, chunk_name.clone())?;
 
     let mut src = match fs::read_to_string(&chunk_name) {
