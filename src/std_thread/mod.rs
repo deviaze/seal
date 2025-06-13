@@ -50,13 +50,15 @@ fn thread_spawn(luau: &Lua, value: LuaValue) -> LuaValueResult {
 
     let join_handle_result = thread_builder.spawn(move || -> LuaEmptyResult {
         let new_luau = Lua::default();
+        new_luau.sandbox(true)?;
         let data = match options.data {
             Some(data) => deserialize_data_from_transit(&new_luau, data)?,
             None => LuaNil,
         };
         
         globals::set_globals(&new_luau, options.chunk_name.clone())?;
-        new_luau.globals().raw_set("channel", TableBuilder::create(&new_luau)?
+        // must use globals.set() due to safeenv
+        new_luau.globals().set("channel", TableBuilder::create(&new_luau)?
             .with_function("read", {
                 let receiver = channels.parent_to_child.receiver.clone();
                 move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
