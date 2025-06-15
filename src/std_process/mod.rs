@@ -1,4 +1,6 @@
 use core::str;
+use std::fmt::Debug;
+use std::time::Instant;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
@@ -6,7 +8,12 @@ use std::process::{self, Command, Output, Stdio};
 use std::sync::{Arc, Mutex};
 
 use mluau::prelude::*;
-use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult, ok_table};
+use crate::prelude::*;
+use crate::std_env;
+
+mod stream;
+
+use stream::Stream;
 
 #[derive(Debug)]
 enum Shell {
@@ -401,43 +408,201 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     let stdin = child.stdin.take().unwrap();
 
     let arc_child = Arc::new(Mutex::new(child));
-    let arc_stdout = Arc::new(Mutex::new(stdout));
-    let arc_stderr = Arc::new(Mutex::new(stderr));
+    let arc_stdout = Arc::new(Mutex::new(Some(stdout)));
+    let arc_stderr = Arc::new(Mutex::new(Some(stderr)));
     let arc_stdin = Arc::new(Mutex::new(stdin));
 
+    /// makes it less annoying to get ChildStdout or ChildStderr from the arcs above
+    #[inline(always)]
+    fn unwrap_stream<T>(mutex: &Arc<Mutex<Option<T>>>, function_name: &'static str, stream_type: &'static str) -> LuaResult<T> {
+        match mutex.lock().unwrap().take() {
+            Some(stream) => Ok(stream),
+            None => {
+                wrap_err!("{}: unable to take ChildProcess' {}, are you trying to use multiple :read methods at the same time?", function_name, stream_type)
+            }
+        }
+    }
+
     let stdout_handle = TableBuilder::create(luau)?
-        .with_function("read_exact", {
-            let stdout = Arc::clone(&arc_stdout);
+        .with_function("read", {
+            let arc_stdout = Arc::clone(&arc_stdout);
             move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let function_name = "ChildProcess.stdout:read(count: number?, timeout: number?)";
+
+                pop_self(&mut multivalue, function_name)?;
+                let byte_count = match multivalue.pop_front() {
+                    Some(LuaValue::Integer(i)) => i as usize,
+                    Some(LuaValue::Number(f)) => f.trunc() as usize,
+                    Some(LuaNil) | None => 1024,
+                    Some(other) => {
+                        return wrap_err!("{} expected count to be a number or nil, got: {:?}", function_name, other);
+                    },
+                };
+                let timeout = match multivalue.pop_front() {
+                    Some(LuaValue::Integer(i)) => i as f64,
+                    Some(LuaValue::Number(f)) => f,
+                    Some(LuaNil) | None => 0.015,
+                    Some(other) => {
+                        return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
+                    },
+                };
+
+                let stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
+                let mut stream = Stream::new(stdout);
+                
+                let mut result: Vec<u8> = Vec::new();
+                let mut last_read_time = Instant::now();
+
+                loop {
+                    let now = Instant::now();
+                    let elapsed = (now - last_read_time).as_secs_f64();
+                    if let Some(data) = stream.try_read() && elapsed <= timeout {
+                        last_read_time = now;
+                        if result.len() < byte_count {
+                            result.push(data);
+                        } else {
+                            break;
+                        }
+                    } else if elapsed <= timeout {
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+
+                stream.recover(function_name, &arc_stdout)?;
+
+                if result.is_empty() {
+                    Ok(LuaNil)
+                } else {
+                    ok_string(result, luau)
+                }
+            }
+        })?
+        .with_function("read_until", {
+            let arc_stdout = Arc::clone(&arc_stdout);
+            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let function_name = "ChildProcess.stdout:read_until(token: string, timeout: number?)";
+
+                pop_self(&mut multivalue, function_name)?;
+                let token = match multivalue.pop_front() {
+                    Some(LuaValue::String(token)) => {
+                        let token = token.as_bytes().to_owned();
+                        if token.is_empty() {
+                            return wrap_err!("{}: token must be a non-empty string", function_name);
+                        } else {
+                            token
+                        }
+                    },
+                    Some(other) => {
+                        return wrap_err!("{} expected token to be a string, got: {:?}", function_name, other);
+                    },
+                    None => {
+                        return wrap_err!("{} expected token but was incorrectly called with zero arguments", function_name);
+                    }
+                };
+                let timeout = match multivalue.pop_front() {
+                    Some(LuaValue::Integer(i)) => Some(i as f64),
+                    Some(LuaValue::Number(f)) => Some(f),
+                    Some(LuaNil) | None => None,
+                    Some(other) => {
+                        return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
+                    },
+                };
+
+                let result: Vec<u8> = if let Some(timeout) = timeout {
+                    // rust currently doesn't provide an easy way for us to read from a stream and ensure it doesn't block
+                    // so we need to throw the blocking reads in a different thread and use message passing
+                    let stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
+
+                    let mut result = Vec::new();
+                    let start_time = Instant::now();
+                    let mut stream = Stream::new(stdout);
+
+                    while let now = Instant::now() 
+                        && let elapsed = now - start_time 
+                        && elapsed.as_secs_f64() < timeout
+                    {
+                        if let Some(stuff) = stream.try_read() {
+                            result.push(stuff);
+                        }
+                        if result.ends_with(&token) {
+                            stream.kill(function_name)?;
+                            break;
+                        };
+                    }
+
+                    stream.recover(function_name, &arc_stdout)?;
+
+                    result
+                } else { // if the user didn't request a timeout we can do the easy thing and just keep reading til we see token
+                    let mut stdout = match arc_stdout.lock().unwrap().take() {
+                        Some(stdout) => stdout,
+                        None => {
+                            return wrap_err!("{}: unable to take ChildProcess' stdout, are you trying to use multiple :read methods at the same time?", function_name);
+                        }
+                    };
+
+                    let mut result: Vec<u8> = Vec::new();
+                    loop {
+                        let mut buffer = [0u8; 1];
+                        match stdout.read_exact(&mut buffer) {
+                            Ok(_) => {
+                                result.extend_from_slice(&buffer);
+                                if result.ends_with(&token) {
+                                    break;
+                                }
+                            },
+                            Err(_err) => break
+                        };
+                    }
+
+                    result
+                };
+
+                if result.is_empty() {
+                    Ok(LuaNil)
+                } else {
+                    ok_string(result, luau)
+                }
+            }
+        })?
+        .with_function("read_exact", {
+            let arc_stdout = Arc::clone(&arc_stdout);
+            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let function_name = "ChildProcess.stdout:read_exact(buffer_size: number)";
                 let buffer_size = match multivalue.pop_back() {
                     Some(LuaValue::Integer(i)) => i as usize,
                     Some(LuaValue::Number(n)) => {
                         if n.trunc() == n {
                             n as usize
                         } else {
-                            return wrap_err!("ChildProcess.stdout:read_exact(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                            return wrap_err!("{} expected buffer_size to be an integer, got a float: {}", function_name, n);
                         }
                     },
                     _ => 32,
                 };
-                let mut stdout = stdout.lock().unwrap();
+                let mut stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
+
                 let mut buffy = vec![0; buffer_size];
-                match stdout.read_exact(&mut buffy) {
+                let res = match stdout.read_exact(&mut buffy) {
                     Ok(_) => {
                         let result_string = luau.create_string(buffy)?;
                         Ok(LuaValue::String(result_string))
                     }, // this method returns nil if EOF was reached before filling whole buffer
                     Err(_err) => Ok(LuaValue::Nil)
-                }
+                };
+                *arc_stdout.lock().unwrap() = Some(stdout); // give stdout backk so other :read methods can use
+                res
             }
         })?
         .with_function("lines", {
-            let stdout = Arc::clone(&arc_stdout);
             move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                Ok(LuaValue::Function(luau.create_function({
-                    let stdout = Arc::clone(&stdout);
+                let function_name = "ChildProcess.stdout:lines()";
+                let arc_stdout = Arc::clone(&arc_stdout);
+                let mut stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
+                Ok(LuaValue::Function(luau.create_function_mut({
                     move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
-                        let mut stdout = stdout.lock().unwrap();
                         let mut reader = BufReader::new(stdout.by_ref());
                         let mut new_line = String::from("");
                         match reader.read_line(&mut new_line) {
@@ -453,44 +618,131 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                         }
                     }
                 })?))
-                // let line = reader.read_line(buf)
             }
         })?
         .build_readonly()?;
 
     let stderr_handle = TableBuilder::create(luau)?
+        .with_function("read_until", {
+            let stderr = Arc::clone(&arc_stderr);
+            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let function_name = "ChildProcess.stderr:read_until(token: string, timeout: number?)";
+
+                pop_self(&mut multivalue, function_name)?;
+                let token = match multivalue.pop_front() {
+                    Some(LuaValue::String(token)) => {
+                        let token = token.as_bytes().to_owned();
+                        if token.is_empty() {
+                            return wrap_err!("{}: token must be a non-empty string", function_name);
+                        } else {
+                            token
+                        }
+                    },
+                    Some(other) => {
+                        return wrap_err!("{} expected token to be a string, got: {:?}", function_name, other);
+                    },
+                    None => {
+                        return wrap_err!("{} expected token but was incorrectly called with zero arguments", function_name);
+                    }
+                };
+                let timeout = match multivalue.pop_front() {
+                    Some(LuaValue::Integer(i)) => Some(i as f64),
+                    Some(LuaValue::Number(f)) => Some(f),
+                    Some(LuaNil) | None => None,
+                    Some(other) => {
+                        return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
+                    },
+                };
+
+                let result: Vec<u8> = if let Some(timeout) = timeout {
+                    // rust currently doesn't provide an easy way for us to read from a stream and ensure it doesn't block
+                    // so we need to throw the blocking reads in a different thread and use message passing
+                    let stderr = unwrap_stream(&stderr, function_name, "stderr")?;
+
+                    let mut result = Vec::new();
+                    let start_time = Instant::now();
+                    let mut stream = Stream::new(stderr);
+
+                    while let now = Instant::now() 
+                        && let elapsed = now - start_time 
+                        && elapsed.as_secs_f64() < timeout
+                    {
+                        if let Some(stuff) = stream.try_read() {
+                            result.push(stuff);
+                        }
+                        if result.ends_with(&token) {
+                            stream.kill(function_name)?;
+                            break;
+                        };
+                    }
+
+                    result
+                } else { // if the user didn't request a timeout we can do the easy thing and just keep reading til we see token
+                    let mut stderr = match stderr.lock().unwrap().take() {
+                        Some(stderr) => stderr,
+                        None => {
+                            return wrap_err!("{}: unable to take ChildProcess' stderr, are you trying to use multiple :read methods at the same time?", function_name);
+                        }
+                    };
+
+                    let mut result: Vec<u8> = Vec::new();
+
+                    loop {
+                        let mut buffer = [0u8; 1];
+                        match stderr.read_exact(&mut buffer) {
+                            Ok(_) => {
+                                result.extend_from_slice(&buffer);
+                                if result.ends_with(&token) {
+                                    break;
+                                }
+                            },
+                            Err(_err) => break
+                        };
+                    }
+
+                    result
+                };
+
+                if result.is_empty() {
+                    Ok(LuaNil)
+                } else {
+                    ok_string(result, luau)
+                }
+            }
+        })?
         .with_function("read_exact", {
             let stderr = Arc::clone(&arc_stderr);
             move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let function_name = "ChildProcess.stderr:read_exact(buffer_size: number)";
                 let buffer_size = match multivalue.pop_back() {
                     Some(LuaValue::Integer(i)) => i as usize,
                     Some(LuaValue::Number(n)) => {
                         if n.trunc() == n {
                             n as usize
                         } else {
-                            return wrap_err!("ChildProcess.stderr:read_exact(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                            return wrap_err!("{} expected buffer_size to be an integer, got a float: {}", function_name, n);
                         }
                     },
                     _ => 32,
                 };
-                let mut stderr = stderr.lock().unwrap();
+                let mut stderr = unwrap_stream(&stderr, function_name, "stderr")?;
                 let mut buffy = vec![0; buffer_size];
                 match stderr.read_exact(&mut buffy) {
                     Ok(_) => {
                         let result_string = luau.create_string(buffy)?;
                         Ok(LuaValue::String(result_string))
-                    },
+                    }, // this method returns nil if EOF was reached before filling whole buffer
                     Err(_err) => Ok(LuaValue::Nil)
                 }
             }
         })?
         .with_function("lines", {
-            let stderr = Arc::clone(&arc_stderr);
             move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
+                let function_name = "ChildProcess.stderr:lines()";
+                let stderr = Arc::clone(&arc_stderr);
                 Ok(LuaValue::Function(luau.create_function({
-                    let stderr = Arc::clone(&stderr);
                     move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
-                        let mut stderr = stderr.lock().unwrap();
+                        let mut stderr = unwrap_stream(&stderr, function_name, "stderr")?;
                         let mut reader = BufReader::new(stderr.by_ref());
                         let mut new_line = String::from("");
                         match reader.read_line(&mut new_line) {
@@ -506,7 +758,6 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                         }
                     }
                 })?))
-                // let line = reader.read_line(buf)
             }
         })?
         .build_readonly()?;

@@ -24,6 +24,18 @@ pub fn ok_buffy<B: AsRef<[u8]>>(b: B, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::Buffer(luau.create_buffer(b)?))
 }
 
+pub fn pop_self(multivalue: &mut LuaMultiValue, function_name: &'static str) -> LuaEmptyResult {
+    match multivalue.pop_front() {
+        Some(LuaValue::Table(_s)) => Ok(()),
+        Some(other) => {
+            wrap_err!("{} expected to be called with self, got: {:?}; did you forget to use methodcall syntax (:)?", function_name, other)
+        },
+        None => {
+            wrap_err!("{} incorrectly called with zero arguments, expected self", function_name)
+        }
+    }
+}
+
 pub struct DebugInfo {
     pub source: String,
     pub line: String,

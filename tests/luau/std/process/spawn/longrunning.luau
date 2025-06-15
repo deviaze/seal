@@ -4,9 +4,9 @@ local time = require("@std/time")
 print("Starting...")
 
 while time.wait(0.125) do
-	local x = math.random(1, 2000)
+	local x = math.random(1, 121)
 	print(x)
-	if x > 1900 then
+	if x > 65 then
 		break
 	end
 end

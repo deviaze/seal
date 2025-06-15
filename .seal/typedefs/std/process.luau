@@ -37,7 +37,14 @@ export type RunOptions = {
 
 type ChildProcessStdout = {
 	--[=[
-		Reads exactly `buffer_size` bytes from the child process' stdout, returning it as a Luau string (without any intermediate utf-8 conversion).
+		Reads up to `count` bytes from the stream, one byte at a time, blocking the current VM (Rust Thread) for a maximum of of `timeout` seconds per read.
+		
+		By default, `count` is 1024 bytes and `timeout` is 0.015 seconds.
+	]=]
+	read: (self: ChildProcessStdout, count: number?, timeout: number?) -> string?,
+	read_until: (self: ChildProcessStdout, token: string, timeout: number?) -> string?,
+	--[=[
+		Reads exactly `buffer_size` bytes from the child process' stdout, possibly blocking the current VM (Rust Thread), and returning the bytes as a Luau string (without any intermediate utf-8 conversion).
 
 		This method returns `nil` if it was unable to read *exactly* the number of bytes requested, including when it
 		encounters an `EOF` before completely filling its buffer.
@@ -45,7 +52,7 @@ type ChildProcessStdout = {
 		If used within a `while` loop, I recommend using an extremely small `buffer_size` like 1, because it's extremely easy to lose data
 		otherwise.
 
-		Depending on your usecase, consider using `:read_to` instead.
+		Depending on your usecase, consider using `:read` instead.
 	]=]
 	read_exact: (self: ChildProcessStdout, buffer_size: number?) -> string?,
 	--[=[
