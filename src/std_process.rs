@@ -1,4 +1,5 @@
 use core::str;
+use std::time::Instant;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
@@ -6,7 +7,8 @@ use std::process::{self, Command, Output, Stdio};
 use std::sync::{Arc, Mutex};
 
 use mlua::prelude::*;
-use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult, ok_table};
+use crate::prelude::*;
+use crate::std_env;
 
 #[derive(Debug)]
 enum Shell {
@@ -406,7 +408,133 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     let arc_stdin = Arc::new(Mutex::new(stdin));
 
     let stdout_handle = TableBuilder::create(luau)?
-        .with_function("read", {
+        .with_function("read_until", {
+            // I couldn't figure out how to get timeout to work because .read, .read_exact, etc. could all unexpectedly block
+            // in the second test (interruptreadwithtimeeout)
+            
+            // let child = Arc::clone(&arc_child);
+            let stdout = Arc::clone(&arc_stdout);
+            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+                let function_name = "ChildProcess.stdout:read_until(token: string, timeout: number?)";
+                match multivalue.pop_front() {
+                    Some(LuaValue::Table(_s)) => (),
+                    Some(other) => {
+                        return wrap_err!("{} expected to be called with self, got: {:?}; did you forget to use methodcall syntax (:)?", function_name, other);
+                    },
+                    None => {
+                        return wrap_err!("{} incorrectly called with zero arguments, expected self", function_name);
+                    }
+                };
+                let token = match multivalue.pop_front() {
+                    Some(LuaValue::String(token)) => {
+                        let token = token.as_bytes().to_owned();
+                        if token.is_empty() {
+                            return wrap_err!("{}: token must be a non-empty string", function_name);
+                        } else {
+                            token
+                        }
+                    },
+                    Some(other) => {
+                        return wrap_err!("{} expected token to be a string, got: {:?}", function_name, other);
+                    },
+                    None => {
+                        return wrap_err!("{} expected token but was incorrectly called with zero arguments", function_name);
+                    }
+                };
+                // let timeout = match multivalue.pop_front() {
+                //     Some(LuaValue::Integer(i)) => Some(i as f64),
+                //     Some(LuaValue::Number(f)) => Some(f),
+                //     Some(LuaNil) | None => None,
+                //     Some(other) => {
+                //         return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
+                //     },
+                // };
+
+                let mut stdout = stdout.lock().unwrap();
+                
+                let mut result: Vec<u8> = Vec::new();
+                loop {
+                    let mut buffer = [0u8; 1];
+                    match stdout.read_exact(&mut buffer) {
+                        Ok(_) => {
+                            dbg!(unsafe { str::from_utf8_unchecked(&buffer) });
+                            result.extend_from_slice(&buffer);
+                            if result.ends_with(&token) {
+                                break;
+                            }
+                        },
+                        Err(err) => {dbg!(err); break;}
+                    };
+                }
+
+                // loop {
+                //     match stdout.read_(&mut buffer) {
+                //         Ok(n) if n > 0 => {
+                //             // we managed to read smth, now we need to see if a token was found and append to result buffer
+                //             start_time = Instant::now();
+                //             // check if token was found, especially if found across different reads
+                //             let token_found_at_position = {
+                //                 let extended = {
+                //                     let mut combined = previous_bytes.clone();
+                //                     combined.extend_from_slice(&buffer[..n]);
+                //                     combined
+                //                 };
+                //                 // this windows check finds the first occurance of token in the extended buffer
+                //                 // since extended includes both the previous bytes concatenated with the new bytes from the last read
+                //                 // we successfully check whether token was found across reads or just in general
+                //                 extended.windows(token.len()).position(| window | window == token)
+                //             };
+                //             if let Some(position) = token_found_at_position {
+                //                 result.extend_from_slice(&buffer[..position]);
+                //                 break;
+                //             } else {
+                //                 result.extend_from_slice(&buffer);
+                //             }
+
+                //             previous_bytes = if result.len() >= token.len() - 1 {
+                //                 // get the last token.len() bytes from result
+                //                 result[result.len() - (token.len() - 1)..].to_vec()
+                //             } else {
+                //                 // result smaller than token so put whole result in previous_bytes
+                //                 result.clone()
+                //             };
+
+                //         },
+                //         Ok(0) => {
+                //             // didn't read anything, so we need to check if process still alive or not
+                //             let mut child = child.try_lock().unwrap();
+                //             match child.try_wait() {
+                //                 Ok(Some(_status)) => break, // child is dead
+                //                 Ok(None) => {
+                //                     if let Some(timeout) = timeout
+                //                         && let elapsed = Instant::now() - start_time
+                //                         && elapsed.as_secs_f64() >= timeout
+                //                     {
+                //                         eprintln!("hit timeout");
+                //                         break;
+                //                     } else {
+                //                         continue;
+                //                     }
+                //                 }, // child is alive
+                //                 Err(err) => {
+                //                     return wrap_err!("{}: unable to tell if spawned process is dead or alive: {}", function_name, err);
+                //                 }
+                //             }
+                //         },
+                //         Err(err) => {
+                //             return wrap_err!("{} unable to read from stream: {}", function_name, err);
+                //         },
+                //         Ok(u) => unreachable!("usize can't be {}", u),
+                //     }
+                // }
+                if result.is_empty() {
+                    Ok(LuaNil)
+                } else {
+                    ok_string(result, luau)
+                }
+            }
+        })?
+        .with_function("read_exact", {
             let stdout = Arc::clone(&arc_stdout);
             move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
                 let buffer_size = match multivalue.pop_back() {
@@ -415,7 +543,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                         if n.trunc() == n {
                             n as usize
                         } else {
-                            return wrap_err!("ChildProcess.stdout:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                            return wrap_err!("ChildProcess.stdout:read_exact(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
                         }
                     },
                     _ => 32,
@@ -426,7 +554,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                     Ok(_) => {
                         let result_string = luau.create_string(buffy)?;
                         Ok(LuaValue::String(result_string))
-                    },
+                    }, // this method returns nil if EOF was reached before filling whole buffer
                     Err(_err) => Ok(LuaValue::Nil)
                 }
             }
@@ -459,7 +587,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
         .build_readonly()?;
 
     let stderr_handle = TableBuilder::create(luau)?
-        .with_function("read", {
+        .with_function("read_exact", {
             let stderr = Arc::clone(&arc_stderr);
             move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
                 let buffer_size = match multivalue.pop_back() {
@@ -468,7 +596,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                         if n.trunc() == n {
                             n as usize
                         } else {
-                            return wrap_err!("ChildProcess.stderr:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+                            return wrap_err!("ChildProcess.stderr:read_exact(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
                         }
                     },
                     _ => 32,
