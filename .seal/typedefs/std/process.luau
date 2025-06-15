@@ -36,6 +36,7 @@ export type RunOptions = {
 }
 
 type ChildProcessStdout = {
+	read_until: (self: ChildProcessStdout, token: string, timeout: number?) -> string?,
 	--[=[
 		Reads exactly `buffer_size` bytes from the child process' stdout, returning it as a Luau string (without any intermediate utf-8 conversion).
 
