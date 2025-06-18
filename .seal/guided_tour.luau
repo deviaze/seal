@@ -147,7 +147,7 @@ type SpawningChildProcesses = {}; local back: TableOfContents do
 
 	local text = ""
 	while handle:alive() do
-		local new_text = handle.stdout:read(1)
+		local new_text = handle.stdout:read_exact(1)
 		if new_text then
 			text ..= new_text
 		end
