@@ -1,6 +1,7 @@
 local process = require("@std/process")
 local env = require("@std/env")
 local path = require("@std/fs/path")
+local str = require("@std/str")
 
 local child = process.spawn {
 	program = env.executable_path,
@@ -24,8 +25,14 @@ local function interruptreadwithtimeout()
 	
 	local start_time = os.clock()
 	local meowres = child2.stdout:read_until("meow", 0.15)
-	print(meowres)
-	print(os.clock() - start_time)
+	assert(
+		typeof(meowres) == "string" and (not meowres:match("meow")), 
+		"unexpected meowres"
+	)
+	assert(
+		str.startswith(tostring(os.clock() - start_time), "0.15"),
+		"read_until with 0.15s timeout should be very close to 0.15s"
+	)
 end
 
 interruptreadwithtimeout()
