@@ -9,7 +9,7 @@ edition = "2024"
 # If this breaks we'll pin to a commit and risk lagging behind Luau
 # but mlua's main branch is relatively stable and hasn't broken for us before nor for other projects.
 # we need to enable error-send so we can propogate errors across threads in std_thread.rs
-mlua = { git = "https://github.com/mlua-rs/mlua.git", features = ["luau", "serialize", "error-send"] }
+mlua = { git = "https://github.com/mluau/mluau.git", features = ["luau", "serialize", "error-send"] }
 chrono = "0.4.38"
 regex = "1.11.1"
 # needed for seal setup (really useful!)
