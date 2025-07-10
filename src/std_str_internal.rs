@@ -4,7 +4,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use std::io::Cursor;
 use unicode_reader::Graphemes;
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 
 /// str.split is an improvement on luau's string.split in that you can split on multiple different choices of characters/strings

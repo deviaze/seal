@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::table_helpers::TableBuilder;
 
 pub const RESET: &str = "\x1b[0m";

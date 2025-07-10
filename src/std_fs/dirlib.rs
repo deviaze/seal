@@ -1,7 +1,7 @@
 use std::fs;
 use std::io;
 use std::path::PathBuf;
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use super::entry::wrap_io_read_errors;
 use super::validate_path_without_checking_fs;

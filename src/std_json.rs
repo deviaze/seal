@@ -1,6 +1,6 @@
 use std::fs;
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crate::std_fs::{self, entry::wrap_io_read_errors_empty, validate_path};
 use serde_json_lenient as serde_json;

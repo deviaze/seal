@@ -1,6 +1,6 @@
 #![feature(default_field_values)]
 use crate::prelude::*;
-use mlua::prelude::*;
+use mluau::prelude::*;
 use include_dir::{include_dir, Dir};
 
 use std::{collections::VecDeque, env, ffi::OsString, fs, io};
