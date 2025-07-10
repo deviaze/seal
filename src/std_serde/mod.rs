@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 pub mod base64;
 pub mod hex;

@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use crate::{colors, std_json, table_helpers::TableBuilder, LuaValueResult};
-use mlua::prelude::*;
+use mluau::prelude::*;
 use regex::Regex;
 use std::net::{TcpListener, TcpStream};
 use std::io::{prelude::*, BufReader, Write};

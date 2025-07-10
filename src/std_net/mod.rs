@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 pub mod http;
 pub mod serve;

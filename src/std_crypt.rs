@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use crate::{table_helpers::TableBuilder, LuaValueResult, colors};
 use base64::Engine;
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 use ring::pbkdf2::{self, PBKDF2_HMAC_SHA256};
 use ring::rand::{SecureRandom, SystemRandom};

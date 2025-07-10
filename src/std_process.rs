@@ -5,7 +5,7 @@ use std::process::{self, Command, Output, Stdio};
 // use std::thread;
 use std::sync::{Arc, Mutex};
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult, ok_table};
 
 #[derive(Debug)]

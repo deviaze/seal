@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 
 fn encode(luau: &Lua, value: LuaValue) -> LuaValueResult {

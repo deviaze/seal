@@ -3,7 +3,7 @@ use std::io;
 use std::path::PathBuf;
 use std::process::Command;
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 
 pub fn get_current_shell() -> String {

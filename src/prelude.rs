@@ -1,5 +1,5 @@
 // pub use crate::{LuaValueResult, LuaEmptyResult, LuaMultiResult, colors, wrap_err};
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 pub use crate::{std_io::colors as colors, wrap_err, table_helpers::TableBuilder};
 

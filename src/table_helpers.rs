@@ -5,7 +5,7 @@
 #![allow(clippy::missing_errors_doc)]
 #![allow(dead_code)]
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 /**
     Utility struct for building Lua tables.

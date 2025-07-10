@@ -908,9 +908,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "mlua"
-version = "0.11.0-beta.2"
-source = "git+https://github.com/mluau/mluau.git#d49ec0882b712024e384e981027a9d4fb138b1c1"
+name = "mlua-sys"
+version = "0.8.1"
+source = "git+https://github.com/mluau/mluau.git?branch=update-cargo-toml#288e202e348c58daff104d56f170af9b8c4601ed"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "luau0-src",
+ "pkg-config",
+]
+
+[[package]]
+name = "mluau"
+version = "0.11.0-beta.3"
+source = "git+https://github.com/mluau/mluau.git?branch=update-cargo-toml#288e202e348c58daff104d56f170af9b8c4601ed"
 dependencies = [
  "bstr",
  "either",
@@ -922,17 +933,6 @@ dependencies = [
  "rustversion",
  "serde",
  "serde-value",
-]
-
-[[package]]
-name = "mlua-sys"
-version = "0.8.0"
-source = "git+https://github.com/mluau/mluau.git#d49ec0882b712024e384e981027a9d4fb138b1c1"
-dependencies = [
- "cc",
- "cfg-if",
- "luau0-src",
- "pkg-config",
 ]
 
 [[package]]
@@ -1369,7 +1369,7 @@ dependencies = [
  "crossbeam-channel",
  "hex",
  "include_dir",
- "mlua",
+ "mluau",
  "petname",
  "rand",
  "regex",

@@ -4,7 +4,7 @@ use std::{fs, io};
 use crate::prelude::*;
 use crate::std_env;
 use crate::std_fs::validate_path;
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 pub struct SealConfig {
     pub entry_path: String,
