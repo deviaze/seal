@@ -100,6 +100,17 @@ impl<'luau> TableBuilder<'luau> {
         self.with_value(key, LuaValue::Function(f))
     }
 
+    pub fn with_function_mut<K, A, R, F>(self, key: K, func: F) -> LuaResult<Self>
+    where
+        K: IntoLua,
+        A: FromLuaMulti,
+        R: IntoLuaMulti,
+        F: FnMut(&Lua, A) -> LuaResult<R> + 'static,
+    {
+        let f = self.luau.create_function_mut(func)?;
+        self.with_value(key, LuaValue::Function(f)) 
+    }
+
     /*
         Adds a new key-value pair to the table, with an async function value.
 
