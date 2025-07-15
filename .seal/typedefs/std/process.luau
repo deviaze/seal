@@ -27,38 +27,192 @@ export type RunResult = ({
 
 export type RunOptions = {
 	program: string,
-	--- an optional list of arguments to pass into the program; on Windows, you should use this instead of trying to pass arguments in `program`
+	--- an optional list of arguments to pass into the program; on Windows, you should use this instead of trying to pass whitespace-separated arguments in `program`
 	args: { string }?,
 	--- specify a shell to run the program with; otherwise runs it as a bare process with no shell
 	shell: string?,
-	--- path to the the working directory you want your command to execute in
+	--- path to the the working directory you want your command to execute in, defaults to your shell's cwd
 	cwd: string?,
 }
 
-type ChildProcessStdout = {
+export type SpawnOptions = {
+	program: string,
+	--- an optional list of arguments to pass into the program; on Windows, you should use this instead of trying to pass whitespace-separated arguments in `program`
+	args: { string }?,
+	shell: string?,
+	--- path to the the working directory you want your command to execute in, defaults to your shell's cwd
+	cwd: string?,
 	--[=[
-		Reads up to `count` bytes from the stream, one byte at a time, blocking the current VM (Rust Thread) for a maximum of of `timeout` seconds per read.
+		A `ChildProcessStream` captures incoming bytes from your `ChildProcess`' output streams (either stdout or stderr),
+		and caches them in its `inner` buffer. Each stream is spawned in a separate Rust thread to facilitate
+		consistently nonblocking, dependable reads, allowing most `ChildProcess.stream:read` methods to be fully nonblocking unless
+		specifically requested otherwise.
+
+		## Options
+
+		### Stream capacity
+
+		To prevent memory leaks (if you spawn a child process and never read from stdout or stderr), each stream's inner buffer capacity is capped,
+		and adjustable by setting `stdout_capacity` and `stderr_capacity`, respectively.
+
+		By default, `stdout` streams are capped to 2048 bytes and `stderr` streams to 1028.
+
+		When more bytes are read from the stream than can fit in the buffer, old bytes are drained (and lost!) so the buffer
+		can remain the same size (preventing memory leaks).
+
+		By increasing stream capacity, you allow more bytes to be read/consumable at the same time without losing data if you infrequently read from the buffer.
 		
-		By default, `count` is 1024 bytes and `timeout` is 0.015 seconds.
+		If you're reading from stdout in really tight loops, and your ChildProcess only spits out data in chunks of 512 bytes at a time, you can definitely
+		decrease your stream capacity to 512 bytes (or slightly larger just in case), to reduce allocations.
+
+		## Truncation
+
+		By default, seal truncates bytes from the front of inner, causing old data to be lost first. Set `truncate == "back` to override this behavior (and preserve old data at the expense of incoming data)
 	]=]
-	read: (self: ChildProcessStdout, count: number?, timeout: number?) -> string?,
-	read_until: (self: ChildProcessStdout, token: string, timeout: number?) -> string?,
+	stream: {
+		--- inner buffer capacity of `ChildProcess.stdout`, default 2048
+		stdout_capacity: number?,
+		--- inner buffer capacity of `ChildProcess.stderr`, default 1024
+		stderr_capacity: number?,
+		--- what side of stdout should be truncated when full? defaults to "front"
+		stdout_truncate: ("front" | "back")?,
+		--- what side of stderr should be truncated when full? defaults to "front"
+		stderr_truncate: ("front" | "back")?,
+	}?,
+}
+
+export type ChildProcessStream = setmetatable<{
 	--[=[
-		Reads exactly `buffer_size` bytes from the child process' stdout, possibly blocking the current VM (Rust Thread), and returning the bytes as a Luau string (without any intermediate utf-8 conversion).
+		Reads any available bytes in the stream, returning the bytes read as a Luau string without any intermediate utf-8 conversion.
 
-		This method returns `nil` if it was unable to read *exactly* the number of bytes requested, including when it
-		encounters an `EOF` before completely filling its buffer.
-
-		If used within a `while` loop, I recommend using an extremely small `buffer_size` like 1, because it's extremely easy to lose data
-		otherwise.
-
-		Depending on your usecase, consider using `:read` instead.
-	]=]
-	read_exact: (self: ChildProcessStdout, buffer_size: number?) -> string?,
-	--[=[
-		Iterate over the lines of the child process' stdout, blocking the current VM (Rust Thread) until all lines are read.
+		When called without a `duration`, this function almost never blocks the current VM (Rust Thread), and will only return any bytes that are available.
+		
+		Note: if called within 1ms of spawning the `ChildProcess`, this function blocks for exactly 10ms to ensure there's something to read.
+		To disable this feature, explicitly pass `0.0` as the duration.
+		
+		If a `duration` is provided, blocks the current VM for `duration` (in seconds), allowing for enough time to read any new incoming bytes.
 
 		## Usage
+
+		### Use a loop to `:read()` without specifying a duration:
+
+		```luau
+		local watcher = process.spawn {
+			program = "somewatcher",
+			args = { somefile }
+		}
+
+		while watcher:alive() do
+			local content = watcher.stdout:read()
+			if content then
+				print(`got {content}!`)
+			end
+		end
+		```
+
+		### Use a `duration` to `:read` right after spawning a `ChildProcess`:
+
+		```luau
+		local child = process.spawn {
+			program = `seal {myfilename}`,
+			shell = "bash",
+		}
+		
+		local maybe_hello = child.stdout:read(0.05)
+		if string.match(maybe_hello:lower(), "hello world") then
+			print("hello worlded")
+		end
+		```
+
+		To read into a buffer (to build up strings without concatenation overhead), use `:readbytes` instead.
+
+		Errors if called on a dead child with an empty stream.
+	]=]
+	read: (self: ChildProcessStream, duration: number?) -> string?,
+	--[=[
+		Reads exactly `count` bytes from the stream, almost never blocking the current VM (Rust Thread) unless a `duration` is provided. 
+
+		If fewer than `count` bytes are available in the stream, this function returns `nil` and zero bytes are consumed (you can try again with a smaller `count`).
+
+		If a `duration` (in seconds) is provided, blocks the current VM for exactly `duration` before reading, allowing for enough time
+		to read new data to the stream.
+
+		This function has the same just-spawned blocking behavior as :read, ensuring there's something to read upon spawning a child process.
+		Disable this by explicitly passing 0.0.
+		
+		Returns the byte(s) read as a Luau string (without any intermediate utf-8 conversion); to read into a buffer instead, use `:readbytes_exact`.
+	]=]
+	read_exact: (self: ChildProcessStream, count: number, duration: number?) -> string?,
+	--[=[
+		Keep reading from the stream until encountering search term terminal string `term`.
+
+		By default, blocks the current VM (Rust Thread) until `term` is found, and doesn't consume any bytes from the stream until `term` is found.
+
+		If `term` is an empty string, reads from the stream until the process exits ("read to end" behavior).
+
+		If `inclusive == true`, includes `term` with the resulting string, otherwise strips it from the result.
+
+		If `timeout` is specified and `allow_partial` is unspecified or false, and `term` isn't found before `timeout` seconds elapse, returns `nil` without consuming any bytes from the stream.
+
+		If `timeout` is specified and `allow_partial` is true, then consumes and returns the entire contents of the stream when `timeout` seconds elapse.
+
+		`allow_partial` doesn't do anything if `timeout` is unspecified.
+	]=]
+	read_to: (self: ChildProcessStream, term: string, inclusive: boolean?, timeout: number?, allow_partial: boolean?) -> string?,
+	--[=[
+		Reads any available bytes in the stream to the target buffer at `offset` (default 0), until zero bytes are left in the stream or the buffer is full.
+		
+		If any bytes were read successfully, returns the number of bytes read, otherwise returns nil.
+
+		This function will almost never block unless a `duration` is specified; if one is, it'll block the current VM for exactly `duration`.
+		
+		This function has the same just-spawned blocking behavior as :read, ensuring there's something to read upon spawning a child process.
+		Disable this by explicitly passing 0.0 as the `duration`.
+
+		## Usage
+
+		```luau
+		local result = buffer.create(1024)
+		local offset = 0
+		while child:alive() and offset < 1024 do
+			local count = child.stdout:readbytes(result, offset)
+			if count then
+				offset += count
+			end
+		end
+		print(buffer.tostring(result))
+		```
+		Errors if offset >= the target buffer's length to prevent overfilling the target buffer
+		Errors if called on a dead child with an empty stream.
+	]=]
+	readbytes: (self: ChildProcessStream, target: buffer, offset: number?, duration: number?) -> number?,
+	--[=[
+		Reads exactly `count` bytes into `target` at `offset` (default 0), consuming the bytes only when successfully read.
+
+		If `duration` is set, blocks the current VM for exactly `duration` seconds before reading from the stream.
+		This allows the writer time to add more data into the stream.
+
+		Returns `success`, representing whether any data was written into the target buffer, and `remaining`, an optional number
+		representing how many bytes are left in the stream:
+
+		- `(success: false, remaining: nil)` if the stream is empty,
+		- `(success: false, remaining: number)` if the stream isn't empty but fewer than `count` bytes are available,
+		- `(success: true, remaining: number)` if `count` bytes were successfully written to the stream, and `remaining` bytes are still available,
+		- `(success: true, remaining: nil)` if `count` bytes were successfully written to the buffer, and the stream is now empty.
+
+		This function has the same just-spawned blocking behavior as :read, ensuring there's something to read upon spawning a child process.
+		Disable this by explicitly passing 0.0 as the `duration`.
+	]=]
+	readbytes_exact: (self: ChildProcessStream, count: number, target: buffer, offset: number?, duration: number?) -> (boolean, number?),
+	--[=[
+		Iterate over the lines in the stream, blocking the current VM (Rust Thread) until all lines are read or the timeout has been reached.
+
+		If a `timeout` is specified, `:lines()` will stop iterating once a line hasn't been seen for `timeout` seconds, allowing you to
+		early-interrupt when new data hasn't been seen for a while.
+
+		## Usage
+
+		### In a loop:
 
 		```luau
 		local process = require("@std/process")
@@ -72,28 +226,45 @@ type ChildProcessStdout = {
 			print(`Change detected: {thing_changed}`)
 		end
 		```
-	]=]
-	lines: (self: ChildProcessStdout) -> (() -> string)
-}
 
-type ChildProcessStderr = {
+		### As iterator:
+
+		```luau
+		local process = require("@std/process")
+		local child = process.spawn {
+			program = "somewatcher --watch",
+			shell = "sh",
+		}
+
+		local next_line = child.stdout:lines()
+		local first_line = next_line()
+		local second_line = next_line()
+		```
+
+		Errors if called on a dead child with an empty stream.
+	]=]
+	lines: (self: ChildProcessStream, timeout: number?) -> (() -> string),
+	-- advanced methods:
 	--[=[
-		Reads exactly `buffer_size` bytes from the child process' stderr, returning it as a Luau string (without any intermediate utf-8 conversion).
+		Iterate over the stream with the same semantics as generalized iteration, except with more granular options:
 
-		This method returns `nil` if it was unable to read *exactly* the number of bytes requested, including when it
-		encounters an `EOF` before completely filling its buffer.
+		To prevent nonterminating iteration without an explicit `break`, you can provide a `timeout`, which stops iteration
+		when new data hasn't been seen for `timeout` seconds.
 
-		If used within a `while` loop, I recommend using an extremely small `buffer_size` like 1, because it's extremely easy to lose data
-		otherwise.
-
-		Depending on your usecase, consider using `:read_to` instead.
+		When iteration attempts to read from an empty stream, it waits `write_delay_ms` milliseconds (default 5) before trying again.
+		Increase this value if you see weird chunking behavior (you want to see more data each iteration), 
+		or decrease this value if your child process outputs quickly and you want iteration to go faster.
 	]=]
-	read_exact: (self: ChildProcessStderr, buffer_size: number?) -> string?,
-	--[=[
-		Iterate over the lines of the child process' stderr, blocking the current VM (Rust Thread) until all lines are read.
-	]=]
-	lines: (self: ChildProcessStderr) -> (() -> string)
-}
+	iter: (self: ChildProcessStream, timeout: number?, write_delay_ms: number?) -> (() -> string),
+	-- reflection options
+	--- Returns the current size/length of the inner buffer
+	size: (self: ChildProcessStream) -> number,
+	--- Returns the maximum capacity of the inner buffer, after which bytes will be truncated
+	capacity: (self: ChildProcessStream) -> number,
+}, {
+	__iter: (self: ChildProcessStream) -> () -> string
+}>
+
 
 type ChildProcessStdin = {
 	write: (self: ChildProcessStdin, data: string) -> nil
@@ -102,9 +273,9 @@ type ChildProcessStdin = {
 export type ChildProcess = {
 	id: number,
 	alive: (self: ChildProcess) -> boolean,
-	kill: (self: ChildProcess) -> nil,
-	stdout: ChildProcessStdout,
-	stderr: ChildProcessStderr,
+	kill: (self: ChildProcess) -> (),
+	stdout: ChildProcessStream,
+	stderr: ChildProcessStream,
 	stdin: ChildProcessStdin,
 }
 
@@ -179,7 +350,7 @@ type process = {
 	end
 	```
 	]=]
-	spawn: (options: RunOptions) -> ChildProcess,
+	spawn: (options: SpawnOptions) -> ChildProcess,
 	setexitcallback: ((number) -> ()) -> (),
 	exit: (code: number?) -> never,
 }
