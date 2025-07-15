@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::fs;
 use std::path::{Path, PathBuf};
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crate::std_fs::{self, entry::{self, wrap_io_read_errors, get_path_from_entry}};
 use super::pathlib::{normalize_path, path_join};

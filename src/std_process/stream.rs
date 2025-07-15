@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::collections::VecDeque;
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 pub enum StreamType {
     Stdout,

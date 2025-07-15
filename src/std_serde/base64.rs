@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 
 // base64 lib is kinda annoying so

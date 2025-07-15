@@ -1,7 +1,7 @@
 use crate::prelude::*;
 use crate::require::get_chunk_name_for_module;
 use crate::{globals, std_json};
-use mlua::prelude::*;
+use mluau::prelude::*;
 use petname::Generator;
 /// helper struct for ThreadSpawnOptions tables so we don't crowd std_thread
 use std::{fs, io, path::PathBuf};

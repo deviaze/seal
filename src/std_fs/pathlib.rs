@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 use std::collections::VecDeque;
 use std::io;
 use std::fs;

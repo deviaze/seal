@@ -1,5 +1,5 @@
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crossbeam_channel::{bounded, TrySendError, TryRecvError};
 

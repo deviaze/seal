@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use std::{fs, io, path::PathBuf};
 use super::{

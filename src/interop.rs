@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::{table_helpers::TableBuilder, LuaValueResult, colors, wrap_err};
 
 fn interop_mlua_isint(_luau: &Lua, n: LuaValue) -> LuaValueResult {

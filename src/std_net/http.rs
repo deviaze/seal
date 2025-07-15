@@ -1,5 +1,5 @@
 use ureq::{self, Error as UreqError};
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crate::std_json;
 

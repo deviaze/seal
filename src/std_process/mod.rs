@@ -6,7 +6,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crate::std_env;
 

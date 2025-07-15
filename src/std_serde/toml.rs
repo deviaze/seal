@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::{prelude::*, std_fs::{entry::{wrap_io_read_errors, wrap_io_read_errors_empty}, validate_path}};
 use toml::Value as TomlValue;
 use std::fs;

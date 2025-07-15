@@ -5,7 +5,7 @@ use std::thread;
 use crate::prelude::*;
 use crate::{std_json, globals, err};
 use crossbeam_channel::TrySendError;
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 mod channel;
 mod thread_spawn_options;

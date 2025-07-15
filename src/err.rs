@@ -1,5 +1,5 @@
 use std::panic;
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::globals;
 use crate::prelude::*;
 

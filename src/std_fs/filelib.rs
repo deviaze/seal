@@ -1,6 +1,6 @@
 use std::io;
 use std::fs::{self, OpenOptions};
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use super::{
     entry::{self, wrap_io_read_errors},
@@ -199,7 +199,7 @@ fn fs_file_try_readbytes(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaMultiR
     };
 
     // just copied read_file_into_buffer because i don't want to think of an abstraction for it rn
-    let (buffy, result): (Option<mlua::Buffer>, &str) = {
+    let (buffy, result): (Option<mluau::Buffer>, &str) = {
         let try_truncate_f64 = | f: f64, context: &str | -> LuaResult<i64> {
             let truncated_f = f.trunc();
             if truncated_f != f {

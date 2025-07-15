@@ -1,4 +1,4 @@
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crate::{require, std_io};
 

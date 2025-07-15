@@ -1,6 +1,6 @@
 use std::fs;
 
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crate::std_fs::{self, entry::wrap_io_read_errors_empty, validate_path};
 use serde_json_lenient as serde_json;
@@ -204,7 +204,7 @@ fn json_array(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         },
         None => luau.create_table_with_capacity(10, 0)?
     };
-    t.set_metatable(Some(luau.array_metatable()));
+    t.set_metatable(Some(luau.array_metatable()))?;
     ok_table(Ok(t))
 }
 

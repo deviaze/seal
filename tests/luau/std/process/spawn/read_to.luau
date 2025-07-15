@@ -25,6 +25,7 @@ local function readtoend()
 	local child = spawn_longrunning()
 	-- passing "" search term is equivalent to reading til `ChildProcess` exits
 	local result = child.stdout:read_to("")
+	print(result)
 	assert(
 		typeof(result) == "string"
 		and str.endswith(result, "Stopping\n"),

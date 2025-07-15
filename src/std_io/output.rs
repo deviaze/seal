@@ -4,7 +4,7 @@ use std::process::Command;
 use std::io::{self, Write};
 
 use regex::Regex;
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 use crate::prelude::*;
 

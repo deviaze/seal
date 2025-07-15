@@ -3,7 +3,7 @@ use std::io;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
-use mlua::prelude::*;
+use mluau::prelude::*;
 use crate::prelude::*;
 use crate::std_time;
 use copy_dir::copy_dir;

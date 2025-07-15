@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use std::{thread, time::Duration};
 
 use chrono::Local;
-use mlua::prelude::*;
+use mluau::prelude::*;
 
 fn time_wait(_luau: &Lua, seconds: LuaNumber) -> LuaValueResult {
     let millis = (seconds * 1000.0) as u64;
