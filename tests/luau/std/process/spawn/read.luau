@@ -10,6 +10,16 @@ local function spawn_long_waiter(): process.ChildProcess
 	}
 end
 
+local longrunning_path = path.join(script:parent(), "longrunning.luau")
+
+local function spawn_longrunning(): process.ChildProcess
+    local child = process.spawn {
+        program = env.executable_path,
+        args = { longrunning_path, "85", "50" },
+    }
+    return child
+end
+
 local function makesurelinesdoesntbreak()
 	local child = spawn_long_waiter()
 
@@ -18,16 +28,14 @@ local function makesurelinesdoesntbreak()
 		break
 	end
 
-	-- print(child.stdout:read(nil, 2))
 end
 
 makesurelinesdoesntbreak()
 
 local function basicread()
 	local child = spawn_long_waiter()
-	local text = child.stdout:read()
+	local text = child.stdout:read(0.15) -- explicitly specify duration here to prevent inconsistent test failure
 	assert(text == "hehe\n", "text not match hehe\\n")
-	print(text)
 end
 
 basicread()
@@ -48,18 +56,30 @@ local function readloop()
 			break
 		end
 	end
-	print(result)
+	assert(str.endswith(result, "Stopping\n"))
 end
 
 readloop()
 
+local function generalizedstreamed()
+    local child = spawn_longrunning()
+    local i = 0
+    for message in child.stdout do
+        i += 1
+        if i == 1 then
+            assert(string.match(message, "Starting..."))
+        end
+    end
+end
+
+generalizedstreamed()
+
 local function mixingreads()
 	local stdout = spawn_long_waiter().stdout
-	
-	local first = stdout:read_exact(1)
+	local first = stdout:read_exact(1, 0.5) -- explicitly specify duration to prevent inconsistent test failure
 	assert(first == "h", "first should be h")
 	local readnormally = stdout:read()
-	print(readnormally)
+	assert(readnormally == "ehe\n")
 end
 
 mixingreads()

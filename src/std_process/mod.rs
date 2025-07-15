@@ -1,19 +1,18 @@
 use core::str;
+use std::cell::RefCell;
 use std::fmt::Debug;
-use std::time::Instant;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::rc::Rc;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
-// use std::thread;
-use std::sync::{Arc, Mutex};
 
 use mluau::prelude::*;
 use crate::prelude::*;
 use crate::std_env;
 
+// mod stream;
 mod stream;
-
-use stream::Stream;
+use stream::{Stream, TruncateSide};
 
 #[derive(Debug)]
 enum Shell {
@@ -70,25 +69,30 @@ impl Shell {
     }
 }
 
+/// Represents process lib's `RunOptions` and `SpawnOptions` and I don't feel like making this an enum
 #[derive(Debug)]
-struct RunOptions {
+struct ProcessOptions {
     program: String,
     args: Option<Vec<String>>,
     shell: Option<Shell>,
     cwd: Option<PathBuf>,
+    stdout_capacity: Option<usize>,
+    stderr_capacity: Option<usize>,
+    stdout_truncate: Option<TruncateSide>,
+    stderr_truncate: Option<TruncateSide>,
 }
 
-impl RunOptions {
+impl ProcessOptions {
     fn from_table(luau: &Lua, run_options: LuaTable) -> LuaResult<Self> {
         let program = match run_options.raw_get("program")? {
             LuaValue::String(program) => {
                 program.to_string_lossy()
             },
             LuaValue::Nil => {
-                return wrap_err!("RunOptions missing field `program`; expected string, got nil");
+                return wrap_err!("SpawnOptions/RunOptions missing field `program`; expected string, got nil");
             },
             other => {
-                return wrap_err!("RunOptions.program expected to be a string, got: {:#?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.program expected to be a string, got: {:#?}", other);
             }
         };
 
@@ -105,7 +109,7 @@ impl RunOptions {
                 None
             },
             other => {
-                return wrap_err!("RunOptions.args expected to be {{string}} or nil, got: {:#?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.args expected to be {{string}} or nil, got: {:#?}", other);
             }
         };
 
@@ -117,7 +121,7 @@ impl RunOptions {
                 None
             },
             other => {
-                return wrap_err!("RunOptions.shell expected to be a string or nil, got: {:#?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.shell expected to be a string or nil, got: {:#?}", other);
             }
         };
 
@@ -129,7 +133,7 @@ impl RunOptions {
                 let canonicalized_cwd = match cwd_pathpuf.canonicalize() {
                     Ok(pathbuf) => pathbuf,
                     Err(err) => {
-                        return wrap_err!("RunOptions.cwd must be able to be canonicalized as an absolute path that currently exists on the filesystem; \
+                        return wrap_err!("SpawnOptions/RunOptions.cwd must be able to be canonicalized as an absolute path that currently exists on the filesystem; \
                         canonicalization failed with err: {}", err);
                     }
                 };
@@ -137,15 +141,88 @@ impl RunOptions {
             },
             LuaNil => None,
             other => {
-                return wrap_err!("RunOpitons.cwd to be a string or nil, got: {:?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.cwd expected to be a string or nil, got: {:?}", other);
             }
         };
 
-        Ok(RunOptions {
+        let (stdout_capacity, stderr_capacity, stdout_truncate, stderr_truncate) = match run_options.raw_get("stream")? {
+            LuaValue::Table(stream_table) => {
+                (
+                    match stream_table.raw_get("stdout_capacity")? {
+                        LuaValue::Number(f) => float_to_usize(f, "SpawnOptions.capacity.stdout", "stdout")?,
+                        LuaValue::Integer(i) => int_to_usize(i, "SpawnOptions.capacity.stdout", "stdout")?,
+                        LuaNil => 2048_usize,
+                        other => {
+                            return wrap_err!("SpawnOptions.stream.stdout expected to be number or nil, got: {:?}", other);
+                        }
+                    },
+                    match stream_table.raw_get("stderr_capacity")? {
+                        LuaValue::Number(f) => float_to_usize(f, "SpawnOptions.capacity.stderr", "stderr")?,
+                        LuaValue::Integer(i) => int_to_usize(i, "SpawnOptions.capacity.stderr", "stderr")?,
+                        LuaNil => 1024_usize,
+                        other => {
+                            return wrap_err!("SpawnOptions.stream.stdout expected to be number or nil, got: {:?}", other);
+                        }
+                    },
+                    match stream_table.raw_get("stdout_truncate")? {
+                        LuaValue::String(t) => {
+                            let t = match t.to_str() {
+                                Ok(s) => s.to_string(),
+                                Err(_) => {
+                                    return wrap_err!("SpawnOptions.stream.stdout_truncate must be \"front\" or \"back\", got an invalid utf-8 string (why)");
+                                }
+                            };
+                            match t.as_str() {
+                                "front" => TruncateSide::Front,
+                                "back" => TruncateSide::Back,
+                                other => {
+                                    return wrap_err!("SpawnOptions.stream.stdout_truncate expected \"front\" or \"back\" (default \"front\"), got: {}", other);
+                                }
+                            }
+                        },
+                        LuaNil => TruncateSide::Front,
+                        other => {
+                            return wrap_err!("SpawnOptions.stream.stdout_truncate expected to be \"front\" or \"back\", got: {:?}", other);
+                        }
+                    },
+                    match stream_table.raw_get("stderr_truncate")? {
+                        LuaValue::String(t) => {
+                            let t = match t.to_str() {
+                                Ok(s) => s.to_string(),
+                                Err(_) => {
+                                    return wrap_err!("SpawnOptions.stream.stderr_truncate must be \"front\" or \"back\", got an invalid utf-8 string (why)");
+                                }
+                            };
+                            match t.as_str() {
+                                "front" => TruncateSide::Front,
+                                "back" => TruncateSide::Back,
+                                other => {
+                                    return wrap_err!("SpawnOptions.stream.stderr_truncate expected \"front\" or \"back\" (default \"front\"), got: {}", other);
+                                }
+                            }
+                        },
+                        LuaNil => TruncateSide::Front,
+                        other => {
+                            return wrap_err!("SpawnOptions.stream.stderr_truncate expected to be \"front\" or \"back\", got: {:?}", other);
+                        }
+                    }
+                )
+            },
+            LuaNil => (2048_usize, 1024_usize, TruncateSide::Front, TruncateSide::Front),
+            other => {
+                return wrap_err!("SpawnOptions.capacity expected to be a table or nil, got: {:?}", other);
+            }
+        };
+
+        Ok(ProcessOptions {
             program,
             args,
             shell,
             cwd,
+            stdout_capacity: Some(stdout_capacity),
+            stderr_capacity: Some(stderr_capacity),
+            stdout_truncate: Some(stdout_truncate),
+            stderr_truncate: Some(stderr_truncate),
         })
         
     }
@@ -267,7 +344,7 @@ fn create_run_result_table(luau: &Lua, output: Output) -> LuaValueResult {
     ok_table(run_result)
 }
 
-fn run_command(options: RunOptions) -> io::Result<Output> {
+fn run_command(options: ProcessOptions) -> io::Result<Output> {
     let shell_switches = match options.shell {
         Some(ref shell) => shell.get_switches(),
         None => Vec::new(),
@@ -300,7 +377,7 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
     let function_name = "process.run(options: RunOptions)";
     let options = match run_options {
         LuaValue::Table(run_options) => {
-            RunOptions::from_table(luau, run_options)?
+            ProcessOptions::from_table(luau, run_options)?
         },
         LuaValue::Nil => {
             return wrap_err!("{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string?, cwd: string? }}, got nil.", function_name);
@@ -310,7 +387,7 @@ fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
         }
     };
 
-    let program_to_run= options.program.clone();
+    let program_to_run = options.program.clone();
 
     match run_command(options) {
         Ok(output) => {
@@ -337,11 +414,15 @@ fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
         }
     };
     
-    let run_options = RunOptions {
+    let run_options = ProcessOptions {
         program: shell_command.clone(),
         args: None,
         shell: Some(Shell::from(shell_name.clone())),
         cwd: None,
+        stdout_capacity: None,
+        stderr_capacity: None,
+        stdout_truncate: None,
+        stderr_truncate: None,
     };
 
     match run_command(run_options) {
@@ -353,15 +434,16 @@ fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
 }
 
 fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
+    let function_name = "process.spawn(options: SpawnOptions)";
     let options = match spawn_options {
         LuaValue::Table(run_options) => {
-            RunOptions::from_table(luau, run_options)?
+            ProcessOptions::from_table(luau, run_options)?
         },
         LuaValue::Nil => {
-            return wrap_err!("process.spawn expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got nil.");
+            return wrap_err!("{} expected a RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got nil", function_name);
         },
         other => {
-            return wrap_err!("process.spawn expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got: {:#?}", other);
+            return wrap_err!("{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got: {:#?}", function_name, other);
         }
     };
 
@@ -405,422 +487,315 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     let child_id = child.id();
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
-    let stdin = child.stdin.take().unwrap();
+    let mut stdin = child.stdin.take().unwrap();
 
-    let arc_child = Arc::new(Mutex::new(child));
-    let arc_stdout = Arc::new(Mutex::new(Some(stdout)));
-    let arc_stderr = Arc::new(Mutex::new(Some(stderr)));
-    let arc_stdin = Arc::new(Mutex::new(stdin));
+    let child_cell = Rc::new(RefCell::new(child));
 
-    /// makes it less annoying to get ChildStdout or ChildStderr from the arcs above
-    #[inline(always)]
-    fn unwrap_stream<T>(mutex: &Arc<Mutex<Option<T>>>, function_name: &'static str, stream_type: &'static str) -> LuaResult<T> {
-        match mutex.lock().unwrap().take() {
-            Some(stream) => Ok(stream),
-            None => {
-                wrap_err!("{}: unable to take ChildProcess' {}, are you trying to use multiple :read methods at the same time?", function_name, stream_type)
-            }
-        }
-    }
-
-    let stdout_handle = TableBuilder::create(luau)?
-        .with_function("read", {
-            let arc_stdout = Arc::clone(&arc_stdout);
-            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let function_name = "ChildProcess.stdout:read(count: number?, timeout: number?)";
-
-                pop_self(&mut multivalue, function_name)?;
-                let byte_count = match multivalue.pop_front() {
-                    Some(LuaValue::Integer(i)) => i as usize,
-                    Some(LuaValue::Number(f)) => f.trunc() as usize,
-                    Some(LuaNil) | None => 1024,
-                    Some(other) => {
-                        return wrap_err!("{} expected count to be a number or nil, got: {:?}", function_name, other);
-                    },
-                };
-                let timeout = match multivalue.pop_front() {
-                    Some(LuaValue::Integer(i)) => i as f64,
-                    Some(LuaValue::Number(f)) => f,
-                    Some(LuaNil) | None => 0.015,
-                    Some(other) => {
-                        return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
-                    },
-                };
-
-                let stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
-                let mut stream = Stream::new(stdout);
-                
-                let mut result: Vec<u8> = Vec::new();
-                let mut last_read_time = Instant::now();
-
-                loop {
-                    let now = Instant::now();
-                    let elapsed = (now - last_read_time).as_secs_f64();
-                    if let Some(data) = stream.try_read() && elapsed <= timeout {
-                        last_read_time = now;
-                        if result.len() < byte_count {
-                            result.push(data);
-                        } else {
-                            break;
-                        }
-                    } else if elapsed <= timeout {
-                        continue;
-                    } else {
-                        break;
+    let child_process_handle = {
+        let stdout_stream = Stream::new(
+            function_name, stdout, 
+            stream::StreamType::Stdout, 
+            options.stdout_capacity.unwrap_or(2048),
+            options.stdout_truncate.unwrap_or(TruncateSide::Front),
+        )?;
+        let stdout_cell = Rc::new(RefCell::new(stdout_stream));
+        let stdout_handle = TableBuilder::create(luau)?
+            .with_function("read_exact", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stdout:read_exact(buffer_size: number)";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read_exact(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
                     }
                 }
-
-                stream.recover(function_name, &arc_stdout)?;
-
-                if result.is_empty() {
-                    Ok(LuaNil)
-                } else {
-                    ok_string(result, luau)
+            })?
+            .with_function("read", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stdout:read(duration: number?)";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
                 }
-            }
-        })?
-        .with_function("read_until", {
-            let arc_stdout = Arc::clone(&arc_stdout);
-            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let function_name = "ChildProcess.stdout:read_until(token: string, timeout: number?)";
-
-                pop_self(&mut multivalue, function_name)?;
-                let token = match multivalue.pop_front() {
-                    Some(LuaValue::String(token)) => {
-                        let token = token.as_bytes().to_owned();
-                        if token.is_empty() {
-                            return wrap_err!("{}: token must be a non-empty string", function_name);
-                        } else {
-                            token
-                        }
-                    },
-                    Some(other) => {
-                        return wrap_err!("{} expected token to be a string, got: {:?}", function_name, other);
-                    },
-                    None => {
-                        return wrap_err!("{} expected token but was incorrectly called with zero arguments", function_name);
+            })?
+            .with_function("read_to", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stdout:read_to(term: string, inclusive: boolean?, timeout: number?)";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read_to(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
                     }
-                };
-                let timeout = match multivalue.pop_front() {
-                    Some(LuaValue::Integer(i)) => Some(i as f64),
-                    Some(LuaValue::Number(f)) => Some(f),
-                    Some(LuaNil) | None => None,
-                    Some(other) => {
-                        return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
-                    },
-                };
-
-                let result: Vec<u8> = if let Some(timeout) = timeout {
-                    // rust currently doesn't provide an easy way for us to read from a stream and ensure it doesn't block
-                    // so we need to throw the blocking reads in a different thread and use message passing
-                    let stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
-
-                    let mut result = Vec::new();
-                    let start_time = Instant::now();
-                    let mut stream = Stream::new(stdout);
-
-                    while let now = Instant::now() 
-                        && let elapsed = now - start_time 
-                        && elapsed.as_secs_f64() < timeout
-                    {
-                        if let Some(stuff) = stream.try_read() {
-                            result.push(stuff);
-                        }
-                        if result.ends_with(&token) {
-                            stream.kill(function_name)?;
-                            break;
-                        };
+                } 
+            })?
+            .with_function("readbytes", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stdout:readbytes(target: buffer, offset: number?, duration: number?)";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.readbytes(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
                     }
+                }
+            })?
+            .with_function("readbytes_exact", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaMultiResult {
+                    let function_name = "ChildProcess.stdout:readbytes_exact(count: number, target: buffer, offset: number?)";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.readbytes_exact(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("lines", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                    let function_name = "ChildProcess.stdout:lines()";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.lines(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_function("size", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stdout:size()";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => {
+                            Ok(LuaValue::Integer(stream.size()? as i64))
+                        },
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_function("capacity", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stdout:capacity()";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => {
+                            Ok(LuaValue::Integer(stream.capacity() as i64))
+                        },
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            // users can't iterate and supply a timeout with generalized iteration
+            .with_function("iter", {
+                let stdout_cell = Rc::clone(&stdout_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                    let function_name = "ChildProcess.stdout:iter(timeout: number?, write_delay_ms: number?)";
+                    match stdout_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.iter(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_metatable(TableBuilder::create(luau)?
+                .with_function("__iter", {
+                    let stdout_cell = Rc::clone(&stdout_cell);
+                    move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                        let function_name = "ChildProcess.stdout:__iter()";
+                        match stdout_cell.try_borrow_mut() {
+                            Ok(ref mut stream) => stream.iter(luau, multivalue),
+                            Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                        }
+                    }
+                })?
+                .build_readonly()?
+            )?
+            .build_readonly()?;
 
-                    stream.recover(function_name, &arc_stdout)?;
+        let stderr_stream = Stream::new(
+            function_name, 
+            stderr, 
+            stream::StreamType::Stderr, 
+            options.stderr_capacity.unwrap_or(1024),
+            options.stderr_truncate.unwrap_or(TruncateSide::Front),
+        )?;
+        let stderr_cell = Rc::new(RefCell::new(stderr_stream));
+        let stderr_handle = TableBuilder::create(luau)?
+            .with_function("read_exact", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stderr:read_exact(buffer_size: number)";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read_exact(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("read", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stderr:read(duration: number?)";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("read_to", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stderr:read_to(term: string, inclusive: boolean?, timeout: number?)";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read_to(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                } 
+            })?
+            .with_function("readbytes", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stderr:readbytes(target: buffer, offset: number?, duration: number?)";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.readbytes(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("readbytes_exact", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaMultiResult {
+                    let function_name = "ChildProcess.stderr:readbytes_exact(count: number, target: buffer, offset: number?)";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.readbytes_exact(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("size", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stderr:size()";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => {
+                            Ok(LuaValue::Integer(stream.size()? as i64))
+                        },
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_function("capacity", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let function_name = "ChildProcess.stderr:capacity()";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => {
+                            Ok(LuaValue::Integer(stream.capacity() as i64))
+                        },
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_function("lines", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                    let function_name = "ChildProcess.stderr:lines()";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.lines(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            // users can't iterate and supply a timeout/write delay with generalized iteration
+            .with_function("iter", {
+                let stderr_cell = Rc::clone(&stderr_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                    let function_name = "ChildProcess.stderr:iter(timeout: number?, write_delay_ms: number?)";
+                    match stderr_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.iter(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_metatable(TableBuilder::create(luau)?
+                .with_function("__iter", {
+                    let stderr_cell = Rc::clone(&stderr_cell);
+                    move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                        let function_name = "ChildProcess.stderr:__iter()";
+                        match stderr_cell.try_borrow_mut() {
+                            Ok(ref mut stream) => stream.iter(luau, multivalue),
+                            Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                        }
+                    }
+                })?
+                .build_readonly()?
+            )?
+            .build_readonly()?;
 
-                    result
-                } else { // if the user didn't request a timeout we can do the easy thing and just keep reading til we see token
-                    let mut stdout = match arc_stdout.lock().unwrap().take() {
-                        Some(stdout) => stdout,
+        let stdin_handle = TableBuilder::create(luau)?
+            .with_function_mut("write", {
+                move | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaEmptyResult {
+                    let function_name = "child.stdin:write(data: string)";
+                    pop_self(&mut multivalue, function_name)?;
+                    let data_to_write = match multivalue.pop_front() {
+                        Some(LuaValue::String(data)) => data.as_bytes().to_vec(),
+                        Some(LuaValue::Buffer(b)) => b.to_vec(),
+                        Some(other) => {
+                            return wrap_err!("{} expected data to be a string or buffer, got: {:?}", function_name, other);
+                        },
                         None => {
-                            return wrap_err!("{}: unable to take ChildProcess' stdout, are you trying to use multiple :read methods at the same time?", function_name);
+                            return wrap_err!("{} expected data to be string or buffer, unexpectedly got nothing (not even nil)", function_name);
                         }
                     };
 
-                    let mut result: Vec<u8> = Vec::new();
-                    loop {
-                        let mut buffer = [0u8; 1];
-                        match stdout.read_exact(&mut buffer) {
-                            Ok(_) => {
-                                result.extend_from_slice(&buffer);
-                                if result.ends_with(&token) {
-                                    break;
-                                }
-                            },
-                            Err(_err) => break
-                        };
-                    }
-
-                    result
-                };
-
-                if result.is_empty() {
-                    Ok(LuaNil)
-                } else {
-                    ok_string(result, luau)
-                }
-            }
-        })?
-        .with_function("read_exact", {
-            let arc_stdout = Arc::clone(&arc_stdout);
-            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let function_name = "ChildProcess.stdout:read_exact(buffer_size: number)";
-                let buffer_size = match multivalue.pop_back() {
-                    Some(LuaValue::Integer(i)) => i as usize,
-                    Some(LuaValue::Number(n)) => {
-                        if n.trunc() == n {
-                            n as usize
-                        } else {
-                            return wrap_err!("{} expected buffer_size to be an integer, got a float: {}", function_name, n);
+                    match stdin.write_all(&data_to_write) {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            wrap_err!("{} can't write to stdin due to err: {}", function_name, err)
                         }
-                    },
-                    _ => 32,
-                };
-                let mut stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
+                    }
+                }
+            })?
+            .build_readonly()?;
 
-                let mut buffy = vec![0; buffer_size];
-                let res = match stdout.read_exact(&mut buffy) {
-                    Ok(_) => {
-                        let result_string = luau.create_string(buffy)?;
-                        Ok(LuaValue::String(result_string))
-                    }, // this method returns nil if EOF was reached before filling whole buffer
-                    Err(_err) => Ok(LuaValue::Nil)
-                };
-                *arc_stdout.lock().unwrap() = Some(stdout); // give stdout backk so other :read methods can use
-                res
-            }
-        })?
-        .with_function("lines", {
-            move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                let function_name = "ChildProcess.stdout:lines()";
-                let arc_stdout = Arc::clone(&arc_stdout);
-                let mut stdout = unwrap_stream(&arc_stdout, function_name, "stdout")?;
-                Ok(LuaValue::Function(luau.create_function_mut({
-                    move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
-                        let mut reader = BufReader::new(stdout.by_ref());
-                        let mut new_line = String::from("");
-                        match reader.read_line(&mut new_line) {
-                            Ok(0) => {
-                                Ok(LuaNil)
-                            },
-                            Ok(_other) => {
-                                Ok(LuaValue::String(luau.create_string(new_line.trim_end())?))
-                            },
+        TableBuilder::create(luau)?
+            .with_value("id", child_id)?
+            .with_value("stdout", stdout_handle)?
+            .with_value("stderr", stderr_handle)?
+            .with_value("stdin", stdin_handle)?
+            .with_function("alive", {
+                let child_cell = Rc::clone(&child_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let function_name = "ChildProcess:alive()";
+                    match child_cell.try_borrow_mut() {
+                        Ok(ref mut child) => match child.try_wait().unwrap() {
+                            Some(_status_code) => Ok(LuaValue::Boolean(false)),
+                            None => Ok(LuaValue::Boolean(true)),
+                        },
+                        Err(_) => {
+                            wrap_err!("{}: child already borrowed", function_name)
+                        }
+                    }
+                }
+            })?
+            .with_function("kill", {
+                let function_name = "ChildProcess:kill()";
+                let child_cell = Rc::clone(&child_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaEmptyResult {
+                    match child_cell.try_borrow_mut() {
+                        Ok(ref mut child) => match child.kill() {
+                            Ok(_) => Ok(()),
                             Err(err) => {
-                                wrap_err!("unable to read line: {:#?}", err)
+                                wrap_err!("{} could not murder child due to err: {}", function_name, err)
                             }
-                        }
-                    }
-                })?))
-            }
-        })?
-        .build_readonly()?;
-
-    let stderr_handle = TableBuilder::create(luau)?
-        .with_function("read_until", {
-            let stderr = Arc::clone(&arc_stderr);
-            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let function_name = "ChildProcess.stderr:read_until(token: string, timeout: number?)";
-
-                pop_self(&mut multivalue, function_name)?;
-                let token = match multivalue.pop_front() {
-                    Some(LuaValue::String(token)) => {
-                        let token = token.as_bytes().to_owned();
-                        if token.is_empty() {
-                            return wrap_err!("{}: token must be a non-empty string", function_name);
-                        } else {
-                            token
-                        }
-                    },
-                    Some(other) => {
-                        return wrap_err!("{} expected token to be a string, got: {:?}", function_name, other);
-                    },
-                    None => {
-                        return wrap_err!("{} expected token but was incorrectly called with zero arguments", function_name);
-                    }
-                };
-                let timeout = match multivalue.pop_front() {
-                    Some(LuaValue::Integer(i)) => Some(i as f64),
-                    Some(LuaValue::Number(f)) => Some(f),
-                    Some(LuaNil) | None => None,
-                    Some(other) => {
-                        return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
-                    },
-                };
-
-                let result: Vec<u8> = if let Some(timeout) = timeout {
-                    // rust currently doesn't provide an easy way for us to read from a stream and ensure it doesn't block
-                    // so we need to throw the blocking reads in a different thread and use message passing
-                    let stderr = unwrap_stream(&stderr, function_name, "stderr")?;
-
-                    let mut result = Vec::new();
-                    let start_time = Instant::now();
-                    let mut stream = Stream::new(stderr);
-
-                    while let now = Instant::now() 
-                        && let elapsed = now - start_time 
-                        && elapsed.as_secs_f64() < timeout
-                    {
-                        if let Some(stuff) = stream.try_read() {
-                            result.push(stuff);
-                        }
-                        if result.ends_with(&token) {
-                            stream.kill(function_name)?;
-                            break;
-                        };
-                    }
-
-                    result
-                } else { // if the user didn't request a timeout we can do the easy thing and just keep reading til we see token
-                    let mut stderr = match stderr.lock().unwrap().take() {
-                        Some(stderr) => stderr,
-                        None => {
-                            return wrap_err!("{}: unable to take ChildProcess' stderr, are you trying to use multiple :read methods at the same time?", function_name);
-                        }
-                    };
-
-                    let mut result: Vec<u8> = Vec::new();
-
-                    loop {
-                        let mut buffer = [0u8; 1];
-                        match stderr.read_exact(&mut buffer) {
-                            Ok(_) => {
-                                result.extend_from_slice(&buffer);
-                                if result.ends_with(&token) {
-                                    break;
-                                }
-                            },
-                            Err(_err) => break
-                        };
-                    }
-
-                    result
-                };
-
-                if result.is_empty() {
-                    Ok(LuaNil)
-                } else {
-                    ok_string(result, luau)
-                }
-            }
-        })?
-        .with_function("read_exact", {
-            let stderr = Arc::clone(&arc_stderr);
-            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let function_name = "ChildProcess.stderr:read_exact(buffer_size: number)";
-                let buffer_size = match multivalue.pop_back() {
-                    Some(LuaValue::Integer(i)) => i as usize,
-                    Some(LuaValue::Number(n)) => {
-                        if n.trunc() == n {
-                            n as usize
-                        } else {
-                            return wrap_err!("{} expected buffer_size to be an integer, got a float: {}", function_name, n);
-                        }
-                    },
-                    _ => 32,
-                };
-                let mut stderr = unwrap_stream(&stderr, function_name, "stderr")?;
-                let mut buffy = vec![0; buffer_size];
-                match stderr.read_exact(&mut buffy) {
-                    Ok(_) => {
-                        let result_string = luau.create_string(buffy)?;
-                        Ok(LuaValue::String(result_string))
-                    }, // this method returns nil if EOF was reached before filling whole buffer
-                    Err(_err) => Ok(LuaValue::Nil)
-                }
-            }
-        })?
-        .with_function("lines", {
-            move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                let function_name = "ChildProcess.stderr:lines()";
-                let stderr = Arc::clone(&arc_stderr);
-                Ok(LuaValue::Function(luau.create_function({
-                    move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
-                        let mut stderr = unwrap_stream(&stderr, function_name, "stderr")?;
-                        let mut reader = BufReader::new(stderr.by_ref());
-                        let mut new_line = String::from("");
-                        match reader.read_line(&mut new_line) {
-                            Ok(0) => {
-                                Ok(LuaNil)
-                            },
-                            Ok(_other) => {
-                                Ok(LuaValue::String(luau.create_string(new_line.trim_end())?))
-                            },
-                            Err(err) => {
-                                wrap_err!("unable to read line: {:#?}", err)
-                            }
-                        }
-                    }
-                })?))
-            }
-        })?
-        .build_readonly()?;
-
-    let stdin_handle = TableBuilder::create(luau)?
-        .with_function("write", {
-            let stdin = Arc::clone(&arc_stdin);
-            move | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let _handle = multivalue.pop_front();
-                let stuff_to_write = match multivalue.pop_back() {
-                    Some(LuaValue::String(stuff)) => stuff.to_string_lossy(),
-                    Some(other) => {
-                        return wrap_err!("ChildProcess.stdin:write(data) expected data to be a string, got: {:?}", other);
-                    },
-                    None => {
-                        return wrap_err!("ChildProcess.stdin:write(data) was called without argument data");
-                    }
-                };
-                let mut stdin = stdin.lock().unwrap();
-                match stdin.write_all(stuff_to_write.as_bytes()) {
-                    Ok(_) => Ok(LuaNil),
-                    Err(err) => {
-                        if err.kind() == io::ErrorKind::BrokenPipe {
-                            Ok(LuaNil)
-                        } else {
-                            wrap_err!("ChildProcess.stdin:write: error writing to stdin: {:?}", err)
+                        },
+                        Err(_) => {
+                            wrap_err!("{}: child already borrowed", function_name)
                         }
                     }
                 }
-            }
-        })?
-        .build_readonly()?;
-    
-    let child_handle = TableBuilder::create(luau)?
-        .with_value("id", child_id)?
-        .with_function("alive", {
-            let child = Arc::clone(&arc_child);
-            move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                let mut child = child.lock().unwrap();
-                match child.try_wait().unwrap() {
-                    Some(_status_code) => Ok(LuaValue::Boolean(false)),
-                    None => Ok(LuaValue::Boolean(true)),
-                }
-            }
-        })?
-        .with_function("kill",{
-            let child = Arc::clone(&arc_child);
-            move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                let mut child = child.lock().unwrap();
-                match child.kill() {
-                    Ok(_) => Ok(LuaValue::Nil),
-                    Err(err) => {
-                        wrap_err!("ChildProcess could not be killed: {:?}", err)
-                    }
-                }
-            }
-        })?
-        .with_value("stdout", LuaValue::Table(stdout_handle))?
-        .with_value("stderr", stderr_handle)?
-        .with_value("stdin", stdin_handle)?
-        .build_readonly()?;
+            })?
+            .build_readonly()
+    };
 
-    Ok(LuaValue::Table(child_handle))
+    ok_table(child_process_handle)
 }
 
 fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaValueResult {
