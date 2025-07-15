@@ -125,8 +125,6 @@ export type ChildProcessStream = setmetatable<{
 		```
 
 		To read into a buffer (to build up strings without concatenation overhead), use `:readbytes` instead.
-
-		Errors if called on a dead child with an empty stream.
 	]=]
 	read: (self: ChildProcessStream, duration: number?) -> string?,
 	--[=[
@@ -183,7 +181,6 @@ export type ChildProcessStream = setmetatable<{
 		print(buffer.tostring(result))
 		```
 		Errors if offset >= the target buffer's length to prevent overfilling the target buffer
-		Errors if called on a dead child with an empty stream.
 	]=]
 	readbytes: (self: ChildProcessStream, target: buffer, offset: number?, duration: number?) -> number?,
 	--[=[
@@ -240,8 +237,6 @@ export type ChildProcessStream = setmetatable<{
 		local first_line = next_line()
 		local second_line = next_line()
 		```
-
-		Errors if called on a dead child with an empty stream.
 	]=]
 	lines: (self: ChildProcessStream, timeout: number?) -> (() -> string),
 	-- advanced methods:
