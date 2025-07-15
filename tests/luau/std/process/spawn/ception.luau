@@ -1,8 +1,12 @@
 local time = require("@std/time")
 
-print("o_o")
+print("first")
 
 time.wait(0.75)
+
+print("o_o")
+
+time.wait(0.5)
 
 for _, saying in { "cats", "dogs", "seals" } do
     print(`got {saying}`)

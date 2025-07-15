@@ -150,10 +150,8 @@ while (os.clock() - start_time) < 20 do
                         err = err,
                     })
                 end
-            end
-            
-            if child.stderr:size() == 0 then
-                table.insert(tests.passed, test_path)
+			else
+ 				table.insert(tests.passed, test_path)
                 print(` {if #tests.passed < 10 then " " else ""}{#tests.passed} {colors.yellow("test successful")}: {test_path}`)
                 -- check if this file has any ignored functions and warn about them
                 local ignored_in_this_file = tests.ignored_functions_by_path[test_path]
@@ -163,7 +161,7 @@ while (os.clock() - start_time) < 20 do
                     end
                 end
             end
-
+            
             test_pool[test_path] = nil
         else
             -- some tests need user input

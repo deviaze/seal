@@ -89,22 +89,26 @@ impl Stream {
         if let Some(handle) = self.join_handle.take_if(|h| h.is_finished()) {
             match handle.join() {
                 Ok(Ok(_)) => {
-                    match self.inner.try_lock() {
-                        Ok(inner) => {
-                            if inner.is_empty() {
-                                wrap_err!("{} called on a dead child with an empty stream", function_name)
-                            } else {
-                                Ok(()) // allow reading from stream if stream isn't empty
-                            }
-                        },
-                        Err(_err) => {
-                            wrap_err!("{} called on a dead child", function_name)
-                        }
-                    }
+                    Ok(())
+                    // match self.inner.try_lock() {
+                    //     Ok(_) => {
+                    //         Ok(())
+                    //         // getting a bunch of "called on a dead child" after literal child:alive() checks in a loop
+                    //         // is bad ux, not sure how to handle this
+                    //         // if inner.is_empty() {
+                    //         //     wrap_err!("{} called on a dead child with an empty stream", function_name)
+                    //         // } else {
+                    //         //     Ok(()) // allow reading from stream if stream isn't empty
+                    //         // }
+                    //     },
+                    //     Err(_err) => {
+                    //         wrap_err!("{} called on a dead child", function_name)
+                    //     }
+                    // }
                 },
                 Ok(Err(err)) => Err(err),
                 Err(err) => {
-                    wrap_err!("Unexpected error checking whether the thread reading from stdout/stderr is dead or alive: {:#?}", err)
+                    wrap_err!("{}: Unexpected error checking whether the thread reading from stdout/stderr is dead or alive: {:#?}", function_name, err)
                 }
             }
         } else {
