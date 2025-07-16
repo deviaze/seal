@@ -204,7 +204,7 @@ fn json_array(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         },
         None => luau.create_table_with_capacity(10, 0)?
     };
-    t.set_metatable(Some(luau.array_metatable()));
+    t.set_metatable(Some(luau.array_metatable()))?;
     ok_table(Ok(t))
 }
 

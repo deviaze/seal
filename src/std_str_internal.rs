@@ -7,6 +7,8 @@ use unicode_reader::Graphemes;
 use mluau::prelude::*;
 use crate::prelude::*;
 
+const MAX_TABLE_SIZE: usize = 134_217_728;
+
 /// str.split is an improvement on luau's string.split in that you can split on multiple different choices of characters/strings
 /// (not just a single string) and that the splitting is fully unicode grapheme aware
 /// by default, str.split splits the string by unicode characters (graphemes)
@@ -24,10 +26,10 @@ fn str_split(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         }
     };
 
-    // we want to assume most graphemes are normal ascii but some could be multibyte 
-    // so 3/4th of the byte len is a good compromise
-    let good_prealloc_guess = s_bytes.len() * 3 / 4;
     let result = if multivalue.is_empty() {
+        // we want to assume most graphemes are normal ascii but some could be multibyte, and we want to error on the side
+        // of not preallocating more than we need, so 3/4th of the byte len is a good compromise
+        let good_prealloc_guess = std::cmp::min(s_bytes.len() * 3 / 4, MAX_TABLE_SIZE); // exceeding max table size causes abort
         let result = luau.create_table_with_capacity(good_prealloc_guess, 0)?;
         // check if whole string is valid utf-8
         if let Ok(s_str) = std::str::from_utf8(&s_bytes) {
@@ -60,7 +62,8 @@ fn str_split(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         }
         // if we're splitting by separators, it's probably a comma, \n, or something else
         // we likely won't have as many results as we would when splitting by graphemes, so we preallocate less
-        let result = luau.create_table_with_capacity(s_bytes.len() / 2, 0)?;
+        let good_prealloc_guess = std::cmp::min(s_bytes.len() / 6, MAX_TABLE_SIZE); // exceeding MAX_TABLE_SIZE causes abort
+        let result = luau.create_table_with_capacity(good_prealloc_guess, 0)?;
         let ac =  match AhoCorasick::new(separators) {
             Ok(ac) => ac,
             Err(err) => {
