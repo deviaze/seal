@@ -13,7 +13,7 @@ local function test_reads()
 	}
 	
 	while true do
-		local r = child.stdout:read(24)
+		local r = child.stdout:read_exact(24)
 		if r then
 			print(r)
 		end
