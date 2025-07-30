@@ -7,21 +7,38 @@ use crate::std_fs::{self, entry::{self, wrap_io_read_errors, get_path_from_entry
 use super::pathlib::{normalize_path, path_join};
 use super::validate_path;
 
-pub fn listdir(luau: &Lua, dir_path: String, mut multivalue: LuaMultiValue, function_name_and_args: &str) -> LuaValueResult {
+pub fn listdir(luau: &Lua, dir_path: String, mut multivalue: LuaMultiValue, function_name: &str) -> LuaValueResult {
     let recursive = match multivalue.pop_front() {
         Some(LuaValue::Boolean(recursive)) => recursive,
         Some(LuaNil) | None => false,
         Some(other) => {
-            return wrap_err!("{} expected recursive to be a boolean or nil, got: {:?}", function_name_and_args, other);
+            return wrap_err!("{} expected recursive to be a boolean or nil, got: {:?}", function_name, other);
         }
     };
+
+    let filter = match multivalue.pop_front() {
+        Some(LuaNil) | None => None,
+        Some(LuaValue::Function(f)) => Some(f),
+        Some(other) => {
+            return wrap_err!("{} expected filter to be a function ((path: string) -> boolean)) or nil, got: {:?}", function_name, other);
+        }
+    };
+    fn check_filter(luau: &Lua, filter_fn: &LuaFunction, list_path: &str, function_name: &str) -> LuaResult<bool> {
+        match filter_fn.call::<LuaValue>(list_path.into_lua(luau)?)? {
+            LuaValue::Boolean(b) => Ok(b),
+            other => {
+                wrap_err!("{} expected filter function to return a boolean, got: {:?}", function_name, other)
+            }
+        }
+    }
 
     let metadata = match fs::metadata(&dir_path) {
         Ok(metadata) => metadata,
         Err(err) => {
-            return wrap_io_read_errors(err, function_name_and_args, &dir_path);
+            return wrap_io_read_errors(err, function_name, &dir_path);
         }
     };
+    
     if metadata.is_dir() {
         let entries_list = luau.create_table()?;
         if recursive {
@@ -29,26 +46,40 @@ pub fn listdir(luau: &Lua, dir_path: String, mut multivalue: LuaMultiValue, func
             match list_dir_recursive(&dir_path, &mut list_vec) {
                 Ok(()) => {},
                 Err(err) => {
-                    return wrap_err!("{}: unable to recursively iterate over path: {}", function_name_and_args, err);
+                    return wrap_err!("{}: unable to recursively iterate over path: {}", function_name, err);
                 }
             };
             let list_vec = list_vec; // make immutable again
             for list_path in list_vec {
                 let list_path = normalize_path(&list_path);
-                entries_list.push(list_path)?;
+                if let Some(ref filter_fn) = filter {
+                    match check_filter(luau, filter_fn, &list_path, function_name)? {
+                        true => entries_list.push(list_path)?,
+                        false => continue,
+                    }
+                } else {
+                    entries_list.push(list_path)?;
+                }
             }
         } else {
             for entry in fs::read_dir(&dir_path)? {
                 let entry = entry?;
                 if let Some(entry_path) = entry.path().to_str() {
                     let entry_path = normalize_path(entry_path);
-                    entries_list.push(entry_path)?;
+                    if let Some(ref filter_fn) = filter {
+                        match check_filter(luau, filter_fn, &entry_path, function_name)? {
+                            true => entries_list.push(entry_path)?,
+                            false => continue,
+                        }
+                    } else {
+                        entries_list.push(entry_path)?;
+                    }
                 }
             };
         }
         ok_table(Ok(entries_list))
     } else {
-        wrap_err!("{}: expected path at '{}' to be a directory, but found a file", function_name_and_args, &dir_path)
+        wrap_err!("{}: expected path at '{}' to be a directory, but found a file", function_name, &dir_path)
     }
 }
 
@@ -336,5 +367,6 @@ pub fn create(luau: &Lua, path: &str) -> LuaResult<LuaTable> {
         .with_function("move_to", entry::move_to)?
         .with_function("rename", entry::rename)?
         .with_function("remove", entry::remove)?
+        // can't be readonly as :move_to modifies .path
         .build()
 }

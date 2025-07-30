@@ -33,3 +33,17 @@ local function appendfile()
 end
 
 appendfile()
+
+local function canmoveto()
+	local dir1 = fs.dir.ensure(datadir:join("movedir1"))
+	local dir2 = fs.dir.ensure(datadir:join("movedir2"))
+	local file = dir1
+		:add_file("moveme.txt", "meow")
+		:expect_file("moveme.txt")
+	file:move_to(dir2:join("moveme.txt"))
+	assert(fs.path.exists(dir2:join("moveme.txt")), "moveme.txt not moved?")
+	dir1:remove()
+	dir2:remove()
+end
+
+canmoveto()
