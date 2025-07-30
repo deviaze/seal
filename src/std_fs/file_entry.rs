@@ -328,5 +328,6 @@ pub fn create(luau: &Lua, path: &str) -> LuaResult<LuaTable> {
 		.with_function("move_to", entry::move_to)?
 		.with_function("rename", entry::rename)?
 		.with_function("remove", entry::remove)?
-        .build_readonly()
+        // can't be readonly because :move_to modifies .path
+        .build()
 }
