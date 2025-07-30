@@ -194,15 +194,24 @@ export type fs = {
 	]=]
 	makedir: (path: string, options: { create_missing: boolean?, error_if_exists: boolean? }?) -> boolean,
 
-	-- fs.listdir(path: string, recursive: boolean?) -> { string }
+	-- fs.listdir(path: string, recursive: boolean?, filter: FilterFn?) -> { string }
 	--[=[
-		Returns an array-like table of paths of `path`'s contents.
+		Returns an array of all child paths of directory `path`, relative to the passed path.
+		
+		This means paths from `fs.listdir` can be directly passed into other `fs` library functions.
 
 		Pass `true` as the second parameter to recursively enumerate all files in the directory tree.
+
+		If a filter function is passed, only paths that pass the filter are included.
 
 		## Usage
 		```luau
 		local test_files: { string } = fs.listdir("./tests", --[[recursive =]] true)
+
+		-- all .luau files
+		local luau_files = fs.listdir("./tests", true, function(path: string)
+			return if string.match(path, "%.luau$") then true else false
+		end)
 		```
 		
 		## Errors
@@ -210,7 +219,7 @@ export type fs = {
 		- `path` does not exist in the filesystem or is not a directory
 		- user does not have permission to access `path`
 	]=]
-	listdir: (path: string, recursive: boolean?) -> { string },
+	listdir: (path: string, recursive: boolean?, filter: ((path: string) -> boolean)?) -> { string },
 
 	-- fs.move(from: string, to: string) -> ()
 	--[=[
