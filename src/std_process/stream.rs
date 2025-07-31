@@ -1,4 +1,6 @@
 use crate::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use std::io::Read;
@@ -19,6 +21,18 @@ pub enum TruncateSide {
     Back,
 }
 
+/// Multithreaded wrapper type that abstracts reading from a child process' stdout or stderr.
+///
+/// This is a cross-platform compatible solution that makes sure reading from stdout/stderr is nonblocking;
+/// instead of taking control of the stream's BufReader directly, manages an `inner` buffer (VecDeque).
+///
+/// A producer thread (called in `Stream::new()`) continually adds new data to `inner` as it comes in
+/// from the stdout/stderr `io::Reader`. If adding the new data causes the buffer to exceed the requested capacity,
+/// the producer thread truncates it back to the requested capacity.
+/// When a reader method is called, only returns what's currently stored in the inner buffer.
+///
+/// This also allows us to customize the type of reader methods available because we're storing read content
+/// before a read is requested by the end user; this allows `read_to` to work.
 pub struct Stream {
     inner: Arc<Mutex<VecDeque<u8>>>,
     join_handle: Option<JoinHandle<Result<(), LuaError>>>,
@@ -29,6 +43,7 @@ pub struct Stream {
 }
 
 impl Stream {
+    /// Spins up the producer child thread, saving its handle and returning the new `Stream`.
     pub fn new<R: Read + Send + 'static>(function_name: &'static str, mut reader: R, stream_type: StreamType, capacity: usize, truncate_side: TruncateSide) -> LuaResult<Self> {
         let inner = Arc::new(Mutex::new(VecDeque::<u8>::with_capacity(capacity)));
         let inner_clone = Arc::clone(&inner);
@@ -129,7 +144,7 @@ impl Stream {
     /// blocks for the user specified duration, or if unspecified,
     /// if the ChildProcess has literally just started, blocks for 1 ms, allowing for time for the writer thread
     /// to write something to the buffer.
-    /// 
+    ///
     /// if the user explicitly passes 0.0 seconds, we don't want to block, even if the `ChildProcess` has just started
     fn sleep_if_needed(&mut self, duration: Option<f64>) {
         if let Some(sleep_time) = duration && sleep_time != 0.0 {
@@ -154,7 +169,7 @@ impl Stream {
         };
         self.alive(function_name)?;
         pop_self(&mut multivalue, function_name)?;
-        
+
         let count = match multivalue.pop_front() {
             Some(LuaValue::Integer(i)) => int_to_usize(i, function_name, "count")?,
             Some(LuaValue::Number(f)) => float_to_usize(f, function_name, "count")?,
@@ -191,6 +206,8 @@ impl Stream {
     }
 
     /// Tries to read everything in the inner buffer, optionally blocking for `duration` before reading if specified
+    /// This function doesn't block/loop because if users want to block they could've used `process.run` or
+    /// a dedicated blocking method like `stream:read_await`.
     pub fn read(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         let function_name = match self.stream_type {
             StreamType::Stdout => "ChildProcess.stdout:read(duration: number?)",
@@ -221,6 +238,12 @@ impl Stream {
             let bytes_read: Vec<u8> = inner.drain(..).collect();
             ok_string(bytes_read, luau)
         }
+    }
+
+    /// stream:read_await(count: number?, timeout: number?)
+    ///
+    pub fn read_await(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+        todo!()
     }
 
     pub fn read_to(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
@@ -279,8 +302,8 @@ impl Stream {
 
         loop {
             // this is ugly asf we don't want to lock inner if we don't need to
-            let should_return_if_allow_partial = if 
-                let Some(start_time) = start_time 
+            let should_return_if_allow_partial = if
+                let Some(start_time) = start_time
                 && let Some(timeout) = timeout
                 && start_time.elapsed() >= timeout
             {
@@ -289,7 +312,7 @@ impl Stream {
                 } else {
                     return Ok(LuaNil);
                 }
-            } else { 
+            } else {
                 false
             };
 
@@ -324,7 +347,7 @@ impl Stream {
             } else {
                 // using a sliding window algorithm to look across the entire stream
                 // without having to allocate more than just the search term in terms of length
-                
+
                 // we have to fix the internal representation of the VecDeque so that .as_slices
                 // behaves as expected for windowing (returning front, back where front has the whole contents)
                 // instead of the middle point being unspecified
@@ -363,7 +386,7 @@ impl Stream {
                         break;
                     }
                 }
-              
+
                 if let Some(found_pos) = search_position {
                     let mut drained: Vec<u8> = inner.drain(..found_pos).collect();
                     if !inclusive {
@@ -454,8 +477,8 @@ impl Stream {
         }
     }
 
-    /// stream:readbytes_exact(count: number, target: buffer, offset: number?) -> (boolean, number?)
-    /// 
+    /// stream:readbytes_exact(count: number, target: buffer, offset: number?, duration: number?) -> (boolean, number?)
+    ///
     /// reads exactly `count` bytes into `target` at `offset` (0 if unspecified),
     /// - returns `(true, nil)` if `count` bytes are successfully read,
     /// - returns `(false, nil)` if the stream is empty (0 bytes read)
@@ -583,7 +606,7 @@ impl Stream {
                             return wrap_err!("{}: unable to lock inner due to err: {}", function_name, err);
                         }
                     };
-                    
+
                     if let Some(position) = inner.iter().position(|&b| b == b'\n') {
                         // since we've found a \n, we're free to drain inner and consume those bytes off the stream
                         let trimmed_bytes = {
@@ -709,5 +732,118 @@ impl Stream {
 
     pub fn capacity(&self) -> usize {
         self.capacity
+    }
+
+    pub fn create_handle(stream_cell: Rc<RefCell<Self>>, luau: &Lua) -> LuaResult<LuaTable> {
+        TableBuilder::create(luau)?
+            .with_function("read_exact", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcessStream:read_exact(buffer_size: number)";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read_exact(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("read", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcessStream:read(duration: number?)";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("read_to", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcessStream:read_to(term: string, inclusive: boolean?, timeout: number?)";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.read_to(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("readbytes", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcessStream:readbytes(target: buffer, offset: number?, duration: number?)";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.readbytes(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("readbytes_exact", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaMultiResult {
+                    let function_name = "ChildProcessStream:readbytes_exact(count: number, target: buffer, offset: number?)";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.readbytes_exact(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name)
+                    }
+                }
+            })?
+            .with_function("lines", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                    let function_name = "ChildProcessStream:lines()";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.lines(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_function("size", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let function_name = "ChildProcessStream:size()";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => {
+                            Ok(LuaValue::Integer(stream.size()? as i64))
+                        },
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_function("capacity", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
+                    let function_name = "ChildProcessStream:capacity()";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => {
+                            Ok(LuaValue::Integer(stream.capacity() as i64))
+                        },
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            // users can't iterate and supply a timeout with generalized iteration
+            .with_function("iter", {
+                let stream_cell = Rc::clone(&stream_cell);
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                    let function_name = "ChildProcessStream:iter(timeout: number?, write_delay_ms: number?)";
+                    match stream_cell.try_borrow_mut() {
+                        Ok(ref mut stream) => stream.iter(luau, multivalue),
+                        Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                    }
+                }
+            })?
+            .with_metatable(TableBuilder::create(luau)?
+                .with_function("__iter", {
+                    let stream_cell = Rc::clone(&stream_cell);
+                    move | luau: &Lua, multivalue: LuaMultiValue | -> LuaResult<LuaFunction> {
+                        let function_name = "ChildProcessStream:__iter()";
+                        match stream_cell.try_borrow_mut() {
+                            Ok(ref mut stream) => stream.iter(luau, multivalue),
+                            Err(_) => wrap_err!("{}: stream already borrowed", function_name),
+                        }
+                    }
+                })?
+                .build_readonly()?
+            )?
+            .build_readonly()
     }
 }

@@ -161,7 +161,7 @@ while (os.clock() - start_time) < 20 do
                     end
                 end
             end
-            
+
             test_pool[test_path] = nil
         else
             -- some tests need user input

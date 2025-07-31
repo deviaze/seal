@@ -7,7 +7,7 @@ declare function pp<T...>(...: T...): T...
 declare function dp<T...>(...: T...): T...
 
 declare function warn<T...>(...: T...): nil
-	
+
 declare script: {
 	entry_path: string,
 	context: string?,
@@ -25,5 +25,5 @@ declare channel: {
 	data: any?,
 }?
 
---- an error returned from mlua, can be tostringed
+--- an error returned from mluau, can be tostringed
 declare class error end
