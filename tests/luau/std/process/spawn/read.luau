@@ -7,10 +7,10 @@ local path = require("@std/fs/path")
 local process = require("@std/process")
 
 local function spawn_long_waiter(): process.ChildProcess
-	return process.spawn {
-		program = env.executable_path,
-		args = { path.join(script:parent(), "long_waiter.luau") }
-	}
+    return process.spawn {
+        program = env.executable_path,
+        args = { path.join(script:parent(), "long_waiter.luau") }
+    }
 end
 
 local longrunning_path = path.join(script:parent(), "longrunning.luau")
@@ -65,88 +65,93 @@ local function spawn_poem(stdout_capacity: number, stderr_capacity: number, stdo
 end
 
 local function makesurelinesdoesntbreak()
-	local child = spawn_long_waiter()
+    local child = spawn_long_waiter()
 
-	for line in child.stdout:lines() do
-		-- print(line)
-		break
-	end
+    for line in child.stdout:lines() do
+        print(line)
+        break
+    end
 
+    print("after possible sigabrt???")
+    print(child.stdout:read(nil, 0.12))
 end
 
 makesurelinesdoesntbreak()
 
+
 local function basicread()
-	local child = spawn_long_waiter()
-	local text = child.stdout:read()
-	assert(text == "hehe\n", "text not match hehe\\n")
-	child:kill()
+    local child = spawn_long_waiter()
+    local text = child.stdout:read()
+    assert(text == "hehe\n", "text not match hehe\\n")
+    local content = child.stderr:read(nil, 0.5)
+    child:kill()
+    print(content)
 end
 
 basicread()
 
 local function readtoofast()
-	local child = spawn_long_waiter()
-	local text = child.stdout:read(nil, 0)
-	assert(text == nil, "we should've read too fast because we're nonblocking")
-	child:kill()
+    local child = spawn_long_waiter()
+    local text = child.stdout:read(nil, 0)
+    assert(text == nil, "we should've read too fast because we're nonblocking")
+    child:kill()
 end
 
 readtoofast()
 
 local function readupto()
-	local child, poem_path = spawn_poem(128, 64, "front")
-	local text = child.stdout:read(24, 0.25)
-	assert(text ~= nil, "poem text shouldn't be nil in readupto")
-	local len = child.stdout:len()
-	assert(len > 0, "after reading up to 24 bytes from poem there should be more than zero remaining bytes in the stream")
-	assert(#text <= 24, "#text should be <= 24 when readupto 24")
-	child:kill()
-	fs.file.try_remove(poem_path)
+    local child, poem_path = spawn_poem(128, 64, "front")
+    local text = child.stdout:read(24, 0.25)
+    assert(text ~= nil, "poem text shouldn't be nil in readupto")
+    local len = child.stdout:len()
+    assert(len > 0, "after reading up to 24 bytes from poem there should be more than zero remaining bytes in the stream")
+    assert(#text <= 24, "#text should be <= 24 when readupto 24")
+    child:kill()
+    fs.file.try_remove(poem_path)
 end
 
 readupto()
 
 local function readloop()
-	local child = spawn_longrunning()
-	local result: { string } = {}
-	while time.wait(0.025) do
-		local text = child.stdout:read(nil, 0)
-		if text then
-			table.insert(result, text)
-			if str.endswith(text, "Stopping\n") then
-				break
-			end
-		end
-	end
-	local result = table.concat(result, "\n")
-	assert(str.endswith(result, "Stopping\n"))
+    local child = spawn_longrunning()
+    local result: { string } = {}
+    while time.wait(0.025) do
+        local text = child.stdout:read(nil, 0)
+        if text then
+            table.insert(result, text)
+            if str.endswith(text, "Stopping\n") then
+                break
+            end
+        end
+    end
+    local result = table.concat(result, "\n")
+    assert(str.endswith(result, "Stopping\n"))
 end
 
 readloop()
 
 local function mixingreads()
-	local child = spawn_long_waiter()
-	local stdout = child.stdout
-	local first = stdout:read_exact(1, 0.5)
-	assert(first == "h", "first should be h")
-	local readnormally = stdout:read()
-	assert(readnormally == "ehe\n")
-	child:kill()	
+    local child = spawn_long_waiter()
+    local stdout = child.stdout
+    local first = stdout:read_exact(1, 0.5)
+    assert(first == "h", "first should be h")
+    local readnormally = stdout:read()
+    assert(readnormally == "ehe\n")
+    child:kill()	
 end
 
 mixingreads()
 
 local function readexactbasic()
-	local child, poem_path = spawn_poem(222, 32, "back")
-	local t0 = os.clock()
-	local first_paragraphish = child.stdout:read_exact(176, 0.6)
-	local t1 = os.clock() - t0
-	assert(t1 > 0.3, "should've taken a bit more than 0.3 seconds to print the first paragraph out")
-	assert(first_paragraphish and str.endswith(first_paragraphish, "guns below"), "should end with guns below")
-	assert(#first_paragraphish == 176, "reading exactly 176 bytes should result in 176 length string")
-	child:kill()
-	fs.file.try_remove(poem_path)
+    local child, poem_path = spawn_poem(222, 32, "back")
+    local t0 = os.clock()
+    local first_paragraphish = child.stdout:read_exact(176, 0.6)
+    local t1 = os.clock() - t0
+    assert(t1 > 0.3, "should've taken a bit more than 0.3 seconds to print the first paragraph out")
+    assert(first_paragraphish and str.endswith(first_paragraphish, "guns below"), "should end with guns below")
+    assert(#first_paragraphish == 176, "reading exactly 176 bytes should result in 176 length string")
+    child:kill()
+    fs.file.try_remove(poem_path)
 end
 
 readexactbasic()

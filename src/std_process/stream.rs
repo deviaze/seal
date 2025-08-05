@@ -58,7 +58,13 @@ impl Stream {
                 match reader.read(&mut buffer) {
                     Ok(0) => break,
                     Ok(bytes_read) => {
-                        let mut inner = inner_clone.lock().unwrap();
+                        // let mut inner = inner_clone.lock().unwrap();
+                        let mut inner = match inner_clone.lock() {
+                            Ok(l) => l,
+                            Err(err) => {
+                                return wrap_err!("reader thread unable to lock because it got poisoned: {}", err);
+                            }
+                        };
                         inner.extend(buffer[..bytes_read].iter());
                         if inner.len() >= *arc_capacity {
                             let extra_byte_count = inner.len().saturating_sub(*arc_capacity);
@@ -240,7 +246,12 @@ impl Stream {
         };
 
         loop {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = match self.inner.lock() {
+                Ok(l) => l,
+                Err(err) => {
+                    return wrap_err!("{}: unable to lock inner because poisoned: {}", function_name, err);
+                }
+            };
             if inner.is_empty() {
                 if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
                     return Ok(LuaNil)

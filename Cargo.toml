@@ -42,6 +42,7 @@ aho-corasick = "1.1.3"
 # unicode-segmentation's iterators are literally allergic to being stored in a struct
 unicode_reader = "1.0.2"
 petname = { version = "2.0.2", features = ["default-rng", "default-words"] }
+libc = "0.2.174"
 
 [profile.dev.package.num-bigint-dig]
 opt-level = 3 # otherwise rsa keygen takes forever

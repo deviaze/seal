@@ -3,6 +3,35 @@ use mluau::prelude::*;
 use crate::globals;
 use crate::prelude::*;
 
+#[cfg(unix)]
+use libc::{signal, SIGABRT, exit};
+
+#[cfg(unix)]
+unsafe extern "C" fn handle_sigabrt(_: i32) {
+    unsafe {
+        exit(1);
+    }
+}
+
+/// Intercepts SIGABRT on Unix-like systems to prevent core dumps and keep `seal` as nonblocking as possible.
+pub fn setup_sigabrt_handler() {
+    // Intercepts SIGABRT to prevent core dumps when `seal` is used as a child process.
+    // This occurs because `ChildProcessStream` readers are fully nonblocking;
+    // if the parent process exits while either `ChildProcessStream` reader is `reader.read()`ing to the inner buffer,
+    // the child process may exit with a SIGABRT, causing a core dump--even though `seal` itself is functioning correctly.
+    // We intercept these core dumps to prevent leaking sensitive memory.
+    //
+    // SAFETY:
+    // - This signal is registered as early as possible in `main`.
+    // - It is the only signal handler registered by `seal`; registering any other signal handlers may cause UB.
+    // - Only async-signal-safe functions (such as `exit()`) are called in the signal handler.
+    // - Behavior has been tested on x86_64 Arch Linux.
+    #[cfg(unix)]
+    unsafe {
+        signal(SIGABRT, handle_sigabrt as usize);
+    }
+}
+
 pub fn parse_traceback(raw_traceback: String) -> String {
     let parse_traceback = include_str!("./scripts/parse_traceback.luau");
     let luau_for_traceback = Lua::new();
