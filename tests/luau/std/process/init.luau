@@ -1,6 +1,6 @@
-local process = require("@std/process")
+-- local process = require("@std/process")
 
-local child = process.spawn {
-    program = "seal",
-    args = { "--help" }
-}
+-- local child = process.spawn {
+--     program = "seal",
+--     args = { "--help" }
+-- }

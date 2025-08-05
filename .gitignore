@@ -1,3 +1,4 @@
 /target
 /tests/data/ignore
 /meow.txt
+/core*

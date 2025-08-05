@@ -56,13 +56,9 @@ local function intobuffer()
     local child = spawn_longrunning()
     local buffy = buffer.create(1024)
     local offset = 0
-    while child:alive() do
-        if child.stdout:size() > 0 then
-            local count = child.stdout:readbytes(buffy, offset)
-            if count then
-                offset += count
-            end
-        end
+    while child:alive() and offset < 1024 do
+        local count = child.stdout:fill(buffy, offset)
+        offset += count
     end
     local tostringed = buffer.tostring(buffy)
     assert(str.startswith(tostringed, "Starting..."), "buffer.tostring(buffy) should start with Starting...")
@@ -78,15 +74,16 @@ local function cantfitintowholebuffer()
     local s, result = pcall(function(): nil
         local offset = 0
         while child:alive() do
-            local success, remaining = child.stdout:readbytes_exact(12, buffy, offset)
+            local success = child.stdout:fill_exact(12, buffy, offset)
             if success then
                 offset += 12
             end
         end
         return nil
     end)
-    assert(typeof(result) == "error" and tostring(result):match("can't fit offset"), "we should get an error for invalid readbytes_exact usage")
+    child:kill()
     fs.file.try_remove(poem_path)
+    assert(typeof(result) == "error" and tostring(result):match("can't fit offset"), "we should get an error for invalid readbytes_exact usage")
 end
 
 cantfitintowholebuffer()
@@ -95,14 +92,14 @@ local function canreadintowholebufferwithchecks()
     local child, poem_path = spawn_poem()
     local buffy = buffer.create(32)
     while child:alive() do
-        if child.stdout:size() >= 32 then
-            -- print("child is big enough")
-            child.stdout:readbytes_exact(32, buffy)
+        local success = child.stdout:fill_exact(32, buffy)
+        if success then
             break
         end
     end
-    assert(buffer.tostring(buffy) == "In Flander's Fields the poppies ", "Exactly 32 bytes should've been read")
+    child:kill()
     fs.file.try_remove(poem_path)
+    assert(buffer.tostring(buffy) == "In Flander's Fields the poppies ", "Exactly 32 bytes should've been read")
 end
 
 canreadintowholebufferwithchecks()
@@ -112,12 +109,13 @@ local function vibereadingintobuffer()
     local buffy = buffer.create(512)
     local offset = 0
     while child:alive() do
-        local count = child.stdout:readbytes(buffy, offset)
+        local count = child.stdout:fill(buffy, offset)
         if count then
             offset += count
         end
     end
     assert(buffer.tostring(buffy):match("Take up our quarrel"), "should've read the entire thing into 512 size buffer")
+    child:kill()
     fs.file.try_remove(poem_path)
 end
 
@@ -130,13 +128,14 @@ local function vibereadingintosmallbuffer()
         local buffy = buffer.create(64)
         local offset = 0
         while child:alive() do
-            local count = child.stdout:readbytes(buffy, offset)
+            local count = child.stdout:fill(buffy, offset)
             if count then
                 offset += count
             end
         end
         return nil
     end)
+    child:kill()
     fs.file.try_remove(poem_path)
     assert(s == false, "reading into small buffer without explicit overflow check shouldn't work")
     assert(
@@ -153,11 +152,12 @@ local function correctlyreadingintosmallbuffershouldwork()
     local buffer_size = 85
     local buffy = buffer.create(buffer_size)
     while child:alive() and offset < buffer_size do
-        local count = child.stdout:readbytes(buffy, offset)
+        local count = child.stdout:fill(buffy, offset)
         if count then
             offset += count
         end
     end
+    child:kill()
     fs.file.try_remove(poem_path)
     assert(
         str.endswith(buffer.tostring(buffy), "\nthat mark our pla"),

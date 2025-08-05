@@ -260,8 +260,8 @@ export type ChildProcess = {
 	id: number,
 	alive: (self: ChildProcess) -> boolean,
 	kill: (self: ChildProcess) -> (),
-	stdout: ChildProcessStream,
-	stderr: ChildProcessStream,
+	stdout: ChildProcessStream2,
+	stderr: ChildProcessStream2,
 	stdin: ChildProcessStdin,
 }
 
@@ -494,8 +494,7 @@ export type ChildProcessStream2 = setmetatable<{
 
 		### Errors
 
-		- If `count` > buffer length,
-		- If `target_offset` > buffer length; this usually means a logic bug. Remember to clamp your offsets!
+		- If `target_offset` + `count` > buffer length - 1; this usually means a logic bug. Remember to clamp your offsets!
 
 		### Blocks
 
@@ -574,15 +573,5 @@ export type ChildProcessStream2 = setmetatable<{
 	]=]
 	__iter: (self: ChildProcessStream2) -> () -> string,
 }>
-
-local child = {
-	alive = function() end :: (self: any) -> boolean,
-	stdout = {} :: ChildProcessStream2
-}
-
-local content = child.stdout:read(1024, 0.25)
-if content then
-	print(content)
-end
 
 return {} :: process

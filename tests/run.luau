@@ -141,7 +141,7 @@ while (os.clock() - start_time) < 20 do
         -- wait til child dies
         if not child:alive() then
             -- check stderr for any error messages; anything written to stderr = fail
-            if child.stderr:size() > 0 then
+            if child.stderr:len() > 0 then
                 local err = child.stderr:read()
                 if err and err:match("ERR") then
                     print(` ❌ {colors.red("test failed")}: {test_path}`)
@@ -150,8 +150,8 @@ while (os.clock() - start_time) < 20 do
                         err = err,
                     })
                 end
-			else
- 				table.insert(tests.passed, test_path)
+            else
+                table.insert(tests.passed, test_path)
                 print(` {if #tests.passed < 10 then " " else ""}{#tests.passed} {colors.yellow("test successful")}: {test_path}`)
                 -- check if this file has any ignored functions and warn about them
                 local ignored_in_this_file = tests.ignored_functions_by_path[test_path]

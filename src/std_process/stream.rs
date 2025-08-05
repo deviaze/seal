@@ -39,7 +39,6 @@ pub struct Stream {
     stream_type: StreamType,
     still_reading: Arc<AtomicBool>,
     capacity: usize,
-    start_instant: Instant,
 }
 
 impl Stream {
@@ -94,7 +93,6 @@ impl Stream {
             stream_type,
             still_reading,
             capacity,
-            start_instant: Instant::now(),
         })
     }
 
@@ -131,41 +129,37 @@ impl Stream {
         }
     }
 
-    fn check_valid_duration(f: f64, function_name: &'static str) -> LuaResult<f64> {
+    fn pop_timeout(&self, mut multivalue: LuaMultiValue, function_name: &'static str) -> LuaResult<Option<Duration>> {
+        let f = match multivalue.pop_front() {
+            Some(LuaValue::Number(f)) => f,
+            Some(LuaValue::Integer(i)) => i as f64,
+            Some(LuaNil) | None => {
+                return Ok(None);
+            },
+            Some(other) => {
+                return wrap_err!("{} expected timeout to be a number or nil, got: {:?}", function_name, other);
+            }
+        };
+
         if f.is_nan() || f.is_infinite() {
-            wrap_err!("{}: duration can't be NaN nor infinite", function_name)
+            wrap_err!("{}: timeout can't be NaN nor infinite!", function_name)
         } else if f < 0.0 {
-            wrap_err!("{}: duration can't be negative", function_name)
+            wrap_err!("{}: timeout can't be negative! got: {:?}", function_name, f)
         } else {
-            Ok(f)
+            let duration = match Duration::try_from_secs_f64(f) {
+                Ok(duration) => duration,
+                Err(err) => {
+                    return wrap_err!("{}: error creating Duration from timeout: {}", function_name, err);
+                }
+            };
+            Ok(Some(duration))
         }
     }
 
-    /// blocks for the user specified duration, or if unspecified,
-    /// if the ChildProcess has literally just started, blocks for 1 ms, allowing for time for the writer thread
-    /// to write something to the buffer.
-    ///
-    /// if the user explicitly passes 0.0 seconds, we don't want to block, even if the `ChildProcess` has just started
-    fn sleep_if_needed(&mut self, duration: Option<f64>) {
-        if let Some(sleep_time) = duration && sleep_time != 0.0 {
-            let sleep_duration = Duration::from_secs_f64(sleep_time);
-            std::thread::sleep(sleep_duration);
-        } else if let Some(sleep_time) = duration && sleep_time == 0.0 {
-            // user explicitly doesn't want to block, don't block
-        } else if duration.is_none() && self.start_instant.elapsed() < Duration::from_millis(1) {
-            // if the child process has literally just started and the user hasn't specified a duration,
-            // wait 1 ms before reading because it's very likely the child process hasn't written anything yet
-            // and making the user explicitly forced to pass in a duration might be bad ux
-            std::thread::sleep(Duration::from_millis(10));
-        };
-    }
-
-    /// Reads exactly `count` bytes from the inner buffer, draining and returning those bytes as a string if count <= inner.len()
-    /// else returns `nil`
     pub fn read_exact(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         let function_name = match self.stream_type {
-            StreamType::Stdout => "ChildProcess.stdout:read_exact(count: number, duration: number?)",
-            StreamType::Stderr => "ChildProcess.stderr:read_exact(count: number, duration: number?)",
+            StreamType::Stdout => "ChildProcess.stdout:read_exact(count: number, timeout: number?)",
+            StreamType::Stderr => "ChildProcess.stderr:read_exact(count: number, timeout: number?)",
         };
         self.alive(function_name)?;
         pop_self(&mut multivalue, function_name)?;
@@ -174,76 +168,101 @@ impl Stream {
             Some(LuaValue::Integer(i)) => int_to_usize(i, function_name, "count")?,
             Some(LuaValue::Number(f)) => float_to_usize(f, function_name, "count")?,
             None => {
-                return wrap_err!("{} expected count (integer number) but was called with zero arguments (not even nil)");
+                return wrap_err!("{} called without required argument 'count'");
             },
             Some(other) => {
                 return wrap_err!("{} expected count to be an integer number, got: {:?}", function_name, other);
             }
         };
 
-        let duration = match multivalue.pop_front() {
-            Some(LuaValue::Number(f)) => Some(Self::check_valid_duration(f, function_name)?),
-            Some(LuaValue::Integer(i)) => {
-                let f = i as f64;
-                Some(Self::check_valid_duration(f, function_name)?)
-            },
-            Some(LuaNil) | None => None,
-            Some(other) => {
-                return wrap_err!("{} expected duration to be a number, got: {:?}", function_name, other);
-            }
+        if count == 0 {
+            return wrap_err!("{}: why do you want to read 0 bytes from the stream???", function_name);
+        }
+
+        let timeout = self.pop_timeout(multivalue, function_name)?;
+        let start_time = if timeout.is_some() {
+            Some(Instant::now())
+        } else {
+            None
         };
 
-        self.sleep_if_needed(duration);
-
-        let mut inner = self.inner.lock().unwrap();
-        if count <= inner.len() {
-            let bytes_read: Vec<u8> = inner.drain(..count).collect();
-            ok_string(bytes_read, luau)
-        } else {
-            // we can't read exactly buffer_size bytes from inner, so don't take anything and return nil
-            Ok(LuaNil)
+        loop {
+            let mut inner = self.inner.lock().unwrap();
+            if inner.len() <= count {
+                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                    return Ok(LuaNil)
+                } else if let Some(timeout) = timeout
+                    && let Some(start_time) = start_time
+                    && start_time.elapsed() >= timeout    
+                {
+                    return Ok(LuaNil);
+                } else if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaNil);
+                } else {
+                    // explicitly drop mutex to unlock inner
+                    drop(inner);
+                    // allow some time for reader thread to add stuff to inner before continuing to next iteration
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            } else {
+                let bytes_read: Vec<u8> = inner.drain(..count).collect();
+                return ok_string(bytes_read, luau);
+            }
         }
     }
 
-    /// Tries to read everything in the inner buffer, optionally blocking for `duration` before reading if specified
-    /// This function doesn't block/loop because if users want to block they could've used `process.run` or
-    /// a dedicated blocking method like `stream:read_await`.
     pub fn read(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         let function_name = match self.stream_type {
-            StreamType::Stdout => "ChildProcess.stdout:read(duration: number?)",
-            StreamType::Stderr => "ChildProcess.stderr:read(duration: number?)",
+            StreamType::Stdout => "ChildProcess.stdout:read(count: number?, timeout: number?)",
+            StreamType::Stderr => "ChildProcess.stderr:read(count: number?, timeout: number?)",
         };
         self.alive(function_name)?;
         pop_self(&mut multivalue, function_name)?;
 
-        let duration = match multivalue.pop_front() {
-            Some(LuaValue::Number(f)) => Some(Self::check_valid_duration(f, function_name)?),
-            Some(LuaValue::Integer(i)) => {
-                let f = i as f64;
-                Some(Self::check_valid_duration(f, function_name)?)
-            },
-            Some(LuaNil) => Some(0.0), // user explicitly passed nil, they don't want to block
-            None => None,
+        let count = match multivalue.pop_front() {
+            Some(LuaValue::Integer(i)) => int_to_usize(i, function_name, "count")?,
+            Some(LuaValue::Number(f)) => float_to_usize(f, function_name, "count")?,
+            Some(LuaNil) | None => self.capacity,
             Some(other) => {
-                return wrap_err!("{} expected duration to be a number, got: {:?}", function_name, other);
+                return wrap_err!("{} expected count to be an integer number, got: {:?}", function_name, other);
             }
         };
 
-        self.sleep_if_needed(duration);
-
-        let mut inner = self.inner.lock().unwrap();
-        if inner.is_empty() {
-            Ok(LuaNil)
-        } else {
-            let bytes_read: Vec<u8> = inner.drain(..).collect();
-            ok_string(bytes_read, luau)
+        if count == 0 {
+            return wrap_err!("{}: why do you want to read 0 bytes from the stream???", function_name);
         }
-    }
 
-    /// stream:read_await(count: number?, timeout: number?)
-    ///
-    pub fn read_await(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-        todo!()
+        let timeout = self.pop_timeout(multivalue, function_name)?;
+        let start_time = if timeout.is_some() {
+            Some(Instant::now())
+        } else {
+            None
+        };
+
+        loop {
+            let mut inner = self.inner.lock().unwrap();
+            if inner.is_empty() {
+                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                    return Ok(LuaNil)
+                } else if let Some(timeout) = timeout
+                    && let Some(start_time) = start_time
+                    && start_time.elapsed() >= timeout    
+                {
+                    return Ok(LuaNil);
+                } else if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaNil);
+                } else {
+                    // explicitly drop mutex to unlock inner
+                    drop(inner);
+                    // allow some time for reader thread to add stuff to inner before continuing to next iteration
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            } else {
+                let count = std::cmp::min(inner.len(), count);
+                let bytes_read: Vec<u8> = inner.drain(..count).collect();
+                return ok_string(bytes_read, luau);
+            }
+        }
     }
 
     pub fn read_to(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
@@ -398,10 +417,10 @@ impl Stream {
         }
     }
 
-    pub fn readbytes(&mut self, _luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    pub fn fill(&mut self, _luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         let function_name = match self.stream_type {
-            StreamType::Stdout => "ChildProcess.stdout:readbytes(target: buffer, offset: number?, duration: number?)",
-            StreamType::Stderr => "ChildProcess.stderr:readbytes(target: buffer, offset: number?, duration: number?)",
+            StreamType::Stdout => "ChildProcess.stdout:fill(target: buffer, target_offset: number?, timeout: number?)",
+            StreamType::Stderr => "ChildProcess.stderr:fill(target: buffer, target_offset: number?, timeout: number?)",
         };
         self.alive(function_name)?;
         pop_self(&mut multivalue, function_name)?;
@@ -412,82 +431,83 @@ impl Stream {
                 return wrap_err!("{} expected target to be a buffer, got: {:?}", function_name, other);
             },
             None => {
-                return wrap_err!("{} expected target buffer, but was incorrectly called with 0 arguments", function_name);
+                return wrap_err!("{} incorrectly called without target buffer", function_name);
             }
         };
 
-        let offset = match multivalue.pop_front() {
-            Some(LuaValue::Integer(offset)) => int_to_usize(offset, function_name, "offset")?,
-            Some(LuaValue::Number(f)) => float_to_usize(f, function_name, "offset")?,
+        let target_offset = match multivalue.pop_front() {
+            Some(LuaValue::Integer(offset)) => int_to_usize(offset, function_name, "target_offset")?,
+            Some(LuaValue::Number(f)) => float_to_usize(f, function_name, "target_offset")?,
             Some(LuaNil) | None => 0,
             Some(other) => {
-                return wrap_err!("{} expected offset to be a number or nil, got: {:?}", function_name, other);
+                return wrap_err!("{} expected target_offset to be a number or nil, got: {:?}", function_name, other);
             }
         };
 
-        let duration = match multivalue.pop_front() {
-            Some(LuaValue::Number(f)) => Some(Self::check_valid_duration(f, function_name)?),
-            Some(LuaValue::Integer(i)) => {
-                let f = i as f64;
-                Some(Self::check_valid_duration(f, function_name)?)
-            },
-            Some(LuaNil) | None => None,
-            Some(other) => {
-                return wrap_err!("{} expected duration to be a number or nil, got: {:?}", function_name, other);
-            }
-        };
-
-        if offset >= buffy.len() {
-            return wrap_err!("{}: offset {} >= buffer length {} (buffer would overflow); add an explicit offset < buffer_length check", function_name, offset, buffy.len());
+        if target_offset > buffy.len() - 1 {
+            return wrap_err!("{}: target_offset {} > buffer_length - 1 {} (buffer would overflow); add an explicit target_offset < buffer_length - 1 check", function_name, target_offset, buffy.len());
         }
 
-        self.sleep_if_needed(duration);
-
-        let mut inner = self.inner.lock().unwrap();
-        if inner.is_empty() {
-            return Ok(LuaNil);
-        }
-
-        let last_index = {
-            // we only want to drain as many bytes can fit into buffy since users can't specify how many bytes are expected up front
-            // (use stream:readbytes_exact for that usecase instead)
-            let space_left = buffy.len().saturating_sub(offset);
-            // similarly, we don't want to try to read more bytes in inner than actually exist (causes a panic), so we must clamp to inner's length
-            let max_index_in_inner = inner.len().saturating_sub(1);
-            std::cmp::min(max_index_in_inner, space_left.saturating_sub(1))
-        };
-
-        let bytes_read : Vec<u8> = inner.drain(..=last_index).collect();
-        if bytes_read.is_empty() {
-            Ok(LuaNil)
-        } else if offset + bytes_read.len() <= buffy.len() { // should've already been checked by precondition above but why not check again in case smth changed
-            buffy.write_bytes(offset, &bytes_read);
-            let byte_count: i64 = match bytes_read.len().try_into() {
-                Ok(i) => i,
-                Err(_) => {
-                    return wrap_err!("{}: cannot convert the number of bytes read (usize) into i64");
-                }
-            };
-            Ok(LuaValue::Integer(byte_count))
+        let timeout = self.pop_timeout(multivalue, function_name)?;
+        let start_time = if timeout.is_some() {
+            Some(Instant::now())
         } else {
-            unreachable!(
-                "{}: logic bug. drained more bytes than buffer space allowed (offset {} + drained {}) into buffer of size {}",
-                function_name, offset, bytes_read.len(), buffy.len()
-            )
+            None
+        };
+
+        loop {
+            let mut inner = self.inner.lock().unwrap();
+            if inner.is_empty() {
+                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                    return Ok(LuaValue::Integer(0));
+                } else if let Some(timeout) = timeout
+                    && let Some(start_time) = start_time
+                    && start_time.elapsed() >= timeout    
+                {
+                    return Ok(LuaValue::Integer(0));
+                } else if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaValue::Integer(0));
+                } else {
+                    // explicitly drop mutex to unlock inner
+                    drop(inner);
+                    // allow some time for reader thread to add stuff to inner before continuing to next iteration
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+            } else {
+                let last_index = {
+                    // we only want to drain as many bytes can fit into buffy since users can't specify how many bytes are expected up front
+                    // (use stream:readbytes_exact for that usecase instead)
+                    let space_left = buffy.len().saturating_sub(target_offset);
+                    // similarly, we don't want to try to read more bytes in inner than actually exist (causes a panic), so we must clamp to inner's length
+                    let max_index_in_inner = inner.len().saturating_sub(1);
+                    std::cmp::min(max_index_in_inner, space_left.saturating_sub(1))
+                };
+                let bytes_read: Vec<u8> = inner.drain(..=last_index).collect();
+                if bytes_read.is_empty() {
+                    return Ok(LuaValue::Integer(0))
+                } else if target_offset + bytes_read.len() <= buffy.len() { // should've already been checked by precondition above but why not check again in case smth changed
+                    buffy.write_bytes(target_offset, &bytes_read);
+                    let byte_count: i64 = match bytes_read.len().try_into() {
+                        Ok(i) => i,
+                        Err(_) => {
+                            return wrap_err!("{}: cannot convert the number of bytes read (usize) into i64");
+                        }
+                    };
+                    return Ok(LuaValue::Integer(byte_count))
+                } else {
+                    unreachable!(
+                        "{}: logic bug. drained more bytes than buffer space allowed (offset {} + drained {}) into buffer of size {}",
+                        function_name, target_offset, bytes_read.len(), buffy.len()
+                    )
+                }
+            }
         }
     }
 
-    /// stream:readbytes_exact(count: number, target: buffer, offset: number?, duration: number?) -> (boolean, number?)
-    ///
-    /// reads exactly `count` bytes into `target` at `offset` (0 if unspecified),
-    /// - returns `(true, nil)` if `count` bytes are successfully read,
-    /// - returns `(false, nil)` if the stream is empty (0 bytes read)
-    /// - returns `(false, number)` if the stream isn't empty but we don't have enough exactly `count` bytes to read yet;
-    ///   if this happens, 0 bytes are consumed so users are free to call this function again later without losing any data
-    pub fn readbytes_exact(&mut self, luau: &Lua, mut multivalue: LuaMultiValue) -> LuaMultiResult {
+    pub fn fill_exact(&mut self, _luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         let function_name = match self.stream_type {
-            StreamType::Stdout => "ChildProcess.stdout:readbytes_exact(count: number, target: buffer, offset: number?, duration: number?)",
-            StreamType::Stderr => "ChildProcess.stderr:readbytes_exact(count: number, target: buffer, offset: number?, duration: number?)",
+            StreamType::Stdout => "ChildProcess.stdout:fill_exact(count: number, target: buffer, offset: number?, timeout: number?)",
+            StreamType::Stderr => "ChildProcess.stderr:fill_exact(count: number, target: buffer, offset: number?, timeout: number?)",
         };
         self.alive(function_name)?;
         pop_self(&mut multivalue, function_name)?;
@@ -513,7 +533,7 @@ impl Stream {
             }
         };
 
-        let offset = match multivalue.pop_front() {
+        let target_offset = match multivalue.pop_front() {
             Some(LuaValue::Integer(offset)) => int_to_usize(offset, function_name, "offset")?,
             Some(LuaValue::Number(f)) => float_to_usize(f, function_name, "offset")?,
             Some(LuaNil) | None => 0,
@@ -522,42 +542,40 @@ impl Stream {
             }
         };
 
-        let duration = match multivalue.pop_front() {
-            Some(LuaValue::Number(f)) => Some(Self::check_valid_duration(f, function_name)?),
-            Some(LuaValue::Integer(i)) => {
-                let f = i as f64;
-                Some(Self::check_valid_duration(f, function_name)?)
-            },
-            Some(LuaNil) | None => None,
-            Some(other) => {
-                return wrap_err!("{} expected duration to be a number or nil, got: {:?}", function_name, other);
-            }
+        let timeout = self.pop_timeout(multivalue, function_name)?;
+        let start_time = if timeout.is_some() {
+            Some(Instant::now())
+        } else {
+            None
         };
 
-        self.sleep_if_needed(duration);
-
-        let mut inner = self.inner.lock().unwrap();
-        if inner.is_empty() {
-            // return success: `false` instead of erroring when stream is empty, otherwise we greatly annoy looping workflows
-            LuaValue::Boolean(false).into_lua_multi(luau)
-        } else if inner.len() < count {
-            // return success: false, remaining: number instead of erroring so the user knows there's something in the buffer but
-            // we couldn't read exactly the number of bytes they wanted, and that nothing was consumed
-            vec![LuaValue::Boolean(false), inner.len().into_lua(luau)?].into_lua_multi(luau)
-        } else if offset + count <= buffy.len() {
-            let bytes_read: Vec<u8> = inner.drain(..count).collect();
-            buffy.write_bytes(offset, &bytes_read);
-            vec![
-                LuaValue::Boolean(true),
-                if inner.is_empty() {
-                    LuaNil
+        loop {
+            let mut inner = self.inner.lock().unwrap();
+            if inner.is_empty() || inner.len() - 1 < count {
+                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                    return Ok(LuaValue::Boolean(false));
+                } else if let Some(timeout) = timeout
+                    && let Some(start_time) = start_time
+                    && start_time.elapsed() >= timeout    
+                {
+                    return Ok(LuaValue::Boolean(false));
+                } else if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaValue::Boolean(false));
                 } else {
-                    inner.len().into_lua(luau)?
+                    // explicitly drop mutex to unlock inner
+                    drop(inner);
+                    // allow some time for reader thread to add stuff to inner before continuing to next iteration
+                    std::thread::sleep(Duration::from_millis(10));
                 }
-            ].into_lua_multi(luau)
-        } else {
-            wrap_err!("{}: can't fit offset {} + count {} bytes into buffer of length {}", function_name, offset, count, buffy.len())
+            } else if target_offset + count <= buffy.len() {
+                let bytes_read: Vec<u8> = inner.drain(..count).collect();
+                buffy.write_bytes(target_offset, &bytes_read);
+                return Ok(LuaValue::Boolean(true));
+            } else {
+                return wrap_err!("{}: can't fit offset {} + count {} bytes into buffer of length {}", function_name, target_offset, count, buffy.len());
+            }
         }
+
     }
 
     /// iterate over the lines of inner, only consuming bytes when \n is reached
@@ -716,10 +734,10 @@ impl Stream {
         })
     }
 
-    pub fn size(&mut self) -> LuaResult<usize> {
+    pub fn len(&mut self) -> LuaResult<usize> {
         let function_name = match self.stream_type {
-            StreamType::Stdout => "ChildProcess.stdout:size()",
-            StreamType::Stderr => "ChildProcess.stderr:size()",
+            StreamType::Stdout => "ChildProcess.stdout:len()",
+            StreamType::Stderr => "ChildProcess.stderr:len()",
         };
         let inner = match self.inner.lock() {
             Ok(inner) => inner,
@@ -739,7 +757,7 @@ impl Stream {
             .with_function("read_exact", {
                 let stream_cell = Rc::clone(&stream_cell);
                 move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
-                    let function_name = "ChildProcessStream:read_exact(buffer_size: number)";
+                    let function_name = "ChildProcessStream:read_exact(count: number, timeout: number?)";
                     match stream_cell.try_borrow_mut() {
                         Ok(ref mut stream) => stream.read_exact(luau, multivalue),
                         Err(_) => wrap_err!("{}: stream already borrowed", function_name)
@@ -749,7 +767,7 @@ impl Stream {
             .with_function("read", {
                 let stream_cell = Rc::clone(&stream_cell);
                 move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
-                    let function_name = "ChildProcessStream:read(duration: number?)";
+                    let function_name = "ChildProcessStream:read(count: number?, timeout: number?)";
                     match stream_cell.try_borrow_mut() {
                         Ok(ref mut stream) => stream.read(luau, multivalue),
                         Err(_) => wrap_err!("{}: stream already borrowed", function_name)
@@ -766,22 +784,22 @@ impl Stream {
                     }
                 }
             })?
-            .with_function("readbytes", {
+            .with_function("fill", {
                 let stream_cell = Rc::clone(&stream_cell);
                 move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
-                    let function_name = "ChildProcessStream:readbytes(target: buffer, offset: number?, duration: number?)";
+                    let function_name = "ChildProcessStream:fill(target: buffer, target_offset: number?, timeout: number?)";
                     match stream_cell.try_borrow_mut() {
-                        Ok(ref mut stream) => stream.readbytes(luau, multivalue),
+                        Ok(ref mut stream) => stream.fill(luau, multivalue),
                         Err(_) => wrap_err!("{}: stream already borrowed", function_name)
                     }
                 }
             })?
-            .with_function("readbytes_exact", {
+            .with_function("fill_exact", {
                 let stream_cell = Rc::clone(&stream_cell);
-                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaMultiResult {
-                    let function_name = "ChildProcessStream:readbytes_exact(count: number, target: buffer, offset: number?)";
+                move | luau: &Lua, multivalue: LuaMultiValue | -> LuaValueResult {
+                    let function_name = "ChildProcessStream:fill_exact(count: number, target: buffer, target_offset: number?, timeout: number?)";
                     match stream_cell.try_borrow_mut() {
-                        Ok(ref mut stream) => stream.readbytes_exact(luau, multivalue),
+                        Ok(ref mut stream) => stream.fill_exact(luau, multivalue),
                         Err(_) => wrap_err!("{}: stream already borrowed", function_name)
                     }
                 }
@@ -796,13 +814,13 @@ impl Stream {
                     }
                 }
             })?
-            .with_function("size", {
+            .with_function("len", {
                 let stream_cell = Rc::clone(&stream_cell);
                 move | _luau: &Lua, _value: LuaValue | -> LuaValueResult {
-                    let function_name = "ChildProcessStream:size()";
+                    let function_name = "ChildProcessStream:len()";
                     match stream_cell.try_borrow_mut() {
                         Ok(ref mut stream) => {
-                            Ok(LuaValue::Integer(stream.size()? as i64))
+                            Ok(LuaValue::Integer(stream.len()? as i64))
                         },
                         Err(_) => wrap_err!("{}: stream already borrowed", function_name),
                     }

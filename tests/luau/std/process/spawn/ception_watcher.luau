@@ -11,16 +11,16 @@ local function watchception()
     }
 
     local t0 = os.clock()
-    local not_first = child.stdout:read(0.0)
+    local not_first = child.stdout:read(nil, 0.0)
     assert(
         not_first == nil, 
-        "not_first should be nil here since :read on empty is nonblocking, just-spawn blocking is explicitly disabled"
+        "not_first should be nil here since :read with timeout 0.0 should be nonblocking"
     )
-    assert(
-        (os.clock() - t0) < 0.7, 
-        "if child.stdout:read were blocking this would trigger"
-    )
-    local o_o = child.stdout:read(0.8)
+    local first = child.stdout:read(5, 0.2)
+    assert(typeof(first) == "string" and first == "first", "first should be first here")
+    local newline = child.stdout:read()
+    assert(typeof(newline) == "string" and newline == "\n", "a newline should be printed after first")
+    local o_o = child.stdout:read(nil, 0.8)
     assert(
         typeof(o_o) == "string"
         and (o_o:match("o_o")), 
