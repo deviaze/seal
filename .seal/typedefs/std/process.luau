@@ -80,116 +80,173 @@ export type SpawnOptions = {
 		stderr_truncate: ("front" | "back")?,
 	}?,
 }
-
+--- Represents the stdout and stderr streams of a `ChildProcess`, both ran in parallel threads
+--- and streamed for nonblocking behavior.
 export type ChildProcessStream = setmetatable<{
+	--> stream:read(count: number?, timeout: number?): string?
 	--[=[
-		Reads any available bytes in the stream, returning the bytes read as a Luau string without any intermediate utf-8 conversion.
+		Reads up to `count` bytes from the stream for up to `timeout` seconds, retrying while the stream remains empty.
 
-		If the stream is empty, returns `nil`.
+		- If `count` is unspecified or nil, reads the entire stream instead of stopping at `count` bytes.
+		- If `timeout` is unspecified or nil, keeps retrying *forever* while the stream is empty and the reader is still alive.
+		- If `timeout > 0`, keeps retrying for `timeout` seconds while the stream is empty and the reader is still alive.
 
-		This function does not block! This means it won't wait for new data to become available; use `:read_await` to block the VM until data is available.
+		### Returns
+
+		Returns as soon as anything gets written to the stream, consuming and returning the available bytes without
+		any intermediate utf8 coercion/validation. Returns `nil` if `timeout` seconds elapse and the stream remains empty.
+
+		If you want to wait until a specific number of bytes are available, use `:read_exact` instead.
+
+		### Blocks
+
+		Blocks the current VM until the stream's not empty, `timeout` seconds elapse, or the reader thread exits.
+		
+		To prevent this function from blocking, pass a `timeout` of 0 seconds!
 
 		## Usage
 
+		Keep reading until data appears (default behavior):
 		```luau
-		local watcher = process.spawn {
-			program = "somewatcher",
-			args = { somefile }
-		}
+		local first_message = child.stdout:read() :: string
+		print(first_message)
+		```
+		Read the first 256 bytes once data appears:
+		```luau
+		local first_part = child.stdout:read(256) :: string
+		```
+		Get everything currently in the stream without blocking:
+		```luau
+		local current_data = child.stdout:read(nil, 0.0)
+		```
+	]=]
+	read: (self: ChildProcessStream, count: number?, timeout: number?) -> string?,
+	--> stream:read_exact(count: number, timeout: number?): string?
+	--[=[
+		Reads exactly `count` bytes from the stream, retrying until `count` bytes are available or `timeout` seconds elapse.
 
-		while watcher:alive() do
-			local content = watcher.stdout:read()
-			if content then
-				print(`got {content}!`)
+		Bytes are not consumed from the stream until exactly `count` bytes are available.
+
+		- If `timeout` is unspecified or nil, keeps retrying *forever* while the stream is empty and the reader is still alive.
+		- If `timeout > 0`, keeps retrying for `timeout` seconds while the stream is empty and the reader is still alive.
+
+		### Returns
+
+		A string of exactly `count` length without any intermediate utf-8 coercion/validation, or `nil` if exactly `count` bytes couldn't be read from the stream.
+
+		### Blocks
+
+		Blocks the current VM until `count` bytes are found, `timeout` seconds elapse, or the reader thread exits.
+		
+		Pass a timeout of `0` seconds to make this function nonblocking.
+
+		## Usage
+		
+		Read exactly 512 bytes as soon as 512 bytes are available:
+		
+		```luau
+		local first_512 = child.stdout:read_exact(512)
+		```
+
+		Read from both streams every 0.5 seconds, byte by byte, without otherwise blocking the VM:
+
+		```luau
+		local stdout_chars: { string } = {}
+		local stderr_chars: { string } = {}
+		while time.wait(0.5) and child:alive() do
+			local stdout_char = child.stdout:read_exact(1, 0.0)
+			if stdout_char then
+				table.insert(stdout_chars, stdout_char)
+			end
+			local stderr_char = child.stderr:read_exact(1, 0.0)
+			if stderr_char then
+				table.insert(stderr_chars, stderr_char)
 			end
 		end
 		```
-
-		To read into a buffer (to build up strings without concatenation overhead), use `:readbytes` instead.
-
-		To keep trying to read until content is available, use `:read_await`.
-
-		To keep reading until a specific token is found (such as trying to read til the next ','), use `:read_to`
 	]=]
-	read: (self: ChildProcessStream) -> string?,
+	read_exact: (self: ChildProcessStream, count: number, timeout: number?) -> string?,
+	--> stream:read_to(term: string, inclusive: boolean?, timeout: number?, allow_partial: boolean?): string?
 	--[=[
-		Keeps trying to read from the stream until content is available, blocking the Luau VM for up to `timeout` seconds if specified, otherwise indefinitely.
-
-		If `count` is unspecified or nil, automatically retries `:read` until the stream is nonempty.
-
-		If `count` is specified, reads up to `count` bytes from the stream, blocking the Luau VM until `count` bytes are available or `timeout` seconds elapse.
-
-		If `timeout` seconds elapse and the stream is empty, returns an empty string `""` instead of `nil`.
-	]=]
-	read_await: (self: ChildProcessStream, count: number?, timeout: number?) -> string,
-	--[=[
-		Reads exactly `count` bytes from the stream, almost never blocking the current VM (Rust Thread) unless a `duration` is provided.
-
-		If fewer than `count` bytes are available in the stream, this function returns `nil` and zero bytes are consumed (you can try again later).
-
-		If a `duration` (in seconds) is provided, blocks the current VM for exactly `duration` before reading, allowing for enough time
-		to read new data to the stream.
-
-		Returns the byte(s) read as a Luau string (without any intermediate utf-8 conversion); to read into a buffer instead, use `:readbytes_exact`.
-	]=]
-	read_exact: (self: ChildProcessStream, count: number, duration: number?) -> string?,
-	--[=[
-		Keep reading from the stream until the search `term` is first encountered.
-
+		Keep reading from the stream until search `term` is encountered. This is especially useful if you're trying to read line-by-line,
+		or until a specific delimiter is encountered.
+		
 		By default, blocks the current VM (Rust Thread) until `term` is found, and doesn't consume any bytes from the stream until `term` is found.
 
-		If `term` is an empty string, reads from the stream until the process exits ("read to end" behavior).
+		- If `inclusive == true`, includes `term` with the resulting string, otherwise strips it from the result.
+		- If `timeout` is specified, `allow_partial` is unspecified or false, and `term` isn't found before `timeout` seconds elapse, returns `nil` without consuming any bytes from the stream.
+		- If `timeout` is specified, `allow_partial` is true, and `term` isn't found before `timeout` seconds elapse, consumes and returns the entire contents of the stream.
+		- `allow_partial` doesn't do anything if `timeout` is unspecified.
+		
+		### Returns
 
-		If `inclusive == true`, includes `term` with the resulting string, otherwise strips it from the result.
+		The stream's contents without any intermediate utf8 conversion/validation.
+		Returns `nil` if `timeout` elapses and the search term hasn't been found.
 
-		If `timeout` is specified, `allow_partial` is unspecified or false, and `term` isn't found before `timeout` seconds elapse, returns `nil` without consuming any bytes from the stream.
+		### Blocks
 
-		If `timeout` is specified, `allow_partial` is true, and `term` isn't found before `timeout` seconds elapse, consumes and returns the entire contents of the stream.
-
-		`allow_partial` doesn't do anything if `timeout` is unspecified.
+		Blocks the current VM until `term` is found, `timeout` seconds elapse, or the reader thread exits.
 	]=]
 	read_to: (self: ChildProcessStream, term: string, inclusive: boolean?, timeout: number?, allow_partial: boolean?) -> string?,
+	--> stream:fill(target: buffer, target_offset: number?, timeout: number?): number
 	--[=[
-		Reads any available bytes in the stream to the target buffer at `offset` (default 0), until zero bytes are left in the stream or the buffer is full.
+		Fill the `target` buffer with as many bytes as possible from the stream. Retries until the stream is nonempty or `timeout` seconds elapse.
+	
+		- `target_offset` defaults to `0` if unspecified or nil.
+		
+		### Returns
 
-		If any bytes were read successfully, returns the number of bytes read, otherwise returns nil.
+		The number of bytes successfully consumed from the stream and read into the `target` buffer.
 
-		This function will almost never block unless a `duration` is specified; if one is, it'll block the current VM for exactly `duration`.
+		This function returns as soon as anything is written to the stream; use `:fill_exact` instead to return as soon as a specific number
+		of bytes are available in the stream.
+
+		### Errors
+
+		- If `target_offset` is greater than the buffer's length.
+
+		This function should not overfill the target buffer! A maximum of `buffer.len(target) - buffer_offset` bytes should be consumed.
 
 		## Usage
 
 		```luau
-		local result = buffer.create(1024)
+		local buffy = buffer.create(1024)
 		local offset = 0
 		while child:alive() and offset < 1024 do
-			local count = child.stdout:readbytes(result, offset)
-			if count then
-				offset += count
-			end
+			local count = child.stdout:fill(buffy, offset)
+			offset += count
 		end
-		print(buffer.tostring(result))
 		```
-		Errors if offset >= the target buffer's length to prevent overfilling the target buffer
 	]=]
-	readbytes: (self: ChildProcessStream, target: buffer, offset: number?, duration: number?) -> number?,
+	fill: (self: ChildProcessStream, target: buffer, target_offset: number?, timeout: number?) -> number,
+	--> stream:fill_exact(count: number, target: buffer, target_offset: number?, timeout: number?): boolean
 	--[=[
-		Reads exactly `count` bytes into `target` at `offset` (default 0), consuming the bytes only when successfully read.
+		Read exactly `count` bytes into the `target` buffer at `target_offset`, retrying until `count` bytes are available or `timeout` seconds elapse.
 
-		If `duration` is set, blocks the current VM for exactly `duration` seconds before reading from the stream.
-		This allows the writer time to add more data into the stream.
+		- `target_offset` defaults to `0` if unspecified or nil.
 
-		Returns `success`, representing whether any data was written into the target buffer, and `remaining`, an optional number
-		representing how many bytes are left in the stream:
+		### Returns
 
-		- `(success: false, remaining: nil)` if the stream is empty,
-		- `(success: false, remaining: number)` if the stream isn't empty but fewer than `count` bytes are available,
-		- `(success: true, remaining: number)` if `count` bytes were successfully written to the stream, and `remaining` bytes are still available,
-		- `(success: true, remaining: nil)` if `count` bytes were successfully written to the buffer, and the stream is now empty.
+		`true` if `count` bytes were successfully read and consumed from the stream, `false` otherwise.
 
-		This function has the same just-spawned blocking behavior as :read, ensuring there's something to read upon spawning a child process.
-		Disable this by explicitly passing 0.0 as the `duration`.
+		### Errors
+
+		- If `target_offset` + `count` > buffer length - 1; this usually means a logic bug. Remember to clamp your offsets!
+
+		### Blocks
+
+		Blocks the current VM until `count` bytes are available in the stream or `timeout` seconds elapse.
+
+		Pass a `timeout` of `0` seconds to prevent this function from blocking!
 	]=]
-	readbytes_exact: (self: ChildProcessStream, count: number, target: buffer, offset: number?, duration: number?) -> (boolean, number?),
+	fill_exact: (self: ChildProcessStream, count: number, target: buffer, target_offset: number?, timeout: number?) -> boolean,
+	--> stream:len(): number
+	--- Returns the current length/size of the stream's inner buffer.
+	len: (self: ChildProcessStream) -> number,
+	--> stream:capacity(): number
+	--- Returns the maximum capacity of the stream's inner buffer.
+	capacity: (self: ChildProcessStream) -> number,
+	--> for line in stream:lines(timeout: number?)
 	--[=[
 		Iterate over the lines in the stream, blocking the current VM (Rust Thread) until all lines are read or the timeout has been reached.
 
@@ -230,9 +287,9 @@ export type ChildProcessStream = setmetatable<{
 		```
 	]=]
 	lines: (self: ChildProcessStream, timeout: number?) -> (() -> string),
-	-- advanced methods:
+	--> for message in stream:iter(timeout: number?, write_delay_ms: number?)
 	--[=[
-		Iterate over the stream with the same semantics as generalized iteration, except with more granular options:
+		Iterate over the stream with more granular options:
 
 		To prevent nonterminating iteration without an explicit `break`, you can provide a `timeout`, which stops iteration
 		when new data hasn't been seen for `timeout` seconds.
@@ -240,17 +297,19 @@ export type ChildProcessStream = setmetatable<{
 		When iteration attempts to read from an empty stream, it waits `write_delay_ms` milliseconds (default 5) before trying again.
 		Increase this value if you see weird chunking behavior (you want to see more data each iteration),
 		or decrease this value if your child process outputs quickly and you want iteration to go faster.
-	]=]
-	iter: (self: ChildProcessStream, timeout: number?, write_delay_ms: number?) -> (() -> string),
-	-- reflection options
-	--- Returns the current size/length of the inner buffer
-	size: (self: ChildProcessStream) -> number,
-	--- Returns the maximum capacity of the inner buffer, after which bytes will be truncated
-	capacity: (self: ChildProcessStream) -> number,
-}, {
-	__iter: (self: ChildProcessStream) -> () -> string
-}>
 
+		This function does *not* strip preceding '\r's and trailing '\n's (unlike `:lines()` and generalized iteration).
+	]=]
+	iter: (self: ChildProcessStream, timeout: number?, write_delay_ms: number?) -> () -> string,
+}, {
+	--> for line in stream
+	--[=[
+		Iterate over the lines of the `ChildProcessStream` with generalized iteration, blocking until `break` or the reader thread exits.
+
+		Basically equivalent to `ChildProcessStream:lines()` except with generalized iteration you can't specify a `timeout`.
+	]=]
+	__iter: (self: ChildProcessStream) -> () -> string,
+}>
 
 type ChildProcessStdin = {
 	write: (self: ChildProcessStdin, data: string) -> nil
@@ -260,8 +319,8 @@ export type ChildProcess = {
 	id: number,
 	alive: (self: ChildProcess) -> boolean,
 	kill: (self: ChildProcess) -> (),
-	stdout: ChildProcessStream2,
-	stderr: ChildProcessStream2,
+	stdout: ChildProcessStream,
+	stderr: ChildProcessStream,
 	stdin: ChildProcessStdin,
 }
 
@@ -344,234 +403,5 @@ type process = {
 	setexitcallback: ((number) -> ()) -> (),
 	exit: (code: number?) -> never,
 }
-
-export type ChildProcessStream2 = setmetatable<{
-	--> stream:read(count: number?, timeout: number?): string?
-	--[=[
-		Reads up to `count` bytes from the stream for up to `timeout` seconds, retrying while the stream remains empty.
-
-		- If `count` is unspecified or nil, reads the entire stream instead of stopping at `count` bytes.
-		- If `timeout` is unspecified or nil, keeps retrying *forever* while the stream is empty and the reader is still alive.
-		- If `timeout > 0`, keeps retrying for `timeout` seconds while the stream is empty and the reader is still alive.
-
-		### Returns
-
-		Returns as soon as anything gets written to the stream, consuming and returning the available bytes without
-		any intermediate utf8 coercion/validation. Returns `nil` if `timeout` seconds elapse and the stream remains empty.
-
-		If you want to wait until a specific number of bytes are available, use `:read_exact` instead.
-
-		### Blocks
-
-		Blocks the current VM until the stream's not empty, `timeout` seconds elapse, or the reader thread exits.
-		
-		To prevent this function from blocking, pass a `timeout` of 0 seconds!
-
-		## Usage
-
-		Keep reading until data appears (default behavior):
-		```luau
-		local first_message = child.stdout:read() :: string
-		print(first_message)
-		```
-		Read the first 256 bytes once data appears:
-		```luau
-		local first_part = child.stdout:read(256) :: string
-		```
-		Get everything currently in the stream without blocking:
-		```luau
-		local current_data = child.stdout:read(nil, 0.0)
-		```
-	]=]
-	read: (self: ChildProcessStream2, count: number?, timeout: number?) -> string?,
-	--> stream:read_exact(count: number, timeout: number?): string?
-	--[=[
-		Reads exactly `count` bytes from the stream, retrying until `count` bytes are available or `timeout` seconds elapse.
-
-		Bytes are not consumed from the stream until exactly `count` bytes are available.
-
-		- If `timeout` is unspecified or nil, keeps retrying *forever* while the stream is empty and the reader is still alive.
-		- If `timeout > 0`, keeps retrying for `timeout` seconds while the stream is empty and the reader is still alive.
-
-		### Returns
-
-		A string of exactly `count` length without any intermediate utf-8 coercion/validation, or `nil` if exactly `count` bytes couldn't be read from the stream.
-
-		### Blocks
-
-		Blocks the current VM until `count` bytes are found, `timeout` seconds elapse, or the reader thread exits.
-		
-		Pass a timeout of `0` seconds to make this function nonblocking.
-
-		## Usage
-		
-		Read exactly 512 bytes as soon as 512 bytes are available:
-		
-		```luau
-		local first_512 = child.stdout:read_exact(512)
-		```
-
-		Read from both streams every 0.5 seconds, byte by byte, without otherwise blocking the VM:
-
-		```luau
-		local stdout_chars: { string } = {}
-		local stderr_chars: { string } = {}
-		while time.wait(0.5) and child:alive() do
-			local stdout_char = child.stdout:read_exact(1, 0.0)
-			if stdout_char then
-				table.insert(stdout_chars, stdout_char)
-			end
-			local stderr_char = child.stderr:read_exact(1, 0.0)
-			if stderr_char then
-				table.insert(stderr_chars, stderr_char)
-			end
-		end
-		```
-	]=]
-	read_exact: (self: ChildProcessStream2, count: number, timeout: number?) -> string?,
-	--> stream:read_to(term: string, inclusive: boolean?, timeout: number?, allow_partial: boolean?): string?
-	--[=[
-		Keep reading from the stream until search `term` is encountered. This is especially useful if you're trying to read line-by-line,
-		or until a specific delimiter is encountered.
-		
-		By default, blocks the current VM (Rust Thread) until `term` is found, and doesn't consume any bytes from the stream until `term` is found.
-
-		- If `inclusive == true`, includes `term` with the resulting string, otherwise strips it from the result.
-		- If `timeout` is specified, `allow_partial` is unspecified or false, and `term` isn't found before `timeout` seconds elapse, returns `nil` without consuming any bytes from the stream.
-		- If `timeout` is specified, `allow_partial` is true, and `term` isn't found before `timeout` seconds elapse, consumes and returns the entire contents of the stream.
-		- `allow_partial` doesn't do anything if `timeout` is unspecified.
-		
-		### Returns
-
-		The stream's contents without any intermediate utf8 conversion/validation.
-		Returns `nil` if `timeout` elapses and the search term hasn't been found.
-
-		### Blocks
-
-		Blocks the current VM until `term` is found, `timeout` seconds elapse, or the reader thread exits.
-	]=]
-	read_to: (self: ChildProcessStream2, term: string, inclusive: boolean?, timeout: number?, allow_partial: boolean?) -> string?,
-	--> stream:fill(target: buffer, target_offset: number?, timeout: number?): number
-	--[=[
-		Fill the `target` buffer with as many bytes as possible from the stream. Retries until the stream is nonempty or `timeout` seconds elapse.
-	
-		- `target_offset` defaults to `0` if unspecified or nil.
-		
-		### Returns
-
-		The number of bytes successfully consumed from the stream and read into the `target` buffer.
-
-		This function returns as soon as anything is written to the stream; use `:fill_exact` instead to return as soon as a specific number
-		of bytes are available in the stream.
-
-		### Errors
-
-		- If `target_offset` is greater than the buffer's length.
-
-		This function should not overfill the target buffer! A maximum of `buffer.len(target) - buffer_offset` bytes should be consumed.
-
-		## Usage
-
-		```luau
-		local buffy = buffer.create(1024)
-		local offset = 0
-		while child:alive() and offset < 1024 do
-			local count = child.stdout:fill(buffy, offset)
-			offset += count
-		end
-		```
-	]=]
-	fill: (self: ChildProcessStream2, target: buffer, target_offset: number?, timeout: number?) -> number,
-	--> stream:fill_exact(count: number, target: buffer, target_offset: number?, timeout: number?): boolean
-	--[=[
-		Read exactly `count` bytes into the `target` buffer at `target_offset`, retrying until `count` bytes are available or `timeout` seconds elapse.
-
-		- `target_offset` defaults to `0` if unspecified or nil.
-
-		### Returns
-
-		`true` if `count` bytes were successfully read and consumed from the stream, `false` otherwise.
-
-		### Errors
-
-		- If `target_offset` + `count` > buffer length - 1; this usually means a logic bug. Remember to clamp your offsets!
-
-		### Blocks
-
-		Blocks the current VM until `count` bytes are available in the stream or `timeout` seconds elapse.
-
-		Pass a `timeout` of `0` seconds to prevent this function from blocking!
-	]=]
-	fill_exact: (self: ChildProcessStream2, count: number, target: buffer, target_offset: number?, timeout: number?) -> boolean,
-	--> stream:len(): number
-	--- Returns the current length/size of the stream's inner buffer.
-	len: (self: ChildProcessStream2) -> number,
-	--> stream:capacity(): number
-	--- Returns the maximum capacity of the stream's inner buffer.
-	capacity: (self: ChildProcessStream2) -> number,
-	--> for line in stream:lines(timeout: number?)
-	--[=[
-		Iterate over the lines in the stream, blocking the current VM (Rust Thread) until all lines are read or the timeout has been reached.
-
-		If a `timeout` is specified, `:lines()` will stop iterating once a line hasn't been seen for `timeout` seconds, allowing you to
-		early-interrupt when new data hasn't been seen for a while.
-
-		Unlike `:iter`, this method cleans up `\r` prefixes and trailing `\n`s.
-
-		## Usage
-
-		### In a loop:
-
-		```luau
-		local process = require("@std/process")
-		local child = process.spawn({
-			program = "someutil --watch",
-			shell = "sh",
-		})
-
-		for line in child.stdout:lines() do
-			local thing_changed = line:match("([%w]+) changed!")
-			print(`Change detected: {thing_changed}`)
-		end
-		```
-
-		### As iterator:
-
-		```luau
-		local process = require("@std/process")
-		local child = process.spawn {
-			program = "somewatcher --watch",
-			shell = "sh",
-		}
-
-		local next_line = child.stdout:lines()
-		local first_line = next_line()
-		local second_line = next_line()
-		```
-	]=]
-	lines: (self: ChildProcessStream2, timeout: number?) -> (() -> string),
-	--> for message in stream:iter(timeout: number?, write_delay_ms: number?)
-	--[=[
-		Iterate over the stream with more granular options:
-
-		To prevent nonterminating iteration without an explicit `break`, you can provide a `timeout`, which stops iteration
-		when new data hasn't been seen for `timeout` seconds.
-
-		When iteration attempts to read from an empty stream, it waits `write_delay_ms` milliseconds (default 5) before trying again.
-		Increase this value if you see weird chunking behavior (you want to see more data each iteration),
-		or decrease this value if your child process outputs quickly and you want iteration to go faster.
-
-		This function does *not* strip preceding '\r's and trailing '\n's (unlike `:lines()` and generalized iteration).
-	]=]
-	iter: (self: ChildProcessStream2, timeout: number?, write_delay_ms: number?) -> () -> string,
-}, {
-	--> for line in stream
-	--[=[
-		Iterate over the lines of the `ChildProcessStream` with generalized iteration, blocking until `break` or the reader thread exits.
-
-		Basically equivalent to `ChildProcessStream:lines()` except with generalized iteration you can't specify a `timeout`.
-	]=]
-	__iter: (self: ChildProcessStream2) -> () -> string,
-}>
 
 return {} :: process

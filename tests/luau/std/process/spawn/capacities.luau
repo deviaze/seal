@@ -60,7 +60,7 @@ restrictedcapacity()
 
 local function truncatebackactuallytruncatesback()
     local child, poem_path = spawn_poem(62, 0, "back")
-    time.wait(0.2)
+    time.wait(0.6)
     local current_size = child.stdout:len()
     assert(current_size == 62, `inner should be fully full by now, got: {current_size}`)
     local text = child.stdout:read()

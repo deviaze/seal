@@ -157,7 +157,7 @@ while (os.clock() - start_time) < 20 do
                 local ignored_in_this_file = tests.ignored_functions_by_path[test_path]
                 if ignored_in_this_file then
                     for function_name, info in ignored_in_this_file do
-                        print(`    ⚠️  test case '{function_name}' ignored due to reason: {info.reason}`)
+                        print(`    ⚠️  test case '{info.function_name}' ignored due to reason: {info.reason}`)
                     end
                 end
             end
