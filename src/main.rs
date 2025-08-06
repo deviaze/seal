@@ -70,7 +70,7 @@ enum SealCommand {
     CommandHelp(Box<SealCommand>),
     HelpCommandHelp,
     SealConfigHelp,
-    /// `seal test` (runs test_path from sealconfig.luau)
+    /// `seal test` (runs test_path from config.luau)
     Test,
     Version,
     /// not yet implemented
@@ -198,14 +198,14 @@ fn seal_eval(mut args: Args) -> LuauLoadResult {
 }
 
 /// seal run basically just tries to run the entrypoint of the codebase if present
-/// defaulting to ./src/main.luau and optionally specified/overriden in a .seal/sealconfig.luau
+/// defaulting to ./src/main.luau and optionally specified/overriden in a .seal/config.luau
 fn seal_run() -> LuauLoadResult {
     let function_name = "seal run";
     let luau = Lua::default();
     let entry_path = match SealConfig::read(&luau, None, function_name)? {
         Some(config) => config.entry_path,
         None => {
-            return wrap_err!("{}: no .seal/sealconfig.luau located upwards of your cwd; \
+            return wrap_err!("{}: project missing .seal/config.luau and src/main.luau (default entry_path); \
             use seal ./filename.luau to run a specific file", function_name);
         },
     };
@@ -219,7 +219,7 @@ fn seal_test() -> LuauLoadResult {
     let test_path = match SealConfig::read(&luau, None, function_name)? {
         Some(config) => config.test_path,
         None => {
-            return wrap_err!("{}: no .seal/sealconfig.luau located upwards of your cwd; \
+            return wrap_err!("{}: no .seal/config.luau located upwards of your cwd; \
             use seal ./filename.luau to run a specific file", function_name);
         },
     };
@@ -227,7 +227,7 @@ fn seal_test() -> LuauLoadResult {
         globals::set_globals(&luau, test_path.clone())?;
         resolve_file(test_path, function_name)
     } else {
-        wrap_err!("{}: attempt to test a project without a 'test_path' field set in .seal/sealconfig.luau", function_name)
+        wrap_err!("{}: attempt to test a project without a 'test_path' field set in .seal/config.luau", function_name)
     }
 }
 

@@ -77,7 +77,7 @@ function help.default()
 		`  { command("setup", "s", "BOLD_CYAN")} {DIM_DASH} a new project in your current directory; sets up all you need to get started with seal.`,
 		`  { command("eval ", "e", "BOLD_RED")}  '{req "src"}'    {DIM_DASH} evaluate luau code from a string, right in your terminal.`,
 		`  { command("run  ", "r", "BOLD_GREEN")}  {opt "...args"}  {DIM_DASH} run the {colors.bold.white("current project")} at its entrypoint; similar to { code "cargo run"} in Rust.`,
-		`  { command("test ", "t", "BRIGHT_GREEN")}  {opt "...args"}  {DIM_DASH} runs 'test_path' from your { code ".seal/sealconfig.luau"}.`,
+		`  { command("test ", "t", "BRIGHT_GREEN")}  {opt "...args"}  {DIM_DASH} runs 'test_path' from your { code ".seal/config.luau"}.`,
 		`  { command("help ", "h", "BOLD_WHITE")}  {opt "command"}  {DIM_DASH} display help, of a specific command if specified.`,
 		"",
 		colors.bold.magenta("Flags:"),
@@ -109,9 +109,9 @@ function help.run()
 		colors.bold.white("Usage:") .. dim(" <angled> = required, [square] = optional"),
 		`  {colors.bold.blue("seal")} {colors.bold.green("run")} {opt "...args"}` .. `{DIM_DASH} run the current project at its entrypoint (default ./src/main.luau)`,
 		colors.bold.white("Info:"),
-		`  To configure the project's entrypoint, edit the 'entry_path' field of {code "./.seal/sealconfig.luau"}.`,
+		`  To configure the project's entrypoint, edit the 'entry_path' field of {code "./.seal/config.luau"}.`,
 		`  If you don't have a .seal folder yet, run {code "seal setup"} to generate one in your current directory.`,
-		`  For more info on sealconfig.luau, run {code "seal help config"}`,
+		`  For more info on config.luau, run {code "seal help config"}`,
 		END_LINE
 	)
 end
@@ -122,7 +122,7 @@ function help.test()
 		colors.bold.white("Usage:") .. dim(" <angled> = required, [square] = optional"),
 		`  {colors.bold.blue("seal")} {colors.bold.green("test")} {opt "...args"} {DIM_DASH} test the current project at its test_path`,
 		colors.bold.white("Info:"),
-		`  Configure your test_path in ./.seal/sealconfig.luau`,
+		`  Configure your test_path in ./.seal/config.luau`,
 		END_LINE
 	)
 end
@@ -143,7 +143,7 @@ function help.setup()
 		`    {DIM_DASH} {colors.bold.white("./src/main.luau")} {DIM_DASH} a place to get started on your code (run it with {code "seal run"})`,
 		`    {DIM_DASH} {colors.bold.blue(".seal")} {DIM_DASH} a seal folder`,
 		`      {DIM_DASH} {colors.bold.white("typedefs")} {DIM_DASH} type definitions and documentation for seal and its stdlibs!`,
-		`      {DIM_DASH} {colors.bold.blue("sealconfig.luau")} {DIM_DASH} configure the entrypoint of your project, test path, and other settings.`,
+		`      {DIM_DASH} {colors.bold.blue("config.luau")} {DIM_DASH} configure the entrypoint of your project, test path, and other settings.`,
 		`      {DIM_DASH} {colors.bold.magenta("guided_tour.luau")} {DIM_DASH} a cookbook for the most common things you might want to accomplish with seal!`,
 		`      {DIM_DASH} {colors.bold.yellow("@extra")} {DIM_DASH} common libraries you might want that aren't covered in the stdlib; you can modify these.`,
 		`    {DIM_DASH} {colors.bold.red(".git")} {DIM_DASH} creates git repository for you if one doesn't exist.`
@@ -154,7 +154,7 @@ function help.config()
 	return format_lines(
 		TAGLINE,
 		colors.bold.white("Info:"),
-		` {DIM_DASH} found at {code "./.seal/sealconfig.luau"}`,
+		` {DIM_DASH} found at {code "./.seal/config.luau"}`,
 		` {DIM_DASH} valid fields are located in the SealConfig typedef`,
 		END_LINE
 	)
