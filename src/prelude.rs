@@ -24,6 +24,18 @@ pub fn ok_buffy<B: AsRef<[u8]>>(b: B, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::Buffer(luau.create_buffer(b)?))
 }
 
+pub fn pop_self(multivalue: &mut LuaMultiValue, function_name: &'static str) -> LuaEmptyResult {
+    match multivalue.pop_front() {
+        Some(LuaValue::Table(_s)) => Ok(()),
+        Some(other) => {
+            wrap_err!("{} expected to be called with self, got: {:?}; did you forget to use methodcall syntax (:)?", function_name, other)
+        },
+        None => {
+            wrap_err!("{} incorrectly called with zero arguments, expected self", function_name)
+        }
+    }
+}
+
 pub struct DebugInfo {
     pub source: String,
     pub line: String,
@@ -66,5 +78,67 @@ impl DebugInfo {
         };
 
         Ok(Self { source, line, function_name })
+    }
+}
+
+
+/// safely convert i64 to usize while handling common problems like negatives and out of ranges
+pub fn int_to_usize(i: i64, function_name: &str, parameter_name: &'static str) -> LuaResult<usize> {
+    if i.is_negative() {
+        return wrap_err!("{}: {} represents a byte offset and cannot be negative (got {})", function_name, parameter_name, i);
+    }
+    match usize::try_from(i) {
+        Ok(u) => Ok(u),
+        Err(err) => {
+            wrap_err!("{}: {} can't safely be converted from i64 to usize because {}", function_name, parameter_name, err)
+        }
+    }
+}
+
+pub fn int_to_u64(i: i64, function_name: &'static str, parameter_name: &'static str) -> LuaResult<u64> {
+    if i.is_negative() {
+        return wrap_err!("{}: {} must be positive (got: {})", function_name, parameter_name, i);
+    }
+    match u64::try_from(i) {
+        Ok(u) => Ok(u),
+        Err(err) => {
+            wrap_err!("{}: {} can't safely be converted from i64 to u64 because {}", function_name, parameter_name, err)
+        }
+    }
+}
+
+/// safely convert float param to usize, giving a good error reason if it didn't successfully convert
+pub fn float_to_usize(f: f64, function_name: &'static str, parameter_name: &'static str) -> LuaResult<usize> {
+    let truncated = f.trunc();
+    if truncated.is_nan() || truncated.is_infinite() {
+        wrap_err!("{}: {} cannot be NaN nor infinite", function_name, parameter_name)
+    } else if truncated.is_sign_negative() {
+        wrap_err!("{}: {} represents a byte offset and cannot be negative (got: {})", function_name, parameter_name, truncated)
+    } else if truncated > usize::MAX as f64 {
+        wrap_err!("{}: expected {} to be convertible into usize, however provided float is too big to fit (got: {})", function_name, parameter_name, f)
+    } else if truncated == f {
+        // SAFETY: we just checked nan/infinite/size/negative right above
+        let i = unsafe { truncated.to_int_unchecked() };
+        int_to_usize(i, function_name, parameter_name)
+    } else {
+        wrap_err!("{} expected {} to be an integer number, unexpectedly got a float: {}", function_name, parameter_name, f)
+    }
+}
+
+/// safely convert float param to u64, giving a good error reason if conversion wasn't successful
+pub fn float_to_u64(f: f64, function_name: &'static str, parameter_name: &'static str) -> LuaResult<u64> {
+    let truncated = f.trunc();
+    if truncated.is_nan() || truncated.is_infinite() {
+        wrap_err!("{}: {} cannot be NaN nor infinite", function_name, parameter_name)
+    } else if truncated.is_sign_negative() {
+        wrap_err!("{}: {} cannot be negative (got: {})", function_name, parameter_name, f)
+    } else if truncated > u64::MAX as f64 {
+        wrap_err!("{} expected {} to be convertible to u64, but provided float is too big to fit (got: {})", function_name, parameter_name, f)
+    } else if truncated == f {
+        // SAFETY: just checked nan/infinite/size/negative right above
+        let u: u64 = unsafe { truncated.to_int_unchecked() };
+        Ok(u)
+    } else {
+        wrap_err!("{} expected {} to be an integer, unexpectedly got a float: {}", function_name, parameter_name, f)
     }
 }

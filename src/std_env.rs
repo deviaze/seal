@@ -27,20 +27,18 @@ pub fn get_current_shell() -> String {
         let powershell_cmd = "powershell";
         
         // check if regular powershell installed bc pwsh 7 blows up
-        if let Ok(output) = Command::new("where").arg(powershell_cmd).output() {
-            if output.status.success() {
+        if let Ok(output) = Command::new("where").arg(powershell_cmd).output()
+            && output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 return path;
             }
-        }
         
         // check if new/oss/powershell 7 installed; it might blow up with threading error tho
-        if let Ok(output) = Command::new("where").arg(pwsh_cmd).output() {
-            if output.status.success() {
+        if let Ok(output) = Command::new("where").arg(pwsh_cmd).output()
+            && output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 return path;
             }
-        }
         // fallback to cmd
         if let Ok(shell_path) = env::var("ComSpec") {
             eprintln!("get_current_shell falling to back to cmd.exe; please set $SHELL");

@@ -1,12 +1,17 @@
 use core::str;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::cell::RefCell;
+use std::fmt::Debug;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
-// use std::thread;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
+use crate::prelude::*;
+use crate::std_env;
 use mluau::prelude::*;
-use crate::{std_env, colors, table_helpers::TableBuilder, wrap_err, LuaValueResult, ok_table};
+
+mod stream;
+use stream::{Stream, TruncateSide};
 
 #[derive(Debug)]
 enum Shell {
@@ -23,10 +28,7 @@ enum Shell {
 
 impl From<String> for Shell {
     fn from(s: String) -> Self {
-        let shell_name = Path::new(&s)
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or(&s); // If file_name fails, fall back to the original
+        let shell_name = Path::new(&s).file_name().and_then(|name| name.to_str()).unwrap_or(&s); // If file_name fails, fall back to the original
 
         match shell_name {
             "pwsh" => Shell::Pwsh,
@@ -63,25 +65,28 @@ impl Shell {
     }
 }
 
+/// Represents process lib's `RunOptions` and `SpawnOptions` and I don't feel like making this an enum
 #[derive(Debug)]
-struct RunOptions {
+struct ProcessOptions {
     program: String,
     args: Option<Vec<String>>,
     shell: Option<Shell>,
     cwd: Option<PathBuf>,
+    stdout_capacity: Option<usize>,
+    stderr_capacity: Option<usize>,
+    stdout_truncate: Option<TruncateSide>,
+    stderr_truncate: Option<TruncateSide>,
 }
 
-impl RunOptions {
+impl ProcessOptions {
     fn from_table(luau: &Lua, run_options: LuaTable) -> LuaResult<Self> {
         let program = match run_options.raw_get("program")? {
-            LuaValue::String(program) => {
-                program.to_string_lossy()
-            },
+            LuaValue::String(program) => program.to_string_lossy(),
             LuaValue::Nil => {
-                return wrap_err!("RunOptions missing field `program`; expected string, got nil");
-            },
+                return wrap_err!("SpawnOptions/RunOptions missing field `program`; expected string, got nil");
+            }
             other => {
-                return wrap_err!("RunOptions.program expected to be a string, got: {:#?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.program expected to be a string, got: {:#?}", other);
             }
         };
 
@@ -91,26 +96,20 @@ impl RunOptions {
                 // let's trim the whitespace just to make sure we pass valid args (untrimmed args might explode)
                 for s in rust_vec.iter_mut() {
                     *s = s.trim().to_string();
-                };
+                }
                 Some(rust_vec)
-            },
-            LuaValue::Nil => {
-                None
-            },
+            }
+            LuaValue::Nil => None,
             other => {
-                return wrap_err!("RunOptions.args expected to be {{string}} or nil, got: {:#?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.args expected to be {{string}} or nil, got: {:#?}", other);
             }
         };
 
         let shell = match run_options.raw_get("shell")? {
-            LuaValue::String(shell) => {
-                Some(Shell::from(shell.to_string_lossy()))
-            },
-            LuaValue::Nil => {
-                None
-            },
+            LuaValue::String(shell) => Some(Shell::from(shell.to_string_lossy())),
+            LuaValue::Nil => None,
             other => {
-                return wrap_err!("RunOptions.shell expected to be a string or nil, got: {:#?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.shell expected to be a string or nil, got: {:#?}", other);
             }
         };
 
@@ -122,25 +121,98 @@ impl RunOptions {
                 let canonicalized_cwd = match cwd_pathpuf.canonicalize() {
                     Ok(pathbuf) => pathbuf,
                     Err(err) => {
-                        return wrap_err!("RunOptions.cwd must be able to be canonicalized as an absolute path that currently exists on the filesystem; \
-                        canonicalization failed with err: {}", err);
+                        return wrap_err!(
+                            "SpawnOptions/RunOptions.cwd must be able to be canonicalized as an absolute path that currently exists on the filesystem; \
+                        canonicalization failed with err: {}",
+                            err
+                        );
                     }
                 };
                 Some(canonicalized_cwd)
-            },
+            }
             LuaNil => None,
             other => {
-                return wrap_err!("RunOpitons.cwd to be a string or nil, got: {:?}", other);
+                return wrap_err!("SpawnOptions/RunOptions.cwd expected to be a string or nil, got: {:?}", other);
             }
         };
 
-        Ok(RunOptions {
+        let (stdout_capacity, stderr_capacity, stdout_truncate, stderr_truncate) = match run_options.raw_get("stream")? {
+            LuaValue::Table(stream_table) => (
+                match stream_table.raw_get("stdout_capacity")? {
+                    LuaValue::Number(f) => float_to_usize(f, "SpawnOptions.capacity.stdout", "stdout")?,
+                    LuaValue::Integer(i) => int_to_usize(i, "SpawnOptions.capacity.stdout", "stdout")?,
+                    LuaNil => 2048_usize,
+                    other => {
+                        return wrap_err!("SpawnOptions.stream.stdout expected to be number or nil, got: {:?}", other);
+                    }
+                },
+                match stream_table.raw_get("stderr_capacity")? {
+                    LuaValue::Number(f) => float_to_usize(f, "SpawnOptions.capacity.stderr", "stderr")?,
+                    LuaValue::Integer(i) => int_to_usize(i, "SpawnOptions.capacity.stderr", "stderr")?,
+                    LuaNil => 1024_usize,
+                    other => {
+                        return wrap_err!("SpawnOptions.stream.stdout expected to be number or nil, got: {:?}", other);
+                    }
+                },
+                match stream_table.raw_get("stdout_truncate")? {
+                    LuaValue::String(t) => {
+                        let t = match t.to_str() {
+                            Ok(s) => s.to_string(),
+                            Err(_) => {
+                                return wrap_err!("SpawnOptions.stream.stdout_truncate must be \"front\" or \"back\", got an invalid utf-8 string (why)");
+                            }
+                        };
+                        match t.as_str() {
+                            "front" => TruncateSide::Front,
+                            "back" => TruncateSide::Back,
+                            other => {
+                                return wrap_err!("SpawnOptions.stream.stdout_truncate expected \"front\" or \"back\" (default \"front\"), got: {}", other);
+                            }
+                        }
+                    }
+                    LuaNil => TruncateSide::Front,
+                    other => {
+                        return wrap_err!("SpawnOptions.stream.stdout_truncate expected to be \"front\" or \"back\", got: {:?}", other);
+                    }
+                },
+                match stream_table.raw_get("stderr_truncate")? {
+                    LuaValue::String(t) => {
+                        let t = match t.to_str() {
+                            Ok(s) => s.to_string(),
+                            Err(_) => {
+                                return wrap_err!("SpawnOptions.stream.stderr_truncate must be \"front\" or \"back\", got an invalid utf-8 string (why)");
+                            }
+                        };
+                        match t.as_str() {
+                            "front" => TruncateSide::Front,
+                            "back" => TruncateSide::Back,
+                            other => {
+                                return wrap_err!("SpawnOptions.stream.stderr_truncate expected \"front\" or \"back\" (default \"front\"), got: {}", other);
+                            }
+                        }
+                    }
+                    LuaNil => TruncateSide::Front,
+                    other => {
+                        return wrap_err!("SpawnOptions.stream.stderr_truncate expected to be \"front\" or \"back\", got: {:?}", other);
+                    }
+                },
+            ),
+            LuaNil => (2048_usize, 1024_usize, TruncateSide::Front, TruncateSide::Front),
+            other => {
+                return wrap_err!("SpawnOptions.capacity expected to be a table or nil, got: {:?}", other);
+            }
+        };
+
+        Ok(ProcessOptions {
             program,
             args,
             shell,
             cwd,
+            stdout_capacity: Some(stdout_capacity),
+            stderr_capacity: Some(stderr_capacity),
+            stdout_truncate: Some(stdout_truncate),
+            stderr_truncate: Some(stderr_truncate),
         })
-        
     }
 }
 
@@ -153,7 +225,7 @@ fn run_result_unwrap_or(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueRe
         }
         None => {
             return wrap_err!("{} expected to be called with self; did you forget methodcall syntax (:)?", function_name);
-        },
+        }
     };
 
     let default_value: Option<LuaValue> = match multivalue.pop_front() {
@@ -162,7 +234,7 @@ fn run_result_unwrap_or(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueRe
         Some(LuaNil) => Some(LuaNil),
         Some(other) => {
             return wrap_err!("{}: expected default value to be a string (or a function that returns one), got: {:?}", function_name, other);
-        },
+        }
         None => None,
     };
 
@@ -170,18 +242,21 @@ fn run_result_unwrap_or(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueRe
         LuaValue::Boolean(b) => b,
         other => {
             return wrap_err!("{}: expected RunResult.ok to be a boolean, got: {:?}", function_name, other);
-        },
+        }
     };
 
     let stdout = if is_ok {
         match run_result.raw_get("stdout")? {
             LuaValue::String(s) => {
                 let Ok(s) = s.to_str() else {
-                    return wrap_err!("{}: stdout is not a valid utf-8 encoded string, use RunResult.stdout to get the raw stdout without attempting to trim/clean it", function_name);
+                    return wrap_err!(
+                        "{}: stdout is not a valid utf-8 encoded string, use RunResult.stdout to get the raw stdout without attempting to trim/clean it",
+                        function_name
+                    );
                 };
                 let s = s.trim_end();
                 LuaValue::String(luau.create_string(s)?)
-            },
+            }
             other => {
                 return wrap_err!("{} RunResult.stdout is not a string??: {:?}", function_name, other);
             }
@@ -189,17 +264,13 @@ fn run_result_unwrap_or(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueRe
     } else if let Some(default_value) = default_value {
         match default_value {
             LuaValue::String(d) => LuaValue::String(d),
-            LuaValue::Function(f) => {
-                match f.call::<LuaValue>(run_result) {
-                    Ok(LuaValue::String(default)) => {
-                        LuaValue::String(default)
-                    },
-                    Ok(other) => {
-                        return wrap_err!("{}: expected default value function to return string, got: {:?}", function_name, other);
-                    },
-                    Err(err) => {
-                        return wrap_err!("{}: default value function unexpectedly errored: {}", function_name, err);
-                    },
+            LuaValue::Function(f) => match f.call::<LuaValue>(run_result) {
+                Ok(LuaValue::String(default)) => LuaValue::String(default),
+                Ok(other) => {
+                    return wrap_err!("{}: expected default value function to return string, got: {:?}", function_name, other);
+                }
+                Err(err) => {
+                    return wrap_err!("{}: default value function unexpectedly errored: {}", function_name, err);
                 }
             },
             other => {
@@ -215,7 +286,7 @@ fn run_result_unwrap_or(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueRe
 fn trim_end_or_return(vec: &[u8]) -> &[u8] {
     match str::from_utf8(vec) {
         Ok(s) => s.trim_end().as_bytes(),
-        Err(_) => vec
+        Err(_) => vec,
     }
 }
 
@@ -245,7 +316,7 @@ fn create_run_result_table(luau: &Lua, output: Output) -> LuaValueResult {
         .with_value("stdout", luau.create_string(&stdout)?)?
         .with_value("stderr", luau.create_string(&stderr)?)?
         .with_function("unwrap", {
-            move | luau: &Lua, _value: LuaMultiValue | -> LuaValueResult {
+            move |luau: &Lua, _value: LuaMultiValue| -> LuaValueResult {
                 if ok {
                     let s = trim_end_or_return(&stdout);
                     Ok(LuaValue::String(luau.create_string(s)?))
@@ -260,7 +331,7 @@ fn create_run_result_table(luau: &Lua, output: Output) -> LuaValueResult {
     ok_table(run_result)
 }
 
-fn run_command(options: RunOptions) -> io::Result<Output> {
+fn run_command(options: ProcessOptions) -> io::Result<Output> {
     let shell_switches = match options.shell {
         Some(ref shell) => shell.get_switches(),
         None => Vec::new(),
@@ -292,23 +363,26 @@ fn run_command(options: RunOptions) -> io::Result<Output> {
 fn process_run(luau: &Lua, run_options: LuaValue) -> LuaValueResult {
     let function_name = "process.run(options: RunOptions)";
     let options = match run_options {
-        LuaValue::Table(run_options) => {
-            RunOptions::from_table(luau, run_options)?
-        },
+        LuaValue::Table(run_options) => ProcessOptions::from_table(luau, run_options)?,
         LuaValue::Nil => {
-            return wrap_err!("{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string?, cwd: string? }}, got nil.", function_name);
-        },
+            return wrap_err!(
+                "{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string?, cwd: string? }}, got nil.",
+                function_name
+            );
+        }
         other => {
-            return wrap_err!("{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string?, cwd: string? }}, got: {:#?}", function_name, other);
+            return wrap_err!(
+                "{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string?, cwd: string? }}, got: {:#?}",
+                function_name,
+                other
+            );
         }
     };
 
-    let program_to_run= options.program.clone();
+    let program_to_run = options.program.clone();
 
     match run_command(options) {
-        Ok(output) => {
-            create_run_result_table(luau, output)
-        },
+        Ok(output) => create_run_result_table(luau, output),
         Err(err) => {
             // we want to throw an error if the program was unable to spawn at all
             // this is because when a user calls process.run/shell, they expect their program to actually run
@@ -322,19 +396,21 @@ fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
     let function_name = "process.shell(command: string)";
     let shell_name = std_env::get_current_shell();
     let shell_command = match shell_command {
-        LuaValue::String(command) => {
-            command.to_str()?.to_string()
-        },
+        LuaValue::String(command) => command.to_str()?.to_string(),
         other => {
             return wrap_err!("{} expected command to be a string, got: {:?}", function_name, other);
         }
     };
-    
-    let run_options = RunOptions {
+
+    let run_options = ProcessOptions {
         program: shell_command.clone(),
         args: None,
         shell: Some(Shell::from(shell_name.clone())),
         cwd: None,
+        stdout_capacity: None,
+        stderr_capacity: None,
+        stdout_truncate: None,
+        stderr_truncate: None,
     };
 
     match run_command(run_options) {
@@ -346,15 +422,21 @@ fn process_shell(luau: &Lua, shell_command: LuaValue) -> LuaValueResult {
 }
 
 fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
+    let function_name = "process.spawn(options: SpawnOptions)";
     let options = match spawn_options {
-        LuaValue::Table(run_options) => {
-            RunOptions::from_table(luau, run_options)?
-        },
+        LuaValue::Table(run_options) => ProcessOptions::from_table(luau, run_options)?,
         LuaValue::Nil => {
-            return wrap_err!("process.spawn expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got nil.");
-        },
+            return wrap_err!(
+                "{} expected a RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got nil",
+                function_name
+            );
+        }
         other => {
-            return wrap_err!("process.spawn expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got: {:#?}", other);
+            return wrap_err!(
+                "{} expected RunOptions table of type {{ program: string, args: {{string}}?, shell: string? }}, got: {:#?}",
+                function_name,
+                other
+            );
         }
     };
 
@@ -366,27 +448,17 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     let mut child = {
         match if let Some(ref shell) = options.shell {
             let mut command = Command::new(shell.program_name());
-            command
-                .args(shell_switches)
-                .arg(options.program);
+            command.args(shell_switches).arg(options.program);
             if let Some(args) = options.args {
                 command.arg(args.join(" "));
             }
-            command
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
+            command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()
         } else {
             let mut command = Command::new(options.program);
             if let Some(args) = options.args {
-               command.args(args);
+                command.args(args);
             }
-            command
-                .stdin(Stdio::piped())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()
+            command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()
         } {
             Ok(child) => child,
             Err(err) => {
@@ -398,178 +470,98 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
     let child_id = child.id();
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
-    let stdin = child.stdin.take().unwrap();
+    let mut stdin = child.stdin.take().unwrap();
 
-    let arc_child = Arc::new(Mutex::new(child));
-    let arc_stdout = Arc::new(Mutex::new(stdout));
-    let arc_stderr = Arc::new(Mutex::new(stderr));
-    let arc_stdin = Arc::new(Mutex::new(stdin));
+    let child_cell = Rc::new(RefCell::new(child));
 
-    let stdout_handle = TableBuilder::create(luau)?
-        .with_function("read", {
-            let stdout = Arc::clone(&arc_stdout);
-            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let buffer_size = match multivalue.pop_back() {
-                    Some(LuaValue::Integer(i)) => i as usize,
-                    Some(LuaValue::Number(n)) => {
-                        if n.trunc() == n {
-                            n as usize
-                        } else {
-                            return wrap_err!("ChildProcess.stdout:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
+    let child_process_handle = {
+        let stdout_stream = Stream::new(
+            function_name,
+            stdout,
+            stream::StreamType::Stdout,
+            options.stdout_capacity.unwrap_or(2048),
+            options.stdout_truncate.unwrap_or(TruncateSide::Front),
+        )?;
+        let stdout_cell = Rc::new(RefCell::new(stdout_stream));
+        let stdout_handle = Stream::create_handle(stdout_cell, luau)?;
+
+        let stderr_stream = Stream::new(
+            function_name,
+            stderr,
+            stream::StreamType::Stderr,
+            options.stderr_capacity.unwrap_or(1024),
+            options.stderr_truncate.unwrap_or(TruncateSide::Front),
+        )?;
+        let stderr_cell = Rc::new(RefCell::new(stderr_stream));
+        let stderr_handle = Stream::create_handle(stderr_cell, luau)?;
+
+        let stdin_handle = TableBuilder::create(luau)?
+            .with_function_mut("write", {
+                move |_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaEmptyResult {
+                    let function_name = "child.stdin:write(data: string)";
+                    pop_self(&mut multivalue, function_name)?;
+                    let data_to_write = match multivalue.pop_front() {
+                        Some(LuaValue::String(data)) => data.as_bytes().to_vec(),
+                        Some(LuaValue::Buffer(b)) => b.to_vec(),
+                        Some(other) => {
+                            return wrap_err!("{} expected data to be a string or buffer, got: {:?}", function_name, other);
                         }
-                    },
-                    _ => 32,
-                };
-                let mut stdout = stdout.lock().unwrap();
-                let mut buffy = vec![0; buffer_size];
-                match stdout.read_exact(&mut buffy) {
-                    Ok(_) => {
-                        let result_string = luau.create_string(buffy)?;
-                        Ok(LuaValue::String(result_string))
-                    },
-                    Err(_err) => Ok(LuaValue::Nil)
+                        None => {
+                            return wrap_err!("{} expected data to be string or buffer, unexpectedly got nothing (not even nil)", function_name);
+                        }
+                    };
+
+                    match stdin.write_all(&data_to_write) {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            wrap_err!("{} can't write to stdin due to err: {}", function_name, err)
+                        }
+                    }
                 }
-            }
-        })?
-        .with_function("lines", {
-            let stdout = Arc::clone(&arc_stdout);
-            move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                Ok(LuaValue::Function(luau.create_function({
-                    let stdout = Arc::clone(&stdout);
-                    move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
-                        let mut stdout = stdout.lock().unwrap();
-                        let mut reader = BufReader::new(stdout.by_ref());
-                        let mut new_line = String::from("");
-                        match reader.read_line(&mut new_line) {
-                            Ok(0) => {
-                                Ok(LuaNil)
-                            },
-                            Ok(_other) => {
-                                Ok(LuaValue::String(luau.create_string(new_line.trim_end())?))
-                            },
+            })?
+            .build_readonly()?;
+
+        TableBuilder::create(luau)?
+            .with_value("id", child_id)?
+            .with_value("stdout", stdout_handle)?
+            .with_value("stderr", stderr_handle)?
+            .with_value("stdin", stdin_handle)?
+            .with_function("alive", {
+                let child_cell = Rc::clone(&child_cell);
+                move |_luau: &Lua, _value: LuaValue| -> LuaValueResult {
+                    let function_name = "ChildProcess:alive()";
+                    match child_cell.try_borrow_mut() {
+                        Ok(ref mut child) => match child.try_wait().unwrap() {
+                            Some(_status_code) => Ok(LuaValue::Boolean(false)),
+                            None => Ok(LuaValue::Boolean(true)),
+                        },
+                        Err(_) => {
+                            wrap_err!("{}: child already borrowed", function_name)
+                        }
+                    }
+                }
+            })?
+            .with_function("kill", {
+                let function_name = "ChildProcess:kill()";
+                let child_cell = Rc::clone(&child_cell);
+                move |_luau: &Lua, _value: LuaValue| -> LuaEmptyResult {
+                    match child_cell.try_borrow_mut() {
+                        Ok(ref mut child) => match child.kill() {
+                            Ok(_) => Ok(()),
                             Err(err) => {
-                                wrap_err!("unable to read line: {:#?}", err)
+                                wrap_err!("{} could not murder child due to err: {}", function_name, err)
                             }
+                        },
+                        Err(_) => {
+                            wrap_err!("{}: child already borrowed", function_name)
                         }
                     }
-                })?))
-                // let line = reader.read_line(buf)
-            }
-        })?
-        .build_readonly()?;
+                }
+            })?
+            .build_readonly()
+    };
 
-    let stderr_handle = TableBuilder::create(luau)?
-        .with_function("read", {
-            let stderr = Arc::clone(&arc_stderr);
-            move | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let buffer_size = match multivalue.pop_back() {
-                    Some(LuaValue::Integer(i)) => i as usize,
-                    Some(LuaValue::Number(n)) => {
-                        if n.trunc() == n {
-                            n as usize
-                        } else {
-                            return wrap_err!("ChildProcess.stderr:read(buffer_size) expected buffer_size to be an integer, got a float: {}", n);
-                        }
-                    },
-                    _ => 32,
-                };
-                let mut stderr = stderr.lock().unwrap();
-                let mut buffy = vec![0; buffer_size];
-                match stderr.read_exact(&mut buffy) {
-                    Ok(_) => {
-                        let result_string = luau.create_string(buffy)?;
-                        Ok(LuaValue::String(result_string))
-                    },
-                    Err(_err) => Ok(LuaValue::Nil)
-                }
-            }
-        })?
-        .with_function("lines", {
-            let stderr = Arc::clone(&arc_stderr);
-            move | luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                Ok(LuaValue::Function(luau.create_function({
-                    let stderr = Arc::clone(&stderr);
-                    move | luau: &Lua, _value: LuaValue | -> LuaValueResult {
-                        let mut stderr = stderr.lock().unwrap();
-                        let mut reader = BufReader::new(stderr.by_ref());
-                        let mut new_line = String::from("");
-                        match reader.read_line(&mut new_line) {
-                            Ok(0) => {
-                                Ok(LuaNil)
-                            },
-                            Ok(_other) => {
-                                Ok(LuaValue::String(luau.create_string(new_line.trim_end())?))
-                            },
-                            Err(err) => {
-                                wrap_err!("unable to read line: {:#?}", err)
-                            }
-                        }
-                    }
-                })?))
-                // let line = reader.read_line(buf)
-            }
-        })?
-        .build_readonly()?;
-
-    let stdin_handle = TableBuilder::create(luau)?
-        .with_function("write", {
-            let stdin = Arc::clone(&arc_stdin);
-            move | _luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
-                let _handle = multivalue.pop_front();
-                let stuff_to_write = match multivalue.pop_back() {
-                    Some(LuaValue::String(stuff)) => stuff.to_string_lossy(),
-                    Some(other) => {
-                        return wrap_err!("ChildProcess.stdin:write(data) expected data to be a string, got: {:?}", other);
-                    },
-                    None => {
-                        return wrap_err!("ChildProcess.stdin:write(data) was called without argument data");
-                    }
-                };
-                let mut stdin = stdin.lock().unwrap();
-                match stdin.write_all(stuff_to_write.as_bytes()) {
-                    Ok(_) => Ok(LuaNil),
-                    Err(err) => {
-                        if err.kind() == io::ErrorKind::BrokenPipe {
-                            Ok(LuaNil)
-                        } else {
-                            wrap_err!("ChildProcess.stdin:write: error writing to stdin: {:?}", err)
-                        }
-                    }
-                }
-            }
-        })?
-        .build_readonly()?;
-    
-    let child_handle = TableBuilder::create(luau)?
-        .with_value("id", child_id)?
-        .with_function("alive", {
-            let child = Arc::clone(&arc_child);
-            move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                let mut child = child.lock().unwrap();
-                match child.try_wait().unwrap() {
-                    Some(_status_code) => Ok(LuaValue::Boolean(false)),
-                    None => Ok(LuaValue::Boolean(true)),
-                }
-            }
-        })?
-        .with_function("kill",{
-            let child = Arc::clone(&arc_child);
-            move | _luau: &Lua, _multivalue: LuaMultiValue | -> LuaValueResult {
-                let mut child = child.lock().unwrap();
-                match child.kill() {
-                    Ok(_) => Ok(LuaValue::Nil),
-                    Err(err) => {
-                        wrap_err!("ChildProcess could not be killed: {:?}", err)
-                    }
-                }
-            }
-        })?
-        .with_value("stdout", LuaValue::Table(stdout_handle))?
-        .with_value("stderr", stderr_handle)?
-        .with_value("stdin", stdin_handle)?
-        .build_readonly()?;
-
-    Ok(LuaValue::Table(child_handle))
+    ok_table(child_process_handle)
 }
 
 fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaValueResult {
@@ -579,7 +571,7 @@ fn set_exit_callback(luau: &Lua, f: Option<LuaValue>) -> LuaValueResult {
                 let globals = luau.globals();
                 globals.set("_process_exit_callback_function", f)?;
                 Ok(LuaNil)
-            }, 
+            }
             _ => {
                 let err_message = format!("process.setexitcallback expected to be called with a function, got {:?}", f);
                 Err(LuaError::external(err_message))
@@ -595,8 +587,8 @@ pub fn _handle_exit_callback(luau: &Lua, exit_code: i32) -> LuaResult<()> {
     match luau.globals().get("_process_exit_callback_function")? {
         LuaValue::Function(f) => {
             let _ = f.call::<i32>(exit_code);
-        },
-        LuaValue::Nil => {},
+        }
+        LuaValue::Nil => {}
         _ => {
             unreachable!("what did you put into _process_exit_callback_function???");
         }
@@ -615,13 +607,13 @@ fn exit(luau: &Lua, exit_code: Option<LuaValue>) -> LuaResult<()> {
     } else {
         0
     };
-    // if we have custom callback function let's call it 
+    // if we have custom callback function let's call it
     let globals = luau.globals();
     match globals.get("_process_exit_callback_function")? {
         LuaValue::Function(f) => {
             f.call::<i64>(exit_code)?;
-        },
-        LuaValue::Nil => {},
+        }
+        LuaValue::Nil => {}
         other => {
             unreachable!("wtf is in _process_exit_callback_function other than a function or nil?: {:?}", other)
         }

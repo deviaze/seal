@@ -20,7 +20,6 @@ mod require;
 mod std_crypt;
 mod std_io;
 mod std_net;
-// mod std_serde_old;
 mod std_serde;
 mod std_str_internal;
 mod std_thread;
@@ -95,7 +94,10 @@ impl SealCommand {
     // rest of the SealCommand impl defined at the bottom of main.rs
 }
 
+
 fn main() -> LuaResult<()> {
+    // We intercept SIGABRT on *nix to prevent core dumps when seal is used as a child process
+    err::setup_sigabrt_handler();
     err::setup_panic_hook(); // seal panic = seal bug; we shouldn't panic in normal operation
 
     let args: VecDeque<OsString> = env::args_os().collect();
