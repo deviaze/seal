@@ -40,7 +40,6 @@ type Tests = {
 }
 
 local function new_test_queue(): { string }
-    local result: { string } = {}
     local ignore_files = {
         "./tests/luau/std/net/server/serve.luau", -- manual test
         -- the below are not test files but are required by/imported by other tests
@@ -50,14 +49,11 @@ local function new_test_queue(): { string }
         "./tests/luau/errors/another_module.luau",
         "./tests/luau/globals/require/basic-requires/relative_data.luau",
     }
-    local file_list = fs.listdir(fs.path.join(".", "tests", "luau"), true)
-    for _, path in file_list do
-        if str.endswith(path, ".luau") and not table.find(ignore_files, path) then
-            table.insert(result, path)
-        end
-    end
-    table.insert(result, "./tests/scripts/seal_setup_test.luau")
-    return result
+    local file_list = fs.listdir(fs.path.join(".", "tests", "luau"), true, function(path: string)
+        return str.endswith(path, ".luau") and not table.find(ignore_files, path)
+    end)
+    table.insert(file_list, "./tests/scripts/seal_setup_test.luau")
+    return file_list
 end
 
 local function get_ignored_functions(test_files: { string }): (IgnoredFunctionsByName, IgnoredFunctionsByPath)
@@ -71,6 +67,7 @@ local function get_ignored_functions(test_files: { string }): (IgnoredFunctionsB
         local last_reason: string = ""
         local grab_next_line = false
         local looking_for_asserts_in_function: string? = nil
+        
         for n, line in fs.readlines(test_path) do
             if grab_next_line then
                 local function_name = string.match(line, "%s*local function ([%w_]+)%(")
