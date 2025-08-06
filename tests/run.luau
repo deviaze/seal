@@ -47,6 +47,7 @@ local function new_test_queue(): { string }
         "./tests/luau/std/net/server/client.luau",
         "./tests/luau/std/thread/conc_1.luau",
         "./tests/luau/errors/another_module.luau",
+        "./tests/luau/std/process.spawn/ception.luau",
         "./tests/luau/globals/require/basic-requires/relative_data.luau",
     }
     local file_list = fs.listdir(fs.path.join(".", "tests", "luau"), true, function(path: string)

@@ -24,7 +24,7 @@ local function watchception()
     assert(
         typeof(o_o) == "string"
         and (o_o:match("o_o")), 
-        "o_o should be found now because we've waited just long enough after it should've been printed"
+        `o_o should be found now because we've waited just long enough after it should've been printed (got: {o_o})`
     )
     
     local count = 1
