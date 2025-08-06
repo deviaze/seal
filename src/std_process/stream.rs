@@ -195,14 +195,14 @@ impl Stream {
         loop {
             let mut inner = self.inner.lock().unwrap();
             if inner.len() <= count {
-                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaNil);
+                } else if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
                     return Ok(LuaNil)
                 } else if let Some(timeout) = timeout
                     && let Some(start_time) = start_time
                     && start_time.elapsed() >= timeout    
                 {
-                    return Ok(LuaNil);
-                } else if !&self.still_reading.load(Ordering::Relaxed) {
                     return Ok(LuaNil);
                 } else {
                     // explicitly drop mutex to unlock inner
@@ -253,14 +253,14 @@ impl Stream {
                 }
             };
             if inner.is_empty() {
-                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaNil);
+                } else if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
                     return Ok(LuaNil)
                 } else if let Some(timeout) = timeout
                     && let Some(start_time) = start_time
                     && start_time.elapsed() >= timeout    
                 {
-                    return Ok(LuaNil);
-                } else if !&self.still_reading.load(Ordering::Relaxed) {
                     return Ok(LuaNil);
                 } else {
                     // explicitly drop mutex to unlock inner
@@ -469,14 +469,14 @@ impl Stream {
         loop {
             let mut inner = self.inner.lock().unwrap();
             if inner.is_empty() {
-                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaValue::Integer(0));
+                } else if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
                     return Ok(LuaValue::Integer(0));
                 } else if let Some(timeout) = timeout
                     && let Some(start_time) = start_time
                     && start_time.elapsed() >= timeout    
                 {
-                    return Ok(LuaValue::Integer(0));
-                } else if !&self.still_reading.load(Ordering::Relaxed) {
                     return Ok(LuaValue::Integer(0));
                 } else {
                     // explicitly drop mutex to unlock inner
@@ -563,14 +563,14 @@ impl Stream {
         loop {
             let mut inner = self.inner.lock().unwrap();
             if inner.is_empty() || inner.len() - 1 < count {
-                if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
+                if !&self.still_reading.load(Ordering::Relaxed) {
+                    return Ok(LuaValue::Boolean(false));
+                } else if let Some(timeout) = timeout && timeout.is_zero() { // user passed 0.0 duration for nonblocking behavior
                     return Ok(LuaValue::Boolean(false));
                 } else if let Some(timeout) = timeout
                     && let Some(start_time) = start_time
                     && start_time.elapsed() >= timeout    
                 {
-                    return Ok(LuaValue::Boolean(false));
-                } else if !&self.still_reading.load(Ordering::Relaxed) {
                     return Ok(LuaValue::Boolean(false));
                 } else {
                     // explicitly drop mutex to unlock inner
