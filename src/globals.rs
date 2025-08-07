@@ -25,6 +25,7 @@ pub fn set_globals(luau: &Lua, entry_path: String) -> LuaValueResult {
     globals.raw_set("dp", luau.create_function(std_io::output::debug_print)?)?;
     globals.raw_set("print", luau.create_function(std_io::output::pretty_print)?)?;
     globals.raw_set("warn", luau.create_function(warn)?)?;
+    globals.raw_set("_SEAL_VERSION", SEAL_VERSION)?;
     globals.raw_set("_VERSION", format!("seal {} | {}", SEAL_VERSION, luau_version.to_string_lossy()))?;
     globals.raw_set("_G", TableBuilder::create(luau)?.build()?)?;
     globals.raw_set("_REQUIRE_CACHE", TableBuilder::create(luau)?.build()?)?;

@@ -8,6 +8,8 @@ declare function dp<T...>(...: T...): T...
 
 declare function warn<T...>(...: T...): nil
 
+declare _SEAL_VERSION: string
+
 declare script: {
 	entry_path: string,
 	context: string?,
