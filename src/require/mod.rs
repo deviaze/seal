@@ -10,7 +10,7 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
         }
     };
 
-    if path.starts_with("@std") || path.starts_with("@interop") {
+    if path.starts_with("@std") || path.starts_with("@interop") || path.starts_with("@internal") {
         get_standard_library(luau, path)
     } else {
         let path = resolve_path(luau, path)?;
@@ -86,8 +86,10 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/crypt/hash" => ok_table(std_crypt::create_hash(luau)),
         "@std/crypt/password" => ok_table(std_crypt::create_password(luau)),
 
-        "@std/str_internal" => ok_table(std_str_internal::create(luau)),
+        "@internal/str" => ok_table(std_str_internal::create(luau)),
         "@std/str" => ok_table(load_std_str(luau)),
+
+        "@std/semver" => ok_table(load_std_semver(luau)),
 
         "@std/thread" => ok_table(std_thread::create(luau)),
 
@@ -95,6 +97,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
             ok_table(TableBuilder::create(luau)?
                 .with_value("fs", std_fs::create(luau)?)?
                 .with_value("str", load_std_str(luau)?)?
+                .with_value("semver", load_std_semver(luau)?)?
                 .with_value("env", std_env::create(luau)?)?
                 .with_value("io", std_io::create(luau)?)?
                 .with_value("colors", colors::create(luau)?)?
@@ -112,6 +115,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         },
         "@interop" => ok_table(interop::create(luau)),
         "@interop/mlua" => ok_table(interop::create_mlua(luau)),
+        "@internal/setup" => ok_table(setup::create_internal(luau)),
         other => {
             wrap_err!("program required an unexpected standard library: {}", other)
         }
@@ -121,6 +125,11 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
 const STD_STR_SRC: &str = include_str!("../std_str.luau");
 fn load_std_str(luau: &Lua) -> LuaResult<LuaTable> {
     luau.load(STD_STR_SRC).eval::<LuaTable>()
+}
+
+const STD_SEMVER_SRC: &str = include_str!("../std_semver.luau");
+fn load_std_semver(luau: &Lua) -> LuaResult<LuaTable> {
+    luau.load(STD_SEMVER_SRC).eval::<LuaTable>()
 }
 
 fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {
