@@ -238,7 +238,7 @@ function str.slice(s: string, first: number, final: number?): string
     return b
 end
 
-local str_internal = (require)("@std/str_internal")
+local str_internal = (require)("@internal/str")
 
 --[=[
     str.split is an improvement on luau's string.split in that you can split on multiple different choices of characters/strings

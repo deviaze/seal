@@ -1,9 +1,8 @@
 #![feature(default_field_values)]
-use crate::prelude::*;
+use crate::{prelude::*, setup::SetupOptions};
 use mluau::prelude::*;
-use include_dir::{include_dir, Dir};
 
-use std::{collections::VecDeque, env, ffi::OsString, fs, io};
+use std::{collections::VecDeque, env, ffi::OsString, fs};
 
 pub mod prelude;
 mod std_env;
@@ -24,6 +23,7 @@ mod std_serde;
 mod std_str_internal;
 mod std_thread;
 mod sealconfig;
+mod setup;
 
 use err::display_error_and_exit;
 use sealconfig::SealConfig;
@@ -63,8 +63,8 @@ enum SealCommand {
     * `seal run arg1 arg2`
     */ 
     Run,
-    /// Set up a new project for `seal`, spawning in a `.vscode`, `.luaurc`, `./src/main.luau` etc.
-    Setup,
+    /// `seal setup` | `seal project` | `seal script` | `seal setup custom <args>`
+    Setup(SetupOptions),
     /// Display `seal` help.
     DefaultHelp,
     CommandHelp(Box<SealCommand>),
@@ -78,18 +78,21 @@ enum SealCommand {
 }
 
 impl SealCommand {
-    fn from(s: &str, args: Args) -> Self {
-        match s {
+    fn from(s: &str, args: Args) -> LuaResult<Self> {
+        Ok(match s {
             "version" | "--version" | "-V" => Self::Version,
-            "setup" | "s" => Self::Setup,
+            "setup" | "s" => Self::Setup(SetupOptions::from_args(&args)?),
+            "project" | "sp" => Self::Setup(SetupOptions::Project),
+            "script" | "ss" => Self::Setup(SetupOptions::Script),
+            "custom" | "sc" => Self::Setup(SetupOptions::Custom),
             "eval" | "e" => Self::Eval(args.clone()),
             "run" | "r" => Self::Run,
             "test" | "t" => Self::Test,
             "repl" | "i" => Self::Repl,
-            "help" | "h" => Self::figure_out_which_command_we_need_help_with(args),
+            "help" | "h" => Self::figure_out_which_command_we_need_help_with(args)?,
             // default case `seal ./myfile.luau`
             filename => Self::Default { filename: filename.to_owned() },
-        }
+        })
     }
     // rest of the SealCommand impl defined at the bottom of main.rs
 }
@@ -113,7 +116,7 @@ fn main() -> LuaResult<()> {
         },
         SealCommand::Eval(args) => seal_eval(args),
         SealCommand::Run => seal_run(),
-        SealCommand::Setup => seal_setup(),
+        SealCommand::Setup(options) => seal_setup(options),
         SealCommand::Test => seal_test(),
         SealCommand::Version => {
             println!("{}", SEAL_VERSION);
@@ -231,43 +234,45 @@ fn seal_test() -> LuauLoadResult {
     }
 }
 
-fn seal_setup() -> LuauLoadResult {
-    const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
-    let cwd = std_env::get_cwd("seal setup")?;
-    let dot_seal_dir = cwd.join(".seal");
-    let created_seal_dir = match fs::create_dir(&dot_seal_dir) {
-        Ok(_) => true,
-        Err(err) => match err.kind() {
-            io::ErrorKind::AlreadyExists => {
-                println!("seal setup - '.seal' already exists; not replacing it");
-                false
-            }
-            _ => {
-                return wrap_err!("seal setup = error creating .seal: {}", err);
-            }
-        },
-    };
+fn seal_setup(options: SetupOptions) -> LuauLoadResult {
+    setup::run(options)?;
+    Ok(None)
+    // const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
+    // let cwd = std_env::get_cwd("seal setup")?;
+    // let dot_seal_dir = cwd.join(".seal");
+    // let created_seal_dir = match fs::create_dir(&dot_seal_dir) {
+    //     Ok(_) => true,
+    //     Err(err) => match err.kind() {
+    //         io::ErrorKind::AlreadyExists => {
+    //             println!("seal setup - '.seal' already exists; not replacing it");
+    //             false
+    //         }
+    //         _ => {
+    //             return wrap_err!("seal setup = error creating .seal: {}", err);
+    //         }
+    //     },
+    // };
 
-    if created_seal_dir {
-        match DOT_SEAL_DIR.extract(dot_seal_dir) {
-            Ok(()) => {
-                println!("seal setup .seal in your current directory!");
-            }
-            Err(err) => {
-                return wrap_err!("seal setup - error extracting .seal directory: {}", err);
-            }
-        };
-    }
+    // if created_seal_dir {
+    //     match DOT_SEAL_DIR.extract(dot_seal_dir) {
+    //         Ok(()) => {
+    //             println!("seal setup .seal in your current directory!");
+    //         }
+    //         Err(err) => {
+    //             return wrap_err!("seal setup - error extracting .seal directory: {}", err);
+    //         }
+    //     };
+    // }
 
-    let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
-    let temp_luau = Lua::new();
-    globals::set_globals(&temp_luau, cwd.to_string_lossy().into_owned())?;
-    match temp_luau.load(seal_setup_settings).exec() {
-        Ok(_) => Ok(None),
-        Err(err) => {
-            wrap_err!("Hit an error running seal_setup_settings.luau: {}", err)
-        }
-    }
+    // let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
+    // let temp_luau = Lua::new();
+    // globals::set_globals(&temp_luau, cwd.to_string_lossy().into_owned())?;
+    // match temp_luau.load(seal_setup_settings).exec() {
+    //     Ok(_) => Ok(None),
+    //     Err(err) => {
+    //         wrap_err!("Hit an error running seal_setup_settings.luau: {}", err)
+    //     }
+    // }
 }
 
 impl SealCommand {
@@ -290,7 +295,7 @@ impl SealCommand {
             return Ok(Self::DefaultHelp)
         }
 
-        let command = Self::from(first_arg, args.clone());
+        let command = Self::from(first_arg, args.clone())?;
         // `seal ./mycli.luau --help` should be passed to ./mycli.luau not directly to seal
         if !command.is_default() && command.next_is_help(&args) {
             Ok(Self::CommandHelp(Box::new(command)))
@@ -318,7 +323,7 @@ impl SealCommand {
             Self::Default {..} | Self::DefaultHelp => "default",
             Self::Eval(_) => "eval",
             Self::Run => "run",
-            Self::Setup => "setup",
+            Self::Setup(_) => "setup",
             Self::Test => "test",
             Self::HelpCommandHelp => "help",
             Self::SealConfigHelp => "config",
@@ -336,18 +341,18 @@ impl SealCommand {
             false
         }
     }
-    fn figure_out_which_command_we_need_help_with(mut args: Args) -> SealCommand {
-        if let Some(arg) = args.pop_front() && let Ok(arg) = arg.into_string() {
+    fn figure_out_which_command_we_need_help_with(mut args: Args) -> LuaResult<SealCommand> {
+        Ok(if let Some(arg) = args.pop_front() && let Ok(arg) = arg.into_string() {
             if arg == "config" {
                 Self::SealConfigHelp
             } else if arg == "help" || arg == "h" {
                 // `seal help help` or `seal help h`
                 Self::HelpCommandHelp
             } else {
-                Self::CommandHelp(Box::new(Self::from(&arg, args)))
+                Self::CommandHelp(Box::new(Self::from(&arg, args)?))
             }
         } else {
             Self::DefaultHelp
-        }
+        })
     }
 }

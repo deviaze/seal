@@ -4,6 +4,7 @@ Of course *you'd* require the whole standard library at once...
 local std = {
 	fs = require("@std/fs"),
 	str = require("@std/str"),
+	semver = require("@std/semver"),
 	env = require("@std/env"),
 	io = require("@std/io"),
 	colors = require("@std/colors"),
