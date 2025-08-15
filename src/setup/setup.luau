@@ -55,9 +55,9 @@ end
 --- reads jsonc and confirms comment removal if jsonc contains comments
 local read_jsonc
 
-local update_luaurc
-local update_vscode_settings
-local update_home_seal_dir
+local get_updated_luaurc
+local get_updated_vscode_settings
+local update_seal_dir
 local custom_setup_from_args
 
 local extract
@@ -71,22 +71,22 @@ local function setup(config: SetupConfig?)
     local cwd = fs.dir.from(fs.path.cwd())
     local home_dir = fs.dir.from(fs.path.home())
     
-    local typedefs_prefix = if config.typedefs == "link" then "~/" else "./"
-    local globals_path = fs.path.join(typedefs_prefix, ".seal", "typedefs", "globals.d.luau")
+    local prefix = if config.typedefs == "link" then "~/" else "./"
+    local globals_path = fs.path.join(prefix, ".seal", "typedefs", "globals.d.luau")
     
     local luaurc_defaults = {
         languageMode = "strict",
         aliases = {
-            std = fs.path.join(typedefs_prefix, ".seal", "typedefs", "std") .. "/",
-            interop = fs.path.join(typedefs_prefix, ".seal", "typedefs", "interop") .. "/",
-            extra = fs.path.join(typedefs_prefix, ".seal", "extra") .. "/",
+            std = fs.path.join(prefix, ".seal", "typedefs", "std") .. "/",
+            interop = fs.path.join(prefix, ".seal", "typedefs", "interop") .. "/",
+            extra = fs.path.join(prefix, ".seal", "extra") .. "/",
         },
     }
 
     -- create or update .luaurc
     local luaurc_path = cwd:join(".luaurc")
     if fs.path.exists(luaurc_path) then
-        local updated = update_luaurc(read_jsonc(luaurc_path), luaurc_defaults)
+        local updated = get_updated_luaurc(read_jsonc(luaurc_path), luaurc_defaults)
         json.writefile(luaurc_path, updated)
         print(`Updated .luaurc at '{luaurc_path}'`)
     else
@@ -110,8 +110,9 @@ local function setup(config: SetupConfig?)
 
         local settings_path = cwd:join(".vscode", "settings.json")
         if fs.path.exists(settings_path) and read_jsonc then
-            local updated = update_vscode_settings(read_jsonc(settings_path), vscode_defaults)
-            print(`Updated .vscode/settings.json at '{settings_path}'!`)
+            local updated = get_updated_vscode_settings(read_jsonc(settings_path), vscode_defaults)
+            json.writefile(settings_path, updated)
+            print(`Updated .vscode/settings.json at '{settings_path}'`)
         else
             fs.dir.ensure(".vscode")
                 :add_file("settings.json", json.encode(vscode_defaults))
@@ -122,33 +123,33 @@ local function setup(config: SetupConfig?)
 
     -- extract typedefs and extra
     if config.typedefs == "gen" then
-        extract(fs.dir.ensure(cwd:join(".seal")))
-    elseif config.typedefs == "link" then
-        local seal_dir = fs.dir(home_dir:join(".seal"))
-        if not seal_dir then
-            seal_dir = fs.dir.ensure(home_dir:join(".seal"))
-            print(`Created a new .seal in your home directory: {seal_dir.path}!`)
-            extract(seal_dir)
+        local seal_dir_path = cwd:join(".seal")
+        local seal_dir = fs.dir(seal_dir_path)
+        if seal_dir then
+            update_seal_dir(seal_dir)
         else
-            -- check if the existing .seal is compatible or needs to be updated
-            local should_replace = update_home_seal_dir(seal_dir)
-            if should_replace then
-                local extracted = extract(seal_dir)
-                if extracted then
-                    print(`Linking {config.codebase} to updated .seal at {seal_dir.path}`)
-                end
-            else
-                print(`Linking {config.codebase} to existing .seal at {seal_dir.path}`)
-            end
+            extract(fs.dir.ensure(seal_dir_path))
+        end
+    elseif config.typedefs == "link" then
+        local seal_dir_path = home_dir:join(".seal")
+        local seal_dir = fs.dir(seal_dir_path)
+        if seal_dir then
+            update_seal_dir(seal_dir)
+        else
+            extract(fs.dir.ensure(seal_dir_path))
+            print(`Created a new ~/.seal dir at: {seal_dir_path}!`)
         end
     end
 
     -- project codebases expect to be their own repos and have a ./src/main.luau
     -- script codebases expect to be part of an existing project & are self-contained in their .seal dir
     if config.codebase == "project" then
-        fs.writetree(cwd:join("src"), fs.tree()
-            :with_file("main.luau", 'print("Hello world!")')
-        )
+        local src_dir = fs.dir(cwd:join("src"))
+        if not src_dir then
+            fs.writetree(cwd:join("src"), fs.tree()
+                :with_file("main.luau", 'print("Hello world!")')
+            )
+        end
         -- either way (gen or link) we need a .seal dir in cwd for config.luau
         fs.dir.ensure(cwd:join(".seal"))
             :add_file("config.luau", seal_setup.DEFAULT_CONFIG_SRC)
@@ -173,7 +174,7 @@ local function setup(config: SetupConfig?)
 
 end
 
-function update_luaurc(existing: json.JsonData, default: json.JsonData): json.JsonData
+function get_updated_luaurc(existing: json.JsonData, default: json.JsonData): json.JsonData
     existing.languageMode = existing.languageMode or "strict"
     -- update aliases
     local existing_aliases: { [string]: string } = existing.aliases or {}
@@ -186,7 +187,7 @@ function update_luaurc(existing: json.JsonData, default: json.JsonData): json.Js
     return existing
 end
 
-function update_vscode_settings(existing: json.JsonData, default: json.JsonData): json.JsonData
+function get_updated_vscode_settings(existing: json.JsonData, default: json.JsonData): json.JsonData
     local function update(key: string, force: boolean?)
         local should_update = force or not existing[key]
         if should_update then
@@ -227,44 +228,95 @@ function extract(seal_folder: fs.DirectoryEntry): boolean
     return true
 end
 
-local has_compatible_semver
-function update_home_seal_dir(seal_dir: fs.DirectoryEntry): boolean
-    local should_replace = true
+local should_replace_typedefs
+local should_replace_extra
+function update_seal_dir(seal_dir: fs.DirectoryEntry)
     local config_luau = seal_dir:find("config.luau"):try_file()
-    if config_luau then
-        if has_compatible_semver(config_luau) then
-            should_replace = false
-        else
-            err(`home's .seal has incompatible seal_version to this seal, not replacing its typedefs and exiting.`)
-        end
-    else
-        seal_dir:add_file("config.luau", seal_setup.DEFAULT_CONFIG_SRC)
+    if not config_luau then
+        seal_dir:add_file(
+            "config.luau", 
+            (seal_setup.DEFAULT_CONFIG_SRC:gsub("<SEAL_VERSION_REPLACE>", _SEAL_VERSION))
+        )
     end
-    return should_replace
+    config_luau = seal_dir:expect_file("config.luau")
+    if should_replace_typedefs(config_luau) then
+        local typedefs_path = seal_dir:join("typedefs")
+        fs.dir.try_remove(typedefs_path)
+        fs.makedir(typedefs_path)
+        seal_setup.extract_typedefs(typedefs_path)
+    end
+    if should_replace_extra(seal_dir) then
+        local extra_path = seal_dir:join("extra")
+        fs.dir.try_remove(extra_path)
+        fs.makedir(extra_path)
+        seal_setup.extract_extra(extra_path)
+    end
 end
 
-function has_compatible_semver(file: fs.FileEntry): boolean
+function should_replace_typedefs(config_luau: fs.FileEntry)
     local function slightly_safe_require(path: string): { seal_version: string? }
         local s, res = pcall(function()
             return (require)(path)
         end)
         if s == true and typeof(res) == "table" then
             return res
+        elseif typeof(res) == "error" then
+            return err(`Unable to require config.luau at '{path}', is it a valid config.luau file? Error message from require(): {tostring(res)}`)
+        end
+        error("unreachable")
+    end
+    local function parse_semver(ver: string): semver.Semver
+        local s, sem = pcall(function(): semver.Semver
+            return semver.from(ver)
+        end)
+        if typeof(sem) == "error" then
+            err(`Can't parse semver in config.luau at '{config_luau.path}' due to err: {tostring(sem)}`)
+            error("unreachable")
         else
-            return err(`Unable to require config.luau at '{path}', is it a valid config.luau file?`)
+            return sem
         end
     end
-    local ver = slightly_safe_require(file.path).seal_version
-    if ver and typeof(ver) == "string" then
-        local self_semver = semver.from(_SEAL_VERSION)
-        local other_semver = semver.from(ver)
-        if other_semver:satisfies(`^{self_semver}`) then
-            return true
-        else
-            return false
+
+    local should_replace = false
+    local existing_version = slightly_safe_require(config_luau.path).seal_version
+    if existing_version then
+        local existing_semver = parse_semver(existing_version)
+        local seal_semver = semver.from(_SEAL_VERSION)
+
+        if seal_semver < existing_semver then
+            err(`Can't link to a newer version of seal! \n\z
+                Your .seal dir was generated by seal {existing_semver}, but you're using seal {seal_semver}. \n\z
+                If you want to make a project using this version of seal, generate a .seal locally using seal setup custom or delete your .seal dir and try again`)
         end
+
+        if seal_semver:satisfies(`^{existing_semver}`) then
+            if seal_semver > existing_semver then
+                should_replace = true
+            elseif seal_semver == existing_semver then
+                should_replace = false
+            end
+        else
+            local response = str.trim(
+                io.input.get(`Update ~/.seal/typedefs from {existing_semver} -> {seal_semver}? \z
+                This might break your existing linked typedefs if seal made breaking changes. (y/N)`)
+            ):lower()
+            should_replace = if response == "y" then true else false
+        end
+    else
+        should_replace = true
     end
-    return true
+    return should_replace
+end
+
+function should_replace_extra(seal_dir: fs.DirectoryEntry): boolean
+    local extra_dir = fs.dir(seal_dir:join("extra"))
+    if not extra_dir then
+        return true
+    end
+    local response = str.trim(io.input.get(
+        `Replace '.seal/extra' dir at {extra_dir.path}? This may remove any customizations you've made to @extra libraries. \z(Y/n)`
+    )):lower()
+    return response == "y" or response == ""
 end
 
 function custom_setup_from_args(): SetupConfig
@@ -389,13 +441,33 @@ end
 
 function check_confirm_comment_removal(content: string, name: string): boolean
     local function has_comments(content: string): boolean
+        local in_block_comment = false
         for _, line in str.splitlines(content) do
-            if string.match(line, '//[%w%s%p[^"]]$') then
+            -- remove string literals to avoid false positives
+            local stripped = string.gsub(line, '".-"', '')
+            if in_block_comment then
+                if string.find(stripped, "%*/") then
+                    in_block_comment = false
+                end
+                return true
+            end
+            -- match single-line comments
+            if string.match(stripped, "^%s*//") or string.match(stripped, "[^:]//") then
+                return true
+            end
+            -- match inline block comments
+            if string.match(stripped, "/%*.*%*/") then
+                return true
+            end
+            -- detect start of multiline block comment
+            if string.match(stripped, "/%*") and not string.match(stripped, "%*/") then
+                in_block_comment = true
                 return true
             end
         end
         return false
     end
+
     if has_comments(content) then
         local response = str.trim(io.input.get(`All comments in {name} will be stripped; continue? (Y/n)`)):lower()
         return response == "y" or response == ""
