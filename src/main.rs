@@ -22,6 +22,7 @@ mod std_net;
 mod std_serde;
 mod std_str_internal;
 mod std_thread;
+mod std_luau;
 mod sealconfig;
 mod setup;
 
