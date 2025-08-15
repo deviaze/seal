@@ -23,6 +23,7 @@ mod std_net;
 mod std_serde;
 mod std_str_internal;
 mod std_thread;
+mod std_luau;
 mod sealconfig;
 
 use err::display_error_and_exit;
@@ -261,7 +262,7 @@ fn seal_setup() -> LuauLoadResult {
 
     let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
     let temp_luau = Lua::new();
-    globals::set_globals(&temp_luau, cwd.to_string_lossy().into_owned())?;
+    globals::set_globals(&temp_luau, cwd.to_string_lossy())?;
     match temp_luau.load(seal_setup_settings).exec() {
         Ok(_) => Ok(None),
         Err(err) => {

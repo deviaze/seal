@@ -14,7 +14,8 @@ local std = {
 	serde = require("@std/serde"),
 	json = require("@std/json"),
 	net = require("@std/net"),
-	thread = require("@std/thread")
+	thread = require("@std/thread"),
+	luau = require("@std/luau"),
 }
 
 return std
