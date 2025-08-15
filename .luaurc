@@ -1,14 +1,14 @@
 {
-	"languageMode": "strict",
-	"lint": {
-		"LocalUnused": false
-	},
-	"aliases": {
-		"std": "./.seal/typedefs/std/",
-		"interop": "./.seal/typedefs/interop/",
-		"extra": "./.seal/extra/",
-		"tests": "./tests/luau/",
-		"data": "./tests/data/",
-		"output_formatter": "./src/std_io/output_formatter.luau"
-	}
+  "languageMode": "strict",
+  "lint": {
+    "LocalUnused": false
+  },
+  "aliases": {
+    "std": "./.seal/typedefs/std/",
+    "interop": "./.seal/typedefs/interop/",
+    "output_formatter": "./src/std_io/output_formatter.luau",
+    "extra": "./.seal/extra/",
+    "tests": "./tests/luau/",
+    "data": "./tests/data/"
+  }
 }

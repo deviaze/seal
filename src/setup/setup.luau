@@ -3,6 +3,7 @@ local io = require("@std/io")
 local str = require("@std/str")
 local env = require("@std/env")
 local json = require("@std/json")
+local luau = require("@std/luau")
 local colors = require("@std/colors")
 local semver = require("@std/semver")
 local process = require("@std/process")
@@ -58,9 +59,10 @@ local read_jsonc
 local get_updated_luaurc
 local get_updated_vscode_settings
 local update_seal_dir
-local custom_setup_from_args
-
 local extract
+local is_git_repo
+local run_git_init
+local custom_setup_from_args
 
 local function setup(config: SetupConfig?)
     if not config then
@@ -150,21 +152,35 @@ local function setup(config: SetupConfig?)
                 :with_file("main.luau", 'print("Hello world!")')
             )
         end
-        -- either way (gen or link) we need a .seal dir in cwd for config.luau
-        fs.dir.ensure(cwd:join(".seal"))
-            :add_file("config.luau", seal_setup.DEFAULT_CONFIG_SRC)
+        -- either way (gen or link) we still need a .seal dir at the cwd for config.luau
+        local seal_dir = fs.dir.from(cwd:join(".seal"))
+        if not fs.path.exists(seal_dir:join("config.luau")) then
+            seal_dir:add_file(
+                "config.luau", 
+                (seal_setup.DEFAULT_CONFIG_SRC:gsub("<SEAL_VERSION_REPLACE>", _SEAL_VERSION)
+            )
+        )
+        end
     else
         local script_starter_imports = {
             `local fs = require("@std/fs")`,
             `local process = require("@std/process")`,
             "",
         }
-        fs.dir.ensure(cwd:join(".seal"))
-            :add_file("script.luau", table.concat(script_starter_imports, "\n"))
-            :add_file(
-                "config.luau",
-                'return {\n    entry_path = "./.seal/script.luau"\n}'
-            )
+        if not fs.path.exists(cwd:join(".seal", "config.luau")) then
+            fs.dir.ensure(cwd:join(".seal"))
+                :add_file("script.luau", table.concat(script_starter_imports, "\n"))
+                :add_file(
+                    "config.luau",
+                    'return {\n    entry_path = "./.seal/script.luau"\n}'
+                )
+        end
+    end
+
+    if config.git then
+        if not is_git_repo(cwd) then
+            run_git_init()
+        end
     end
 
     if config.tour then
@@ -254,16 +270,15 @@ function update_seal_dir(seal_dir: fs.DirectoryEntry)
 end
 
 function should_replace_typedefs(config_luau: fs.FileEntry)
-    local function slightly_safe_require(path: string): { seal_version: string? }
-        local s, res = pcall(function()
-            return (require)(path)
-        end)
-        if s == true and typeof(res) == "table" then
-            return res
-        elseif typeof(res) == "error" then
-            return err(`Unable to require config.luau at '{path}', is it a valid config.luau file? Error message from require(): {tostring(res)}`)
+    local function slightly_safe_eval(path: string): { seal_version: string? }
+        local src = fs.readfile(path)
+        local res = luau.eval(src, { stdlib = "seal" }) -- allow seal stdlib in case test functions or smth need it
+        if typeof(res) == "error" then
+            err(`Error reading your config.luau file at {path}: {res}`)
+            error("unreachable")
+        else
+            return res :: { seal_version: string? }
         end
-        error("unreachable")
     end
     local function parse_semver(ver: string): semver.Semver
         local s, sem = pcall(function(): semver.Semver
@@ -278,7 +293,7 @@ function should_replace_typedefs(config_luau: fs.FileEntry)
     end
 
     local should_replace = false
-    local existing_version = slightly_safe_require(config_luau.path).seal_version
+    local existing_version = slightly_safe_eval(config_luau.path).seal_version
     if existing_version then
         local existing_semver = parse_semver(existing_version)
         local seal_semver = semver.from(_SEAL_VERSION)
@@ -314,9 +329,34 @@ function should_replace_extra(seal_dir: fs.DirectoryEntry): boolean
         return true
     end
     local response = str.trim(io.input.get(
-        `Replace '.seal/extra' dir at {extra_dir.path}? This may remove any customizations you've made to @extra libraries. \z(Y/n)`
+        `Replace '.seal/extra' dir at {extra_dir.path}? This may remove any customizations you've made to @extra libraries. \z(Y/n): `
     )):lower()
     return response == "y" or response == ""
+end
+
+function is_git_repo(cwd: fs.DirectoryEntry): boolean
+    return cwd:find(".git"):try_dir() ~= nil
+end
+
+function run_git_init(): boolean
+    local git_version_result = process.run { -- check if git exists on system
+        program = "git",
+        args = { "--version" },
+    }
+    if not git_version_result.ok then
+        print("seal setup - version control software `git` not found on your system - I recommend installing it! (https://git-scm.com/downloads)")
+        return false
+    end
+
+    local git_init_result = process.run {
+        program = "git",
+        args = { "init" },
+    }
+    if not git_init_result.ok then
+        print("seal setup - error initializing git repository")
+        return false
+    end
+    return true
 end
 
 function custom_setup_from_args(): SetupConfig

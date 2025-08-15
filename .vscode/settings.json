@@ -1,27 +1,29 @@
 {
-	"luau-lsp.fflags.enableNewSolver": true,
-	"luau-lsp.fflags.enableByDefault": true,
-	"files.eol": "\n",
-	"luau-lsp.platform.type": "standard",
-	"workbench.layoutControl.enabled": false,
-	"workbench.editor.customLabels.patterns": {
-		"**/init.luau": "${dirname}",
-		"**/mod.rs": "${dirname}",
-		"**/init.client.luau": "${dirname}",
-		"**/init.server.luau": "${dirname}"
-	},
-	"luau-lsp.completion.imports.suggestRequires": true,
-	"luau-lsp.types.definitionFiles": ["./.seal/typedefs/globals.d.luau"],
-	"code-runner.executorMap": {
-		"luau": "cargo build && ./target/debug/seal $fullFileName",
-	},
-	"rust-analyzer.check.command": "clippy",
-	"stylua.targetReleaseVersion": "latest",
-	"luau-lsp.inlayHints.parameterNames": "literals",
-	"luau-lsp.plugin.enabled": false,
-	"luau-lsp.inlayHints.variableTypes": false,
-	"[rust]": {
-		"editor.tabSize": 4,
-		"editor.insertSpaces": true,
-	}
+  "code-runner.executorMap": {
+    "luau": "cargo build && ./target/debug/seal $fullFileName"
+  },
+  "rust-analyzer.check.command": "clippy",
+  "workbench.layoutControl.enabled": false,
+  "files.eol": "\n",
+  "luau-lsp.completion.imports.suggestRequires": true,
+  "[rust]": {
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4
+  },
+  "luau-lsp.fflags.enableByDefault": true,
+  "luau-lsp.inlayHints.parameterNames": "literals",
+  "luau-lsp.platform.type": "standard",
+  "workbench.editor.customLabels.patterns": {
+    "**/mod.rs": "${dirname}",
+    "**/init.luau": "${dirname}",
+    "**/init.client.luau": "${dirname}",
+    "**/init.server.luau": "${dirname}"
+  },
+  "luau-lsp.types.definitionFiles": [
+    "./.seal/typedefs/globals.d.luau"
+  ],
+  "luau-lsp.fflags.enableNewSolver": true,
+  "luau-lsp.inlayHints.variableTypes": false,
+  "luau-lsp.plugin.enabled": false,
+  "stylua.targetReleaseVersion": "latest"
 }
