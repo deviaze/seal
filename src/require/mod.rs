@@ -91,6 +91,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
 
         "@std/thread" => ok_table(std_thread::create(luau)),
 
+        "@std/luau" => ok_table(std_luau::create(luau)),
+
         "@std" => {
             ok_table(TableBuilder::create(luau)?
                 .with_value("fs", std_fs::create(luau)?)?

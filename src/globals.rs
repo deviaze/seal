@@ -14,7 +14,7 @@ pub fn warn(luau: &Lua, warn_value: LuaValue) -> LuaValueResult {
 
 pub const SEAL_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn set_globals(luau: &Lua, entry_path: String) -> LuaValueResult {
+pub fn set_globals<S: AsRef<str>>(luau: &Lua, entry_path: S) -> LuaValueResult {
     let globals: LuaTable = luau.globals();
     // must use globals().get instead of globals().raw_get due to safeenv/sandbox (which requires newindex); raw_get incorrectly returns nil when safeenv enabled
     let luau_version: LuaString = globals.get("_VERSION")?;
@@ -29,7 +29,7 @@ pub fn set_globals(luau: &Lua, entry_path: String) -> LuaValueResult {
     globals.raw_set("_G", TableBuilder::create(luau)?.build()?)?;
     globals.raw_set("_REQUIRE_CACHE", TableBuilder::create(luau)?.build()?)?;
     globals.raw_set("script", TableBuilder::create(luau)?
-        .with_value("entry_path", entry_path)?
+        .with_value("entry_path", entry_path.as_ref())?
         .with_function("path", get_script_path)?
         .with_function("parent", get_script_parent)?
         .build_readonly()?
