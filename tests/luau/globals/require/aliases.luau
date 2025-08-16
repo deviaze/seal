@@ -33,7 +33,7 @@ nonexistentalias()
 
 local function aliaswithoutslashfile()
 	local process_values = (require :: any)("@output_formatter")
-	assert(process_values.simple_print ~= nil, "output_formatter.simple_print should be non-nil")
+	assert(process_values.simple ~= nil, "output_formatter.simple_print should be non-nil")
 end
 
 aliaswithoutslashfile()
