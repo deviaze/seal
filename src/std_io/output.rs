@@ -1,5 +1,3 @@
-#![allow(clippy::single_char_add_str)]
-
 use std::process::Command;
 use std::io::{self, Write};
 
@@ -8,7 +6,7 @@ use mluau::prelude::*;
 
 use crate::prelude::*;
 
-fn process_raw_values(value: LuaValue, result: &mut String, depth: usize) -> LuaResult<()> {
+fn process_debug_values(value: LuaValue, result: &mut String, depth: usize) -> LuaResult<()> {
     let left_padding = " ".repeat(2 * depth);
     match value {
         LuaValue::Table(t) => {
@@ -16,15 +14,15 @@ fn process_raw_values(value: LuaValue, result: &mut String, depth: usize) -> Lua
                 result.push_str("{\n");
                 for pair in t.pairs::<LuaValue, LuaValue>() {
                     let (k, v) = pair?;
-                    result.push_str(&format!("  {left_padding}{:?} = ", k));
-                    process_raw_values(v, result, depth + 1)?;
-                    result.push_str("\n");
+                    result.push_str(&format!("  {left_padding}{:#?} = ", k));
+                    process_debug_values(v, result, depth + 1)?;
+                    result.push('\n');
                 }
                 result.push_str(&format!("{left_padding}}}"));
             }
         },
         LuaValue::String(s) => {
-            let formatted_string = format!("String({:?})", s);
+            let formatted_string = format!("{:?}", s);
             result.push_str(&formatted_string);
         },
         _ => {
@@ -32,23 +30,28 @@ fn process_raw_values(value: LuaValue, result: &mut String, depth: usize) -> Lua
         }
     }
     if depth > 0 {
-        result.push_str(",");
+        result.push(',');
     }
     Ok(())
 }
 
-pub fn debug_print(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
+pub fn debug_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<LuaString> {
+    let function_name = "dp(...: any)";
     let mut result = String::from("");
-    let mut multi_values = stuff.clone();
 
-    while let Some(value) = multi_values.pop_front() {
-        process_raw_values(value, &mut result, 0)?;
-        if !multi_values.is_empty() {
-            result += ", ";
+    while let Some(value) = multivalue.pop_front() {
+        process_debug_values(value, &mut result, 0)?;
+        if !multivalue.is_empty() {
+            result.push_str(", ");
         }
     }
 
-    println!("{:?}", result.clone());
+    let debug_info = DebugInfo::from_caller(luau, function_name)?;
+    println!(
+        "{}[DEBUG]{} {}:{} in {}{}\n{}", 
+        colors::BOLD_RED, colors::RESET, debug_info.source.replace("string ", ""), debug_info.line, debug_info.function_name, colors::RESET, 
+        &result
+    );
     luau.create_string(&result)
 }
 
@@ -57,7 +60,7 @@ fn format_debug(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
     let mut multi_values = stuff.clone();
 
     while let Some(value) = multi_values.pop_front() {
-        process_raw_values(value, &mut result, 0)?;
+        process_debug_values(value, &mut result, 0)?;
         if !multi_values.is_empty() {
             result += ", ";
         }
@@ -70,7 +73,7 @@ const OUTPUT_PROCESS_VALUES: &str = include_str!("./output_formatter.luau");
 
 pub fn simple_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_simple: LuaFunction = r.raw_get("simple_print")?;
+    let format_simple: LuaFunction = r.raw_get("simple")?;
     let mut result = String::from("");
     
     while let Some(value) = multivalue.pop_front() {
@@ -95,7 +98,7 @@ pub fn simple_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> Lua
 
 pub fn simple_format(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_simple: LuaFunction = r.raw_get("simple_print")?;
+    let format_simple: LuaFunction = r.raw_get("simple")?;
     let result = match format_simple.call::<LuaString>(value) {
         Ok(text) => text.to_string_lossy(),
         Err(err) => {
@@ -109,7 +112,7 @@ pub fn simple_format(luau: &Lua, value: LuaValue) -> LuaValueResult {
 
 pub fn pretty_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<()> {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_pretty: LuaFunction = r.raw_get("pretty_print")?;
+    let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let mut result = String::from("");
 
     while let Some(value) = multivalue.pop_front() {
@@ -132,7 +135,7 @@ pub fn pretty_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<()> 
 
 pub fn pretty_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<String> {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_pretty: LuaFunction = r.raw_get("pretty_print")?;
+    let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let mut result = String::from("");
 
     while let Some(value) = multivalue.pop_front() {
@@ -155,7 +158,7 @@ pub fn pretty_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> Lua
 
 pub fn format_output(luau: &Lua, value: LuaValue) -> LuaResult<String> {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_pretty: LuaFunction = r.raw_get("pretty_print")?;
+    let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let result = match format_pretty.call::<LuaString>(value) {
         Ok(text) => text.to_string_lossy(),
         Err(err) => {
@@ -215,7 +218,7 @@ pub fn clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
 pub fn output_write(_luau: &Lua, value: LuaValue) -> LuaValueResult {
     match value {
         LuaValue::String(text) => {
-            io::stdout().write_all(text.to_string_lossy().as_bytes()).unwrap();
+            io::stdout().write_all(&text.as_bytes()).unwrap();
             io::stdout().flush().unwrap();
             Ok(LuaNil)
         },

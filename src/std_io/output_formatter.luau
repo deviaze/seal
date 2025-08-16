@@ -36,7 +36,7 @@ local function process_raw_values(
     depth: number?
 ): string
     seen_tables = seen_tables or {}
-    local result = ""
+    local result: { string } = {}
     local depth = depth or 0
     local current_indent = string.rep("    ", depth)
     if typeof(value) == "table" then
@@ -44,31 +44,37 @@ local function process_raw_values(
         local table_id = get_table_id(value)
         local seen_name = seen_tables[table_id]
         if seen_name then
-            result ..= "cyclic(" .. seen_name .. ")"
+            table.insert(result, "cyclic(" .. seen_name .. ")")
         else
             if depth == 0 then
                 seen_tables[table_id] = "self" -- so we can recognize top level cyclic tables
             end
-            result ..= "{\n"
+            table.insert(result, "{\n")
             for key, val in value do
-                result ..= current_indent
-                result ..= "    "
+                -- result ..= current_indent
+                table.insert(result, current_indent)
+                table.insert(result, "    ")
                 -- handle key stringification
                 if typeof(key) == "string" then
                     -- we can omit brackets if key is an identifier-like key (like "meow1234" which is vs "cats are cool" which isn't)
                     if string.match(key, IDENTIFIER_PATTERN) then
-                        result ..= key
+                        -- result ..= key
+                        table.insert(result, key)
                     else
-                        result ..= "[\"" .. key .. "\"]"
+                        -- result ..= "[\"" .. key .. "\"]"
+                        table.insert(result, "[\"" .. key .. "\"]")
                     end
                 elseif typeof(key) == "number" then
                     if mlua.isint(key) then
-                        result ..= "[" .. tostring(key) .. "]"
+                        -- result ..= "[" .. tostring(key) .. "]"
+                        table.insert(result, "[" .. tostring(key) .. "]")
                     else -- is a LuaNumber
                         if math.round(key) == key then
-                            result ..= "[" .. tostring(key) .. ".0]"
+                            -- result ..= "[" .. tostring(key) .. ".0]"
+                            table.insert(result, "[" .. tostring(key) .. ".0]")
                         else
-                            result ..= "[" .. tostring(key) .. "]"
+                            -- result ..= "[" .. tostring(key) .. "]"
+                            table.insert(result, "[" .. tostring(key) .. "]")
                         end
                     end
                 elseif typeof(key) == "table" then
@@ -76,48 +82,62 @@ local function process_raw_values(
                     local key_tableid = get_table_id(key)
                     local seen_key_name = seen_tables[key_tableid]
                     if seen_key_name then
-                        result ..= "[cyclic(" .. seen_key_name .. ")]"
+                        -- result ..= "[cyclic(" .. seen_key_name .. ")]"
+                        table.insert(result, "[cyclic(" .. seen_key_name .. ")]")
                     else
                         -- according to ariel et al, people probably want to see addresses in debug mode
                         local stringified_tableid = string.gsub(table_id, "0x0*", "")
-                        result ..= "[table(0x" .. stringified_tableid .. ")]"
+                        table.insert(result, "[table(0x" .. stringified_tableid .. ")]")
                         -- but pretty print should show full table
                     end
                 else
-                    result ..= "[" .. process_raw_values(key, seen_tables, depth + 1) .. "]"
+                    -- result ..= "[" .. process_raw_values(key, seen_tables, depth + 1) .. "]"
+                    table.insert(result, "[" .. process_raw_values(key, seen_tables, depth + 1) .. "]")
                 end
-                result ..= " = "
+                table.insert(result, " = ")
+                -- result ..= " = "
                 -- handle val stringification
                 if typeof(val) == "table" then
                     local val = val :: { [any]: any }
                     local val_tableid = get_table_id(val)
                     local seen_val_name = seen_tables[val_tableid]
                     if seen_val_name then
-                        result ..= "cyclic(" .. seen_val_name .. ")"
+                        -- result ..= "cyclic(" .. seen_val_name .. ")"
+                        table.insert(result, "cyclic(" .. seen_val_name .. ")")
                     else
-                        result ..= process_raw_values(val, seen_tables, depth + 1)
+                        -- result ..= process_raw_values(val, seen_tables, depth + 1)
+                        table.insert(result, process_raw_values(val, seen_tables, depth + 1))
                     end
                 elseif typeof(val) == "string" then -- no need for extra recursive call for common case
-                    result ..= '"' .. val .. '"'
+                    -- result ..= '"' .. val .. '"'
+                    table.insert(result, '"' .. val .. '"')
                 else
-                    result ..= process_raw_values(val, seen_tables, depth + 1)
+                    -- result ..= process_raw_values(val, seen_tables, depth + 1)
+                    table.insert(result, process_raw_values(val, seen_tables, depth + 1))
                 end
-                result ..= ",\n"
+                -- result ..= ",\n"
+                table.insert(result, ",\n")
             end
         end
-        result ..= current_indent ..  "}"
+        -- result ..= current_indent ..  "}"
+        table.insert(result, current_indent ..  "}")
     elseif typeof(value) == "string" then
-        result ..= if depth == 0 then value else  '"' .. value .. '"'
+        -- result ..= if depth == 0 then value else  '"' .. value .. '"'
+        table.insert(result, if depth == 0 then value else  '"' .. value .. '"')
     elseif typeof(value) == "boolean" then
-        result ..= tostring(value)
+        -- result ..= tostring(value)
+        table.insert(result, tostring(value))
     elseif typeof(value) == "number" then
         if mlua.isint(value) then
-            result ..= tostring(value)
+            -- result ..= tostring(value)
+            table.insert(result, tostring(value))
         else
             if math.round(value) == value then
-                result ..= tostring(value) .. ".0"
+                -- result ..= tostring(value) .. ".0"
+                table.insert(result, tostring(value) .. ".0")
             else
-                result ..= tostring(value)
+                -- result ..= tostring(value)
+                table.insert(result, tostring(value))
             end
         end
     elseif typeof(value) == "function" then
@@ -165,7 +185,7 @@ local function process_raw_values(
     else
         return tostring(value)
     end
-    return result
+    return table.concat(result, "")
 end
 
 local RESET = colors.codes.RESET
@@ -206,13 +226,13 @@ local function stringify_simple_type(value: any): string
         return YELLOW .. tostring(value) .. RESET
     elseif type(value) == "vector" then
         return BOLD_RED .. "vector" .. RESET .. LEFT_ANGLED
-               .. BOLD_BLUE .. value.x .. CYAN .. ", "
-               .. BOLD_BLUE .. value.y .. CYAN .. ", "
-               .. BOLD_BLUE .. value.z .. CYAN ..
-               (if VECTOR_FOUR_WIDE_MODE then ", " ..
-                  BOLD_BLUE .. value.w
-               else "") 
-               .. RED .. RIGHT_ANGLED .. RESET
+            .. BOLD_BLUE .. value.x .. CYAN .. ", "
+            .. BOLD_BLUE .. value.y .. CYAN .. ", "
+            .. BOLD_BLUE .. value.z .. CYAN ..
+            (if VECTOR_FOUR_WIDE_MODE then ", " ..
+                BOLD_BLUE .. value.w
+            else "") 
+            .. RED .. RIGHT_ANGLED .. RESET
     elseif type(value) == "function" then
         local function_id = string.match(tostring(value), ID_CATCHER_PATTERN)
         local last_five = string.sub(function_id, #function_id - 4, # function_id)
@@ -350,7 +370,14 @@ local function process_pretty_values(
     local current_indent = string.rep("    ", depth)
     if type(value) == "table" then
         local value = value :: { [any]: any }
-        local result = "{\n"
+        -- local result = "{\n"
+        local result: { string } = {}
+
+        local function push(s: string)
+            table.insert(result, s)
+        end
+
+        push("{\n")
 
         if depth == 0 then
             seen_tables[value] = BOLD_YELLOW .. "self" .. RESET -- track top level cyclic tables
@@ -376,7 +403,8 @@ local function process_pretty_values(
 
         for _, pair in sorted_pairs do
             local key, val = pair.key, pair.val
-            result ..= current_indent .. "    "
+            -- result ..= current_indent .. "    "
+            push(current_indent .. "    ")
 
             -- stringify keys
             local key_type = type(key)
@@ -385,92 +413,127 @@ local function process_pretty_values(
                 -- so the = signs are aligned
                 if #value > 10 and #value < 100 then
                     if key < 10 then
-                        result ..= " "
+                        -- result ..= " "
+                        push(" ")
                     end
                 elseif #value > 100 and #value < 1000 then
                     if key < 10 then
-                        result ..= "  "
+                        -- result ..= "  "
+                        push("  ")
                     elseif key < 100 then
-                        result ..= " "
+                        -- result ..= " "
+                        push(" ")
                     end
                 elseif #value > 1000 then
                     if key < 10 then
-                        result ..= "   "
+                        push("   ")
                     elseif key < 100 then
-                        result ..= "  "
+                        -- result ..= "  "
+                        push("  ")
                     elseif key < 1000 then
-                        result ..= " "
+                        -- result ..= " "
+                        push(" ")
                     end
                 end
-                result ..= LEFT_BRACKET
-                       .. if mlua.isint(key) then BLUE .. tostring(key) .. RESET
-                          else BOLD_BLUE .. tostring(key) .. RESET
-                result ..= RIGHT_BRACKET
+                push(
+                    LEFT_BRACKET ..
+                    (if mlua.isint(key) then 
+                        BLUE .. tostring(key) .. RESET
+                    else 
+                        BOLD_BLUE .. tostring(key) .. RESET
+                    ) .. 
+                    RIGHT_BRACKET
+                )
             elseif key_type == "string" then
                 if string.match(key, IDENTIFIER_PATTERN) then
-                    result ..= key
+                    -- result ..= key
+                    push(key)
                 else
-                    result ..= LEFT_BRACKET .. GREEN .. '"' .. key .. '"' .. RESET .. RIGHT_BRACKET
+                    -- result ..= LEFT_BRACKET .. GREEN .. '"' .. key .. '"' .. RESET .. RIGHT_BRACKET
+                    push(LEFT_BRACKET .. GREEN .. '"' .. key .. '"' .. RESET .. RIGHT_BRACKET)
                 end
             elseif key_type == "table" then
                 local seen_name: string? = seen_tables[key]
                 if seen_name then
-                    result ..= LEFT_BRACKET .. seen_name .. RIGHT_BRACKET
+                    -- result ..= LEFT_BRACKET .. seen_name .. RIGHT_BRACKET
+                    push(LEFT_BRACKET .. seen_name .. RIGHT_BRACKET)
                 elseif depth + 1 > 6 then
                     local tableid = string.match(tostring(key), ID_CATCHER_PATTERN)
-                    result ..= LEFT_BRACKET .. colors.cyan(`table<0x{tableid}>`) .. RIGHT_BRACKET
+                    push(LEFT_BRACKET .. colors.cyan(`table<0x{tableid}>`) .. RIGHT_BRACKET)
                 else
-                    result ..= LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
+                    -- result ..= LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
+                    push(
+                        LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
+                    )
                 end
             else
-                result ..= LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
+                -- result ..= LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
+                push(
+                    LEFT_BRACKET .. process_pretty_values(key, seen_tables, depth + 1, current_table_path) .. RIGHT_BRACKET
+                )
             end
 
-            result ..= " = "
+            -- result ..= " = "
+            push(" = ")
 
             -- stringify values
             if type(val) == "table" then
                 local val = val :: { [any]: any }
                 local seen_name: string? = seen_tables[val]
                 if seen_name then
-                    result ..= seen_name
+                    -- result ..= seen_name
+                    push(seen_name)
                 elseif depth + 1 > 6 then
                     if next(val) == nil then -- table is empty
-                        result ..= "{}"
+                        -- result ..= "{}"
+                        push("{}")
                     else
-                        result ..= "{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}"
+                        -- result ..= "{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}"
+                        push("{" .. colors.codes.BOLD_WHITE .. "..." .. RESET .. "}")
                     end
                 else
                     -- push key to current_table_path before recursion
                     table.insert(current_table_path, key)
                     seen_tables[val] = stringify_table_path(current_table_path) -- tostring(key)
-                    result ..= process_pretty_values(val, seen_tables, depth + 1, current_table_path)
+                    -- result ..= process_pretty_values(val, seen_tables, depth + 1, current_table_path)
+                    push(process_pretty_values(val, seen_tables, depth + 1, current_table_path))
                     -- pop key from current_table_path after recursion
                     table.remove(current_table_path, #current_table_path)
                 end
             elseif type(val) == "string" then -- don't recurse in extremely common case
                 if string.find(val, "\n") then
                     if #val < 42 then
-                        result ..= GREEN .. '"' .. string.gsub(val, "\n", "\\n") .. '"' .. RESET
+                        -- result ..= GREEN .. '"' .. string.gsub(val, "\n", "\\n") .. '"' .. RESET
+                        push(GREEN .. '"' .. string.gsub(val, "\n", "\\n") .. '"' .. RESET)
                     else
-                        result ..= "(newlined string starts on next line) " ..  GREEN .. "\n" .. val .. RESET .. "\n(end newlined string)"
+                        -- result ..= "(newlined string starts on next line) " ..  GREEN .. "\n" .. val .. RESET .. "\n(end newlined string)"
+                        push("(newlined string starts on next line) " ..  GREEN .. "\n" .. val .. RESET .. "\n(end newlined string)")
                     end
                 else
-                    result ..= GREEN .. '"' .. val .. '"' .. RESET
+                    -- result ..= GREEN .. '"' .. val .. '"' .. RESET
+                    push(GREEN .. '"' .. val .. '"' .. RESET)
                 end
             elseif type(val) == "number" or type(val) == "boolean" then
-                result ..= stringify_simple_type(val)
+                -- result ..= stringify_simple_type(val)
+                push(stringify_simple_type(val))
             else
-                result ..= process_pretty_values(val, seen_tables, depth + 1, current_table_path)
+                -- result ..= process_pretty_values(val, seen_tables, depth + 1, current_table_path)
+                push(process_pretty_values(val, seen_tables, depth + 1, current_table_path))
             end
             
-            result ..= DIM .. "," .. RESET .. "\n"
+            -- result ..= DIM .. "," .. RESET .. "\n"
+            push(DIM .. "," .. RESET .. "\n")
         end
         if value_meta then
-            result ..= current_indent .. "    " .. RED .. "@metatable" .. RESET .. " = " .. process_pretty_values(value_meta, seen_tables, depth + 1, current_table_path) .. "\n"
+            -- result ..= current_indent .. "    " .. RED .. "@metatable" .. RESET .. " = " .. process_pretty_values(value_meta, seen_tables, depth + 1, current_table_path) .. "\n"
+            push(
+                current_indent .. "    " .. RED .. "@metatable" .. RESET .. " = " .. process_pretty_values(value_meta, seen_tables, depth + 1, current_table_path) .. "\n"
+            )
         end
-        result ..= current_indent .. "}"
-        return result
+        -- result ..= current_indent .. "}"
+        push(current_indent .. "}")
+        -- return result
+        return table.concat(result, "")
     elseif type(value) == "string" and depth == 0 then -- calling print("hello world") shouldn't colorize
         return value
     else
@@ -479,6 +542,6 @@ local function process_pretty_values(
 end
 
 return {
-    simple_print = process_raw_values,
-    pretty_print = process_pretty_values,
+    simple = process_raw_values,
+    pretty = process_pretty_values,
 }
