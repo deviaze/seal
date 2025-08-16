@@ -70,7 +70,7 @@ const OUTPUT_PROCESS_VALUES: &str = include_str!("./output_formatter.luau");
 
 pub fn simple_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_simple: LuaFunction = r.raw_get("simple_print")?;
+    let format_simple: LuaFunction = r.raw_get("simple")?;
     let mut result = String::from("");
     
     while let Some(value) = multivalue.pop_front() {
@@ -95,7 +95,7 @@ pub fn simple_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> Lua
 
 pub fn simple_format(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_simple: LuaFunction = r.raw_get("simple_print")?;
+    let format_simple: LuaFunction = r.raw_get("simple")?;
     let result = match format_simple.call::<LuaString>(value) {
         Ok(text) => text.to_string_lossy(),
         Err(err) => {
@@ -109,7 +109,7 @@ pub fn simple_format(luau: &Lua, value: LuaValue) -> LuaValueResult {
 
 pub fn pretty_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<()> {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_pretty: LuaFunction = r.raw_get("pretty_print")?;
+    let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let mut result = String::from("");
 
     while let Some(value) = multivalue.pop_front() {
@@ -132,7 +132,7 @@ pub fn pretty_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<()> 
 
 pub fn pretty_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<String> {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_pretty: LuaFunction = r.raw_get("pretty_print")?;
+    let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let mut result = String::from("");
 
     while let Some(value) = multivalue.pop_front() {
@@ -155,7 +155,7 @@ pub fn pretty_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> Lua
 
 pub fn format_output(luau: &Lua, value: LuaValue) -> LuaResult<String> {
     let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_pretty: LuaFunction = r.raw_get("pretty_print")?;
+    let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let result = match format_pretty.call::<LuaString>(value) {
         Ok(text) => text.to_string_lossy(),
         Err(err) => {
