@@ -215,7 +215,7 @@ pub fn clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
 pub fn output_write(_luau: &Lua, value: LuaValue) -> LuaValueResult {
     match value {
         LuaValue::String(text) => {
-            io::stdout().write_all(text.to_string_lossy().as_bytes()).unwrap();
+            io::stdout().write_all(&text.as_bytes()).unwrap();
             io::stdout().flush().unwrap();
             Ok(LuaNil)
         },
