@@ -17,11 +17,21 @@ impl SealConfig {
 
         while current_path.exists() {
             let seal_dir = current_path.join(".seal");
-            let sealconfig_path = seal_dir.join("sealconfig.luau");
+            let config_path = seal_dir.join("config.luau");
 
-            if seal_dir.is_dir() && sealconfig_path.is_file() {
-                current_path = sealconfig_path;
+            if seal_dir.is_dir() && config_path.is_file() {
+                current_path = config_path;
                 break;
+            } else if seal_dir.is_dir() && !config_path.exists() {
+                if std_env::get_cwd(function_name)?
+                    .join("src")
+                    .join("main.luau")
+                    .exists() 
+                {
+                    return Ok(Some(SealConfig { entry_path: String::from("./src/main.luau"), test_path: None }))
+                } else {
+                    return Ok(None);
+                }
             } else if let Some(parent) = current_path.parent() {
                 current_path = parent.to_path_buf();
             } else {
@@ -48,10 +58,10 @@ impl SealConfig {
         let sealconfig = match luau.load(sealconfig_src).eval::<LuaValue>() {
             Ok(LuaValue::Table(config)) => config,
             Ok(other) => {
-                return wrap_err!("{}: sealconfig.luau at '{}' returned something that isn't a table: {:?}", function_name, current_path.display(), other);
+                return wrap_err!("{}: config.luau at '{}' returned something that isn't a table: {:?}", function_name, current_path.display(), other);
             },
             Err(err) => {
-                return wrap_err!("{}: unable to load sealconfig.luau at '{}' due to err: {}", function_name, current_path.display(), err);
+                return wrap_err!("{}: unable to load config.luau at '{}' due to err: {}", function_name, current_path.display(), err);
             }
         };
 
@@ -59,7 +69,7 @@ impl SealConfig {
             LuaValue::String(p) => validate_path(&p, function_name)?,
             LuaNil => String::from("./src/main.luau"),
             other => {
-                return wrap_err!("{}: unexpected result when reading sealconfig.luau at '{}', \
+                return wrap_err!("{}: unexpected result when reading config.luau at '{}', \
                 field entry_path expected to be a string, got: {:?}", function_name, current_path.display(), other);
             }
         };
@@ -68,7 +78,7 @@ impl SealConfig {
             LuaValue::String(test_path) => Some(validate_path(&test_path, function_name)?),
             LuaNil => None,
             other => {
-                return wrap_err!("{}: unexpected test_path when reading sealconfig.luau at '{}'; \
+                return wrap_err!("{}: unexpected test_path when reading config.luau at '{}'; \
                 test_path expected to be a string, got: {:?}", function_name, current_path.display(), other);
             }
         };
