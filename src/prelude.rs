@@ -16,6 +16,15 @@ pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaVa
     Ok(LuaValue::Function(luau.create_function(f)?))
 }
 
+pub fn ok_function_mut<F, I, Fn>(f: Fn, luau: &Lua) -> LuaValueResult
+where
+    F: FromLuaMulti + 'static,
+    I: IntoLuaMulti + 'static,
+    Fn: FnMut(&Lua, F) -> LuaResult<I> + 'static,
+{
+    Ok(LuaValue::Function(luau.create_function_mut(f)?))
+}
+
 pub fn ok_string<S: AsRef<[u8]>>(s: S, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::String(luau.create_string(s)?))
 }
