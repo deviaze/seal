@@ -114,8 +114,14 @@ export type fs = {
 
 		Note that filesystem watching is inherently *messy* and *platform specific*!
 		
-		Don't expect that you'll get the exact same events every time, or that specific `WatchKinds` will be the same
-		for the same operation on different platforms (though they should be similar).
+		In many cases, instead of just relying on the exact events this api provides to know which
+		files were created or removed, it may be better just to check the filesystem yourself 
+		with `fs.listdir/entries`, and use `fs.watch` as a trigger for knowing when to check.
+
+		Because you can get duplicated events, it's better to add your own debounces and if you're relying on counts,
+		
+		Don't expect that you'll get the same events every time, or that the same operation will map to the same specific `WatchKind`
+		on all platforms (though they *should* be similar.)
 
 		## Usage
 
