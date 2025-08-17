@@ -26,7 +26,7 @@ local function sealsetup()
 		cwd = project_path,
 	}
 	if not seal_setup_result.ok then
-		print(seal_setup_result)
+		print(seal_setup_result.stderr)
 	end
 	assert(seal_setup_result.ok == true, "seal setup not ok?")
 
