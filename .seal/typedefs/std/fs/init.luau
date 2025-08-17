@@ -122,7 +122,9 @@ export type fs = {
 		- You probably want to ignore `"Access"` since it's noisy (unless you need to know which files are currently open)
 		- If you want to listen for files getting added/modified, don't rely on certain kinds/categories.
 			- Check for `WatchEventInfo.is_write` instead of relying on `Modify::Data` or `Create` or `Close::Write`.
-		- If you don't want to loop forever, `break` if when you keep encountering `category == "None"` for a while. 
+		- If you don't want to loop forever, `break` if when you keep encountering `category == "None"` for a while.
+		- To make this function nonblocking (as best as possible), pass 0 milliseconds to `timeout_ms`. 
+			- You'll probably still want to loop it/put it in a function and watch out for `"None"` events.
 
 		## Examples
 
