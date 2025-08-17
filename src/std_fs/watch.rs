@@ -162,7 +162,10 @@ fn create_event_table(event: Event, event_category: EventCategory, luau: &Lua) -
         .with_value("paths", paths_table)?
         .with_value("kind", ok_string(event_category.stringify_kind(), luau)?)?
         .with_value("is_write", {
-            matches!(event_category.stringify_kind(), "Create::File" | "Close::Write" | "Modify::Data")
+            matches!(
+                event_category.stringify_kind(), 
+                "Create::File" | "Close::Write" | "Modify::Data" | "Modify::Data::Other" // windows sends Modify::Data::Other
+            )
         })?
         .build_readonly()
 }

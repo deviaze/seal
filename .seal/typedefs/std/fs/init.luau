@@ -523,7 +523,7 @@ export type WatchKind =
 
     -- Create -- CreateKind
     | "Create::File"
-    | "Create::Directory"
+    | "Create::Directory" -- sent on macos and unixlike
     | "Create::Other"
     | "Create::Any"
 
@@ -535,10 +535,10 @@ export type WatchKind =
     | "Rename::Other"
 
     -- Modify::Data -- ModifyKind::Data
-    | "Modify::Data"
+    | "Modify::Data" -- sent on unixlike
     | "Modify::Data::Content"
     | "Modify::Data::Size"
-    | "Modify::Data::Other"
+    | "Modify::Data::Other" -- sent on windows
 
     -- Modify::Metadata -- ModifyKind::Metadata
     | "Modify::Metadata::AccessTime"
@@ -554,10 +554,10 @@ export type WatchKind =
     | "Modify::Other"
 
     -- Remove -- RemoveKind
-    | "Remove::File"
-    | "Remove::Directory"
+    | "Remove::File" -- sent on unixlike
+    | "Remove::Directory" -- sent on unixlike
     | "Remove::Other"
-    | "Remove::Any"
+    | "Remove::Any" -- sent on Windows
 
     -- Other -- EventKind::Other
     | "Other"
