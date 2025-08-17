@@ -116,7 +116,7 @@ local function setup(config: SetupConfig?)
             json.writefile(settings_path, updated)
             print(`Updated .vscode/settings.json at '{settings_path}'`)
         else
-            fs.dir.ensure(".vscode")
+            fs.dir.ensure(cwd:join(".vscode"))
                 :add_file("settings.json", json.encode(vscode_defaults))
         end
     elseif config.editor == "zed" then

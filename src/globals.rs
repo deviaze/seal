@@ -8,7 +8,7 @@ pub fn error(_luau: &Lua, error_value: LuaValue) -> LuaValueResult {
 
 pub fn warn(luau: &Lua, warn_value: LuaValue) -> LuaValueResult {
     let formatted_text = std_io::output::format_output(luau, warn_value)?;
-    println!("{}{}{}", colors::BOLD_YELLOW, formatted_text, colors::RESET);
+    eprintln!("{}{}{}", colors::BOLD_YELLOW, formatted_text, colors::RESET);
     Ok(LuaNil)
 }
 

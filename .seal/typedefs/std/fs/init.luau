@@ -104,6 +104,123 @@ export type fs = {
 	]=]
 	removefile: (path: string) -> (),
 
+	--> fs.watch(paths: string | { string }, options: WatchOptions)
+	--[=[
+		Watch for filesystem changes on one or more `paths`.
+
+		- `WatchOptions.recursive`: defaults `true`; may produce duplicate events if any `paths` overlap,
+		- `WatchOptions.timeout_ms`: in milliseconds, after which the `fs.watch` iterator will return a `"None"` event instead of blocking the VM.
+		Defaults to 10 milliseconds.
+
+		Note that filesystem watching is inherently *messy* and *platform specific*!
+		
+		In many cases, instead of just relying on the exact events this api provides to know which
+		files were created or removed, it may be better just to check the filesystem yourself 
+		with `fs.listdir/entries`, and use `fs.watch` as a trigger for knowing when to check.
+
+		Because you can get duplicated events, it's better to add your own debounces and if you're relying on counts,
+		
+		Don't expect that you'll get the same events every time, or that the same operation will map to the same specific `WatchKind`
+		on all platforms (though they *should* be similar.)
+
+		## Usage
+
+		- You probably want to ignore `"Access"` since it's noisy (unless you need to know which files are currently open)
+		- If you want to listen for files getting added/modified, don't rely on certain kinds/categories.
+			- Check for `WatchEventInfo.is_write` instead of relying on `Modify::Data` or `Create` or `Close::Write`.
+		- If you don't want to loop forever, `break` if when you keep encountering `category == "None"` for a while.
+		- To make this function nonblocking (as best as possible), pass 0 milliseconds to `timeout_ms`. 
+			- You'll probably still want to loop it/put it in a function and watch out for `"None"` events.
+
+		## Examples
+
+		Run a Lune script whenever a file in ./src/** changes:
+		```luau
+		local fs = require("@std/fs")
+		local str = require("@std/str")
+		local process = require("@std/process")
+
+		local serializer_script = fs.path.join(".", ".lune", "instance_serializer.luau")
+
+		for category, event in fs.watch("./src") do
+			if category == "Access" or category == "None" then
+				continue -- ignore these, we only need "None" if we want to break loop
+			elseif event.is_write then
+				local modified_path = event.paths[1]
+				local result = process.run {
+					program = "lune",
+					args = {"run", serializer_script, modified_path}
+				}
+			end
+		end
+		```
+
+		Watch only .json config files for changes:
+
+		```luau
+		local options: fs.WatchOptions = {
+			recursive = false,
+			timeout_ms = 2, -- blocks vm for max of 2 milliseconds
+		}
+		
+		local files = fs.listdir(
+			"./src", , event i
+			true, -- recursive
+			function(path: string) -- filter
+				return if string.match(path, "%.json$") or string.match(path, "%.luaurc") 
+					then true 
+					else false
+			end
+		)
+		
+		for _, event in fs.watch(files, options) do
+			if event.is_write then
+				local modified = fs.path.child(event.paths[1])
+				if modified then
+					print(`Config file modified: {modified}!`)
+				end
+			end
+		end
+		```
+		
+		Manually poll a few times:
+
+		```luau
+		local options = {
+			recursive = true,
+			timeout_ms = 2, -- check for 2 seconds
+		}
+		time.wait(1)
+		local poll = fs.watch("./src", options)
+		local cat, event = poll()
+		if cat == "None" then
+			time.wait(1) -- retry
+			cat, event = poll()
+		end
+		if cat == "None" then
+			print("not found")
+		end
+		```
+
+		With a custom timeout:
+
+		```luau
+		local start_time = os.clock()
+		for category, event in fs.watch(script:parent()) do
+			if category == "None" and os.clock() - start_time > 5 then
+				break
+			end
+			if event.is_write then
+				print(event)
+			end
+		end
+		print("hi after 5 seconds")
+		```
+
+		This function uses the Rust `notify` crate as its backend; please refer to its documentation for more specifics.
+	]=]
+	watch: (paths: string | { string }, options: WatchOptions?) -> () -> (WatchEventCategory, WatchEventInfo),
+
 	-- fs.readtree(path: string) -> DirectoryTree
 	--[=[
 		Recursively read contents of directory at `path` into a `fs.DirectoryTree` that can be passed into `fs.writetree` and `DirectoryEntry:add_tree` apis.
@@ -336,6 +453,123 @@ export type FindResult = common_types.FindResult
 export type Entry = common_types.Entry
 export type FileEntry = common_types.FileEntry
 export type DirectoryEntry = common_types.DirectoryEntry
+
+export type WatchOptions = {
+	recursive: boolean?,
+	timeout_ms: number?,
+}
+
+--[=[
+	Top level categories to filter events by.
+
+	Some usage notes:
+	- You should probably ignore `"Access"` unless you need to know which files are currently open.
+	- Don't rely on solely `"Create"` or `"Modify::Data"` to check if a file was created/modified, use `WatchEventInfo.is_write` instead.
+	- `"None"` indicates a timeout was reached; use it to early exit or `break` without blocking the VM.
+]=]
+export type WatchEventCategory = 
+	| "Read" -- note that Read ~= open for reading (which is in Open)
+	| "Execute"
+	| "Open"
+	| "Close"
+	| "Access"
+	| "Create"
+	| "Rename"
+	| "Modify::Data"
+	| "Modify::Metadata"
+	| "Modify::Other"
+	| "Remove"
+	| "Other"
+	| "Unknown"
+	| "None"
+
+export type WatchEventInfo = {
+	paths: { string },
+	kind: WatchKind,
+	--- if the event is *most likely* a write event (`Create::File` or `Modify::Data` or `Close::Write`)
+	is_write: boolean,
+}
+
+--- Represents the specific Event.WatchKind from notify.
+---
+--- Note that relying on these is inherently unreliable as notify tends to combine related events.
+--- Especially if they're received within a short interval of each other.
+---
+--- Note that the `Kind::Any` options tend to be generated in place of `Kind::File` or
+--- `Kind::Directory` on Windows!
+--- 
+--- `None::Timeout` is fired if no events have been seen when `WatchOptions.timeout_ms` elapses
+--- for an iteration of `fs.watch`. This allows you to break early without indefinitely blocking the Luau VM.
+export type WatchKind =
+    -- Read -- AccessKind::Read
+    | "Read"
+
+    -- Execute -- AccessKind::Open(Execute)
+    | "Open::Execute"
+
+    -- Open -- AccessKind::Open(_)
+    | "Open::Read"
+    | "Open::Write"
+    | "Open::Other"
+
+    -- Close -- AccessKind::Close(_)
+    | "Close::Execute"
+    | "Close::Read"
+    | "Close::Write"
+    | "Close::Other"
+    | "Close::Any"
+
+    -- Access -- AccessKind::Any, AccessKind::Open(Any), AccessKind::Other
+    | "Open::Any"
+    | "Access::Any"
+    | "Access::Other"
+
+    -- Create -- CreateKind
+    | "Create::File"
+    | "Create::Directory" -- sent on macos and unixlike
+    | "Create::Other"
+    | "Create::Any"
+
+    -- Rename -- ModifyKind::Name
+    | "Rename::Any"
+    | "Rename::From"
+    | "Rename::To"
+    | "Rename::Both"
+    | "Rename::Other"
+
+    -- Modify::Data -- ModifyKind::Data
+    | "Modify::Data" -- sent on unixlike
+    | "Modify::Data::Content"
+    | "Modify::Data::Size"
+    | "Modify::Data::Other" -- sent on windows
+
+    -- Modify::Metadata -- ModifyKind::Metadata
+    | "Modify::Metadata::AccessTime"
+    | "Modify::Metadata::WriteTime"
+    | "Modify::Metadata::Ownership"
+    | "Modify::Metadata::Permissions"
+    | "Modify::Metadata::Extended"
+    | "Modify::Metadata::Other"
+    | "Modify::Metadata::Any"
+
+    -- Modify::Other -- ModifyKind::Any, ModifyKind::Other
+    | "Modify::Any"
+    | "Modify::Other"
+
+    -- Remove -- RemoveKind
+    | "Remove::File" -- sent on unixlike
+    | "Remove::Directory" -- sent on unixlike
+    | "Remove::Other"
+    | "Remove::Any" -- sent on Windows
+
+    -- Other -- EventKind::Other
+    | "Other"
+
+    -- Unknown -- EventKind::Any
+    | "Unknown"
+
+	-- No event received after `timeout_ms` ms elapsed
+	| "None::Timeout"
 
 
 return {} :: fs

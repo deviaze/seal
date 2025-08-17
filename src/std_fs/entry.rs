@@ -299,7 +299,7 @@ pub fn create(luau: &Lua, path: &str, function_name: &str) -> LuaValueResult {
         }
     };
     if metadata.is_dir() {
-       ok_table(directory_entry::create(luau, path))
+        ok_table(directory_entry::create(luau, path))
     } else if metadata.is_file() {
         ok_table(file_entry::create(luau, path))
     } else {

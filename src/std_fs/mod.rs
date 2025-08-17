@@ -12,6 +12,7 @@ pub mod filelib;
 pub mod file_entry;
 pub mod directory_entry;
 pub mod find;
+pub mod watch;
 
 /// helper and converter function to turn LuaStrings into Rust Strings
 /// use this one if we're okay with checking the filesystem for common issues for better user experience,
@@ -748,6 +749,34 @@ pub fn fs_exists(_luau: &Lua, path: LuaValue) -> LuaValueResult {
     }
 }
 
+pub fn fs_watch(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.watch(paths: string | { string })";
+    let paths = match multivalue.pop_front() {
+        Some(LuaValue::Table(t)) => {
+            Vec::<String>::from_lua(ok_table(Ok(t))?, luau)?
+        },
+        Some(LuaValue::String(s)) => {
+            vec![s.to_string_lossy().to_string()]
+        },
+        Some(LuaNil) | None => {
+            return wrap_err!("{}: expected paths to be a string or {{string}}, got nothing or nil", function_name);
+        },
+        Some(other) => {
+            return wrap_err!("{}: expected paths to be a string or {{string}}, got: {:?}", function_name, other);
+        }
+    };
+    let options = match multivalue.pop_front() {
+        Some(LuaValue::Table(t)) => {
+            watch::WatchOptions::from_table(t, function_name)?
+        },
+        Some(LuaNil) | None => watch::WatchOptions::default(),
+        other => {
+            return wrap_err!("{} expected options to be a WatchOptions table or nil, got: {:?}", function_name, other);
+        }
+    };
+    watch::watch(luau, paths, options, function_name)
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let std_fs = TableBuilder::create(luau)?
         .with_function("readfile", fs_readfile)?
@@ -766,6 +795,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("entries", fs_entries)?
         .with_function("find", fs_find)?
         .with_function("exists", fs_exists)?
+        .with_function("watch", fs_watch)?
         .with_value("path", pathlib::create(luau)?)?
         .with_value("file", filelib::create(luau)?)?
         .with_value("dir", dirlib::create(luau)?)?

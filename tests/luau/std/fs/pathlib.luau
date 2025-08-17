@@ -93,7 +93,7 @@ local function normalize()
 	local windows_absolute = [[C:\Users\sealey\Desktop\Repositories\seal]]
 	assert(path.normalize(windows_absolute) == windows_absolute, "windows absolute paths shouldn't be forward slashed")
 
-	local mixed_windows_absolute = [[C:\Users\sealey\Desktop\Repositories\seal/main.luau]]
+	local mixed_windows_absolute = [[C:\Users\sealey\Desktop\Repositories\seal\./main.luau]]
 	assert(
 		path.normalize(mixed_windows_absolute) == [[C:\Users\sealey\Desktop\Repositories\seal\main.luau]],
 		"mixed windows absolute paths should be normalized to backslash"
@@ -104,6 +104,45 @@ local function normalize()
 		path.normalize(with_repeated_slashes) == [[C:\Users\sealey\hehe\weird\slashes.hmm]],
 		"repeated slashes not normalized?"
 	)
+
+	local relative_parent = [[..\.././meow.txt]]
+	-- print(path.normalize(relative_parent))
+	assert(
+		path.normalize(relative_parent) == [[../../meow.txt]],
+		"relative parent prefix shouldn't be stripped when we don't know what's in front"
+	)
+
+	local unc_paths = {
+		[[\\server01\.//public]],
+		[[\\fileserver\docs\reports\2025\summary.pdf]],
+		[[\\datahub\shared folders\team alpha\plan.docx\.]],
+		[[\\server02\admin$\config.ini]],
+		[[\\192.168.1.100\media\video.mp4]],
+		[[\\Server03\Finance\Q4\Budget.xlsx]],
+		[[\\backup\archives\..\2025\August\week3\logs\system.log]],
+		[[\\server04\共享\项目\计划.docx]],
+		[[\\server05\downloads\]],
+		[[\\?\UNC\server06\weird|path\file.txt]],
+	}
+	local expected_unc_paths = {
+		[[\\server01\public]],
+		[[\\fileserver\docs\reports\2025\summary.pdf]],
+		[[\\datahub\shared folders\team alpha\plan.docx]],
+		[[\\server02\admin$\config.ini]],
+		[[\\192.168.1.100\media\video.mp4]],
+		[[\\Server03\Finance\Q4\Budget.xlsx]],
+		[[\\backup\2025\August\week3\logs\system.log]],
+		[[\\server04\共享\项目\计划.docx]],
+		[[\\server05\downloads]],
+		[[\\?\UNC\server06\weird|path\file.txt]],
+	}
+	for index, p in unc_paths do
+		local res = path.normalize(p)
+		assert(
+			res == expected_unc_paths[index], 
+			`path.normalize {index}; {res} not matched {expected_unc_paths[index]}`
+		)
+	end
 end
 
 normalize()
