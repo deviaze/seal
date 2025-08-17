@@ -45,12 +45,15 @@ local function watchiter()
         if cat == "Create" then
             if event.kind == "Create::Directory" then
                 creates_found.dirs += 1
-            else
+            elseif event.kind == "Create::File" then
                 -- creates are unreliable!
                 creates_found.files += 1
                 for _, f in event.paths do
                     table.insert(files_created, f)
                 end
+            elseif env.os == "Windows" then
+                creates_found.dirs += 1
+                creates_found.files += 1
             end
         elseif event.is_write then
             writes_found += 1

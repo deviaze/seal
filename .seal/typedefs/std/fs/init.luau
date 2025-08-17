@@ -494,6 +494,9 @@ export type WatchEventInfo = {
 ---
 --- Note that relying on these is inherently unreliable as notify tends to combine related events.
 --- Especially if they're received within a short interval of each other.
+---
+--- Note that the `Kind::Any` options tend to be generated in place of `Kind::File` or
+--- `Kind::Directory` on Windows!
 --- 
 --- `None::Timeout` is fired if no events have been seen when `WatchOptions.timeout_ms` elapses
 --- for an iteration of `fs.watch`. This allows you to break early without indefinitely blocking the Luau VM.
