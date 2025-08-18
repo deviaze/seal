@@ -165,7 +165,7 @@ end
 
 <!-- #### Read and write files/directories -->
 
-</details>
+<details>
 <summary> Send http requests </summary>
 
 #### Send http requests
