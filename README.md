@@ -76,13 +76,19 @@ Option 2 - Windows Terminal on Windows:
 
 *seal* codebases can be either *Projects*, *Scripts*, or single files.
 
+### Projects
+
 Use a **Project** codebase when you want to use *seal* as the primary runtime for your project; this option will generate `.seal` directory, all typedefs locally for easy portability (and soon, compilation), a `src` dir, a `.luaurc`, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
 
 Run `seal project` to generate a **Project** codebase at your current directory.
 
+### Scripts
+
 Use a **Script** codebase when you want to add *seal* to an existing project to run build or glue scripts, without making *seal* the whole point of your project. This option generates a `.seal` directory locally for seal configuration, but will otherwise link to user-wide typedefs in `~/.seal/typedefs/*`. `.vscode/settings.json` and `.luaurc`s will also be created or updated to include *seal*'s typedefs and default config.
 
 Run `seal script` to add a **Script** codebase to your current directory.
+
+### Using Projects/Scripts
 
 Both Project and Script codebases should have a `.seal/config.luau` file, which you can modify to set a codebase entry path, test runner path, etc.
 
@@ -94,6 +100,8 @@ The general setup for a project should follow:
 2. `cd Pro-` (tab autocomplete)
 3. `seal sp` (short form for `seal setup project`)
 4. `code .` -- or `zeditor .`
+
+### Running single files
 
 To run a `.luau` file with seal, use `seal <filename_with_ext>` (like `seal ./get_the_endpoint.luau`).
 
