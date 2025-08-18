@@ -118,6 +118,8 @@ If you're using VSCode and Luau Language Server, you should be able to see docum
 <details>
 <summary> Read and write files/directories </summary>
 
+#### Read and write files/directories
+
 ```luau
 local fs = require("@std/fs")
 local path = fs.path
@@ -164,7 +166,9 @@ end
 <!-- #### Read and write files/directories -->
 
 </details>
-<summary> #### Send http requests </summary>
+<summary> Send http requests </summary>
+
+#### Send http requests
 
 ```luau
 local http = require("@std/net/http")
@@ -183,6 +187,9 @@ local post_response = http.post {
 ```
 
 </details>
+
+<details>
+<summary> Spawning processes </summary>
 
 #### Spawning processes ~~(ffi at home)~~
 
@@ -210,6 +217,8 @@ else
     local text: string? = child.stdout:read(24)
 end
 ```
+
+</details>
 
 ### Simple Structured Parallelism
 
