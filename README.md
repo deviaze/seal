@@ -1,28 +1,106 @@
+<!-- markdownlint-disable MD033 -->
+
 # seal, the cutest runtime for the [luau language](https://luau.org)
 
-seal makes writing scripts and programs fun and easy, and runs them seally fast.
+~~*seal* makes writing scripts and programs fun and easy, and runs them seally fast.~~
+
+*seal* is a highly reliable cross-platform scripting runtime.
+
+## Features
+
+- Expressive filesystem library `@std/fs`, with APIs for proper error handling, an integrated path library that handles cross-platform edgecases, support for partially reading files (into buffers), reading extremely large files line-by-line, reading and writing entire directory trees, filesystem watching, etc.
+- User-defined parallelism with `@std/thread` featuring communication via message passing and automatic table serialization.
+- Process library with both blocking and nonblocking `ChildProcess` spawning APIs, including iterating over a running child process' `stdout` and `stderr`, reading streams line by line, reading until a specific token is reached, etc.
+- UTF-8 and grapheme-aware string library (`@str`) with grapheme-aware iteration and grapheme-aware string splitting as well as many convenience functions.
+- UX and convenience features across the API, including automatic JSON serialization of tables passed to `@std/net/http` APIs alongside the relevant headers.
+- Some cryptography and password hashing functions are built into seal for security reasons.
+
+## Upcoming features (0.1.0 -> 0.2.0 roadmap)
+
+- Integrated project compilation to static executables for portability (with Darklua).
+- Integrated webview bindings/UI library for GUI scripts.
+- Automation:
+  - Keyboard rebinding bindings to write custom keyboard mapping layers for all desktop platforms.
+  - Mouse/keyboard automation if possible.
 
 ## Goals
 
-- Focus on high-level general purpose programming, scripting, and being the best Python alternative for Luau.
+<!-- - Focus on high-level general purpose programming, scripting, and being the best Python alternative for Luau.
 - Provide a simple, useful, and expressive API that allows users to get real work done—you should be able to use `seal` right out of the box; common needs should be provided for so you can get straight to working on your project.
-- Be helpful and user friendly—if you run into trouble, `seal` should tell you *exactly* where you went wrong with a custom, handcrafted warning or error message.
+- Be helpful and user friendly—if you run into trouble, `seal` should tell you *exactly* where you went wrong with a custom, handcrafted warning or error message. -->
 
-## Install
+- Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau.
+- Provide a simple, useful, and (yet) expressive standard library that allows users to get real work done—*seal* should work right of out the box so you can get straight to working on your script, shim, or project.
+- Be extremely helpful and user friendly. You should know exactly how to use *seal* by reading its docs, and when you inevitably run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
+- *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy.
+- Reliability and transparency. *seal* should *just work* and never cause unexpected blocks, deadlocks, panics, nor unexpected behavior. Standard library behavior must be well documented, and all of *seal*'s internals should be readily accessible so *seal* remains easy to understand, hackable, customizable, and fixable by its users.
 
-If a GitHub release isn't available yet, you can build `seal` with `cargo` by running `cargo build --release`. After it's built, move `seal` to your `PATH` to use it anywhere on your system. Install scripts and releases are planned to make this much easier by 0.1.0.
+## Install and Setup
 
-## Usage
+### Install
+
+To use *seal*, you need 3 things:
+
+1. A text editor that supports the Luau Language Server, such as `VSCode`, `Zed`, or `nvim`.
+2. [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp), which provides amazing inline documentation, static analysis and typechecking support, and diagnostics for the Luau programming language. *seal* automatically sets up everything for Luau Language Server when you run `seal setup`.
+3. The *seal* executable, which you can find packaged for your platform here: <https://github.com/deviaze/seal/releases/latest>.
 
 ### Setup
 
-Use `seal setup` to generate a new project in your current directory. This autogenerates a `.vscode/settings.json` to configure [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp) with some default settings, seal's `.typedefs`, a `src` dir, and a `.luaurc` for configuring Luau. Ideally, this means you should be able to just start writing code without much more configuration on your end!
+1. Make *seal* available in your `PATH` so you can use it in a terminal.
 
-To run a `.luau` file with seal, use `seal <filename_with_ext>` (like `seal ./get_homework.luau`).
+<details>
+<summary>How to add seal to PATH?</summary>
+
+On Windows using VSCode:
+
+Option 1 - using *seal*
+
+1. Save this *seal* script to your Downloads folder: [seal_install.luau](examples/seal_install.luau)
+2. Read it so you know how it works! Or modify the path so it moves seal where you want it to.
+3. Open your Downloads folder in your terminal and run `./seal ./seal_install.luau`
+4. On Windows, add the `~\.local\bin` path to your `$PROFILE` file with the instructions provided.
+5. Open a new terminal and make sure `seal --help` works.
+
+Option 2 - Windows Terminal on Windows:
+
+1. Open Windows Terminal (PowerShell)
+2. Move `seal` somewhere permanent like `C:\Users\<USERNAME>\.local\bin`:
+   1. Open your Downloads folder (`cd "~\Downloads"` or `cd "~\OneDrive\Downloads"`) and run `mv .\seal.exe "~\.local\bin\seal.exe"`
+3. Run `code $PROFILE` to open your powershell profile in vscode.
+4. Add `$env:Path += ";C:\Users\<USERNAME>\.local\bin"` near the bottom or wherever you add your paths.
+5. Close and reopen your Windows Terminal and run `seal --help` to make sure seal is available.
+
+</details>
+
+## Usage
+
+*seal* codebases can be either *Projects*, *Scripts*, or single files.
+
+Use a **Project** codebase when you want to use *seal* as the primary runtime for your project; this option will generate `.seal` directory, all typedefs locally for easy portability (and soon, compilation), a `src` dir, a `.luaurc`, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
+
+Run `seal project` to generate a **Project** codebase at your current directory.
+
+Use a **Script** codebase when you want to add *seal* to an existing project to run build or glue scripts, without making *seal* the whole point of your project. This option generates a `.seal` directory locally for seal configuration, but will otherwise link to user-wide typedefs in `~/.seal/typedefs/*`. `.vscode/settings.json` and `.luaurc`s will also be created or updated to include *seal*'s typedefs and default config.
+
+Run `seal script` to add a **Script** codebase to your current directory.
+
+Both Project and Script codebases should have a `.seal/config.luau` file, which you can modify to set a codebase entry path, test runner path, etc.
+
+To run a codebase at its entry path, use `seal run`. Note this command is similar to `cargo run` in Rust, and isn't used to run single files.
+
+The general setup for a project should follow:
+
+1. `mkdir/md ProjectName`
+2. `cd Pro-` (tab autocomplete)
+3. `seal sp` (short form for `seal setup project`)
+4. `code .` -- or `zeditor .`
+
+To run a `.luau` file with seal, use `seal <filename_with_ext>` (like `seal ./get_the_endpoint.luau`).
 
 To evaluate code with seal, use `seal eval '<string src>'`. `seal eval` comes with the `fs`, `http`, and `process` libs loaded in for convenience. An interactive REPL is planned for the future.
 
-Use `seal run` to run the current project at its entry path (default `./src/main.luau`).
+### Programming and Standard Library
 
 Although seal provides some builtin globals (such as `p`, `pp`, `channel` (in a child thread), and `script`), most features are in the standard library. You can import stdlibs like so:
 
@@ -34,7 +112,7 @@ local colors = require("@std/colors") -- (the most important one tbh)
 local input = require("@std/io/input")
 ```
 
-If you're using VSCode and Luau Language Server, you should be able to see documentation, usage examples, and typedefs for each stdlib by hovering over their variable names in your editor. For convenience, all documentation is located in the `.typedefs` directory generated alongside your project.
+If you're using VSCode and Luau Language Server, you should be able to see documentation, usage examples, and typedefs for each stdlib by hovering over their variable names in your editor. For convenience, in **Project** codebases, all documentation is located in the `.seal/typedefs` directory generated alongside your project.
 
 ### Common tasks
 
