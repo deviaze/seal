@@ -11,7 +11,7 @@
 - Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau.
 - Provide a simple, useful, and expressive standard library that allows users to get real work done—*seal* should work right of out the box so you can get straight into working on your script, shim, or project.
 - Be extremely helpful and user friendly. If run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
-- Reliability and transparency. *seal* should *just work* and never cause unexpected blocks, deadlocks, panics, nor unexpected behavior. Standard library behavior must be well documented, and all of *seal*'s internals should be readily accessible so *seal* remains easy to understand, hackable, customizable, and fixable by its users.
+- Reliability and transparency. *seal* should *\*just work\** and never cause unexpected blocks, panics, nor unexpected behavior. All of *seal*'s internals should be readily accessible so *seal* remains easy to understand, hackable, customizable, and fixable by its users.
 <!-- - *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy. -->
 
 ## Features
@@ -25,7 +25,6 @@ flowery version
 - Many other standard libraries! -->
 
 - Batteries-included, immediate project setup for both standalone projects and extension scripts.
-- Easy-to-use standard library covering usecases from filesystem management to password hashing.
 - User-defined multithreading with automatic serialization and message passing.
 - Strings extension library with full Unicode graphemes support.
 
