@@ -6,30 +6,38 @@
 
 *seal* is a highly reliable cross-platform scripting runtime.
 
-## Features
+## Goals
 
+- Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau.
+- Provide a simple, useful, and expressive standard library that allows users to get real work done—*seal* should work right of out the box so you can get straight into working on your script, shim, or project.
+- Be extremely helpful and user friendly. If run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
+- Reliability and transparency. *seal* should *just work* and never cause unexpected blocks, deadlocks, panics, nor unexpected behavior. Standard library behavior must be well documented, and all of *seal*'s internals should be readily accessible so *seal* remains easy to understand, hackable, customizable, and fixable by its users.
+<!-- - *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy. -->
+
+## Features
+<!-- 
+flowery version
 - An extensive, expressive, easy to use, and well documented standard library, covering many usecases from simple filesystem operations (`@std/fs`) to password hashing (`@std/crypt/password`).
 - A filesystem library API with support for partial reads, reading files line-by-line, granular error handling, filesystem watching, with an integrated path library that handles cross-platform edgecases, etc.
 - A process library (`@std/process`) for spawning platform-aware shell commands, executing programs, and running long-running, nonblocking `ChildProcesses` with nonblocking access to their stdout, stderr, and stdin.
 - User-defined parallelism with `@std/thread` featuring communication via message passing and automatic table serialization, backed by Rust threads and crossbeam-channel.
 - A UTF-8 and grapheme-aware string library (`@std/str`) with extremely fast grapheme-aware string splitting, and many other convenience functions.
-- Many other standard libraries!
+- Many other standard libraries! -->
+
+- Batteries-included, immediate project setup for both standalone projects and extension scripts.
+- Easy-to-use standard library covering usecases from filesystem management to password hashing.
+- User-defined multithreading with automatic serialization and message passing.
+- Strings extension library with full Unicode graphemes support.
+
+... and more; see the [full list of features](docs/index.md).
 
 ## Upcoming features (0.1.0 -> 0.2.0 roadmap)
 
-- Integrated project compilation to static executables for portability (with Darklua).
+- Integrated standalone project compilation for portability (with Darklua).
 - Integrated webview bindings/UI library for GUI scripts.
 - Automation:
   - Keyboard rebinding bindings to write custom keyboard mapping layers for all desktop platforms.
   - Mouse/keyboard automation if possible.
-
-## Goals
-
-- Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau.
-- Provide a simple, useful, and (yet) expressive standard library that allows users to get real work done—*seal* should work right of out the box so you can get straight to working on your script, shim, or project.
-- Be extremely helpful and user friendly. You should know exactly how to use *seal* by reading its docs, and when you inevitably run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
-- *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy.
-- Reliability and transparency. *seal* should *just work* and never cause unexpected blocks, deadlocks, panics, nor unexpected behavior. Standard library behavior must be well documented, and all of *seal*'s internals should be readily accessible so *seal* remains easy to understand, hackable, customizable, and fixable by its users.
 
 ## Install and Setup
 
