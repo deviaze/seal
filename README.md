@@ -8,11 +8,10 @@
 
 ## Features
 
-- Expressive filesystem library `@std/fs`, with APIs for proper error handling, an integrated path library that handles cross-platform edgecases, support for partially reading files (into buffers), reading extremely large files line-by-line, reading and writing entire directory trees, filesystem watching, etc.
-- User-defined parallelism with `@std/thread` featuring communication via message passing and automatic table serialization.
-- Process library with both blocking and nonblocking `ChildProcess` spawning APIs, including iterating over a running child process' `stdout` and `stderr`, reading streams line by line, reading until a specific token is reached, etc.
-- UTF-8 and grapheme-aware string library (`@str`) with grapheme-aware iteration and grapheme-aware string splitting as well as many convenience functions.
-- UX and convenience features across the API, including automatic JSON serialization of tables passed to `@std/net/http` APIs alongside the relevant headers.
+- Expressive filesystem library `@std/fs` with support for partial reads, reading files line-by-line, granular error handling, filesystem watching, an integrated path library that handles cross-platform edgecases, etc.
+- Spawn blocking and nonblocking `ChildProcesses` through `@std/process`, supporting platform-aware shell commands with `process.shell`, blocking processes with `process.run`, and non-blocking, long-running child processes with `process.spawn`.
+- User-defined parallelism with `@std/thread` featuring communication via message passing and automatic table serialization, backed by Rust threads and crossbeam-channel.
+- UTF-8 and grapheme-aware string library `@std/str` with extremely fast grapheme-aware string splitting, and many other convenience functions.
 - Some cryptography and password hashing functions (built into seal for security reasons).
 - Many other standard libraries!
 
@@ -25,10 +24,6 @@
   - Mouse/keyboard automation if possible.
 
 ## Goals
-
-<!-- - Focus on high-level general purpose programming, scripting, and being the best Python alternative for Luau.
-- Provide a simple, useful, and expressive API that allows users to get real work done—you should be able to use `seal` right out of the box; common needs should be provided for so you can get straight to working on your project.
-- Be helpful and user friendly—if you run into trouble, `seal` should tell you *exactly* where you went wrong with a custom, handcrafted warning or error message. -->
 
 - Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau.
 - Provide a simple, useful, and (yet) expressive standard library that allows users to get real work done—*seal* should work right of out the box so you can get straight to working on your script, shim, or project.
@@ -80,26 +75,29 @@ Option 2 - Windows Terminal on Windows:
 
 Use a **Project** codebase when you want to use *seal* as the primary runtime for your project; this option will generate `.seal` directory, all typedefs locally for easy portability (and soon, compilation), a `src` dir, a `.luaurc`, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
 
-Run `seal project` to generate a **Project** codebase at your current directory.
+Run `seal setup project` or `seal sp` to generate a **Project** codebase at your current directory.
 
 ### Scripts
 
 Use a **Script** codebase when you want to add *seal* to an existing project to run build or glue scripts, without making *seal* the whole point of your project. This option generates a `.seal` directory locally for seal configuration, but will otherwise link to user-wide typedefs in `~/.seal/typedefs/*`. `.vscode/settings.json` and `.luaurc`s will also be created or updated to include *seal*'s typedefs and default config.
 
-Run `seal script` to add a **Script** codebase to your current directory.
+Run `seal setup script` or `seal ss` to add a **Script** codebase to your current directory.
 
 ### Using Projects/Scripts
 
 Both Project and Script codebases should have a `.seal/config.luau` file, which you can modify to set a codebase entry path, test runner path, etc.
 
-To run a codebase at its entry path, use `seal run`. Note this command is similar to `cargo run` in Rust, and isn't used to run single files.
+To run a codebase at its entry path, use `seal run` or `seal r`. Note this command is similar to `cargo run` in Rust, and isn't used to run single files.
 
 The general setup for a project should follow:
 
-1. `mkdir/md ProjectName`
-2. `cd Pro-` (tab autocomplete)
-3. `seal sp` (short form for `seal setup project`)
-4. `code .` -- or `zeditor .`
+1. Open a terminal
+2. `mkdir/md ProjectName`
+3. `cd ProjectName`
+4. `seal sp` (setup a project codebase)
+5. `code .` or `zeditor .`
+
+Automatic setup for Zed is not fully ready yet, but all the other settings are available for config when you run `seal setup custom`.
 
 ### Running single files
 
@@ -119,7 +117,7 @@ local colors = require("@std/colors") -- (the most important one tbh)
 local input = require("@std/io/input")
 ```
 
-If you're using VSCode and Luau Language Server, you should be able to see documentation, usage examples, and typedefs for each stdlib by hovering over their variable names in your editor. For convenience, in **Project** codebases, all documentation is located in the `.seal/typedefs` directory generated alongside your project.
+Using Luau Language Server, you should be able to see documentation, usage examples, and typedefs for each standard library type/table/function by hovering over their variable names in your editor. For convenience, in **Project** codebases, all documentation is located in the `.seal/typedefs` directory generated alongside your project.
 
 ### Common tasks
 
@@ -163,9 +161,29 @@ for entry_path, entry in entries do
     if entry.type == "File" then
         print(`file at '{entry_path}' says {entry:read()}!`)
     elseif entry.type == "Directory" then
-        local recursive_list = table.concat(entry:list(true))
-        print(`directory at {colors.blue(`'{entry_path}'`)} has these entries, recursively: {recursive_list}'`)
+        local recursive_list = entry:list(true) -- you can also add a filter function if you want
+        print(`directory at {colors.blue(`'{entry_path}'`)} has these entries, recursively:`)
+        print(recursive_list)
     end
+end
+```
+
+#### Check if a file exists
+
+```luau
+-- because you want to read it
+local content, result = fs.file.try_read(mypath)
+if content then
+    print(content)
+elseif result == "NotFound" then
+    print(`{mypath} not found`)
+else
+    warn(`unexpected error reading {mypath}: {result}`)
+end
+
+-- because you just want to make sure it exists
+if fs.path.exists(mypath) then
+    print("yes it exists")
 end
 ```
 
@@ -232,7 +250,7 @@ end
 
 seal is sans-tokio for performance and simplicity, but provides access to Real Rust Threads with a relatively simple, low-level API. Each thread has its own Luau VM, which allows you to execute code in parallel. To send messages between threads, you can use the `:send()` and `:read()` methods located on both `channel`s (child threads) and `JoinHandle`s (parent threads), which seamlessly serialize, transmit, and deserialize Luau data tables between threads (VMs) for you! For better performance, you can use their `bytes` APIs to exchange buffers without the serialization overhead.
 
-Although this style of thread management is can be less ergonomic than a `task` library, I hope this makes it more reliable and less prone to yields and UB, and is all-around a stable experience.
+Although this style of thread management can be less ergonomic than a `task` library or implicit futures everywhere, I hope this makes it more reliable and less prone to yields and UB, and is all-around a stable experience.
 
 ```luau
 -- parent.luau
@@ -264,5 +282,55 @@ end
 
 ### Non-goals
 
-- Fully featured standard library for all usecases: `seal` is primarily suited for high level scripting and general purpose programming. We don't want to add every single hash algorithm, nor bind to every single part of Rust's standard library—providing too many options might end up confusing to the average user.
-- Top tier performance: although `seal` is pretty fast, `mlua` isn't the fastest way to use Luau; runtimes like `Zune` and `lute` may be faster than `seal`. On the other hand, because `seal` doesn't have any tokio or async overhead, its standard library should be faster than `Lune`'s, and because of its parallelism model, multithreaded programs in `seal` should be more stable than async programs in `Lune`.
+- Fully featured standard library for all usecases: `seal` is primarily suited for high level scripting and light general purpose programming. We don't want to add every single hash algorithm, nor bind to every single part of Rust's standard library—providing too many options might end up confusing to the average user. Use [Zune](<https://github.com/Scythe-Technology/zune>) instead if you need lower level bindings.
+- Async webservers. *seal* is not an async runtime and thus cannot scale up enough for webservers, but if you want to write one (or a Discord bot) in Luau and need async, I highly recommend using [Zune](<https://github.com/Scythe-Technology/zune>) instead.
+- Premature optimization. Although *seal* is very fast, it might not be the absolute fastest way to use Luau due to `mluau`'s slight safety overhead. On the other hand, because `seal` doesn't have any tokio or async overhead, its standard library should be faster than `Lune`'s, and because of its parallelism model, true multithreaded programs in `seal` should be more stable than programs that rely on Lune's `task` library and IO.
+
+## Contributing
+
+I would greatly appreciate any contributions and feedback, including issues, PRs, or even messages on Discord saying "hey can you add this to seal"!
+
+### Adding new libraries
+
+#### Standard Library (@std)
+
+A library is a good candidate for @std if:
+
+- There's a good chance *everyone* would want/need it
+- It's mostly implemented in Rust, and would be difficult or impossible to translate to other Luau runtimes
+- It'd be impossible to implement in user code.
+- There's a Rust crate for it that we could add easily and isn't async and won't massively increase seal's executable binary size.
+- We'll need to rely on it internally in *seal* (this is why `@std/semver` is in the standard library and `@extra/tt` isn't)
+
+<details>
+<summary>How to add @std libraries</summary>
+1. Implement the code in Rust or Luau in `./src/std_*libname*`. We use `std_*` prefixes to avoid name clashes with the Rust standard library.
+   1. Use the newest/most recently refactored existing @std libraries (especially @std/process, @std/fs, and @std/thread) as templates for your Rust code structure.
+   2. Rust error handling:
+      1. Don't use `.unwrap` or `.expect` in Rust code unless you're 99-100% sure it won't panic.
+      2. Every error case reachable by user code should be covered by a `wrap_err!`, with an ideally handcrafted error message and the luau-side function_name in front.
+      3. If there's an invariant that if reached means there's actually a bug, use an explicit `panic!` or `unreachable!`.
+      4. Users should never see the word "Lua" in an error message (this comes from directly bubbling up `mluau` errors).
+   3. Library function names should be luaucase or if ugly/unreadable then snake_case. They should match the existing APIs, like functions that purposely try not to wrap_err! should be named `libname.try_whatever`. Try to keep the names shorter so we don't have to combine words in luaucase: `json.raw` instead of `json.encoderaw`.
+   4. Library properties should be snake_case unless you can keep them to one word.
+   5. Object-like method names should be snake_case unless they match or partially match a luaucase api.
+   6. please don't run a formatter over the whole codebase.
+      1. I don't mind if `wrap_err!`s go off the RHS of the page if that means vertical space is better used for code.
+      2. On the other hand, let's try to keep non-wrap_err! code and comments to 85-110 colwidth?
+2. Documentation goes in `./.seal/typedefs/std/*`. For documentation, try to stick with the newer docs headers like seen in the `@std/process` API. No Moonwave `@attributes`, they make code less readable and we don't use Moonwave.
+3. Register the library in `./src/require/mod.rs` and `./.seal/typedefs/init.luau` in 3 places:
+   1. The Big Beautiful Table (BBT) in `./src/require/mod.rs`, which handles when the library is required directly (`@std/mylib`)
+   2. the Small Beautiful Table in `./src/require/mod.rs`, which handles when the entire `@std` is required at once.
+   3. in `./.seal/typedefs/init.luau` to provide `require` support when the entire `@std` is required at once.
+4. Add tests in `./tests/luau/std/libname/*` or `./tests/luau/std/libname.luau`.
+</details>
+
+#### seal extras (@extra)
+
+A library is a good candidate for @extra if:
+
+- It's mostly implemented or implementable in Luau with or without *seal*.
+- Users may want to customize it (@std libs can't be customized at runtime but @extra can)
+- Users may want to run it directly as a CLI program.
+
+If you find a bug in seal, please make a bug report issue on GitHub and ping me on Discord.
