@@ -8,9 +8,9 @@ To evaluate code from a string src, use `seal eval '<src>'`
 
 To create a new codebase at the current directory, use one of:
 
-- `seal setup project` (`seal sp`)
-- `seal setup script` (`seal ss`)
-- `seal setup custom` (`seal sc`) (interactive)
+- `seal setup project` short: `seal sp`
+- `seal setup script` short: `seal ss`
+- `seal setup custom` short: `seal sc`) (interactive)
 
 For help, use `seal --help` or `seal help <command>`
 
@@ -28,21 +28,44 @@ The general setup for a codease should follow:
 
 ### Projects
 
-Use a **Project** codebase when you want to use *seal* as the primary runtime for your project; this option will generate `.seal` directory, all typedefs locally for easy portability (and soon, compilation), a `src` dir, a `.luaurc`, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
+Use a **Project** codebase when you want to use *seal* as the primary runtime for your project.
 
-Run `seal setup project` or `seal sp` to generate a **Project** codebase at your current directory.
+This option will generates `.seal` directory, all typedefs locally for easy portability (and soon, compilation), a `src` dir, a `.luaurc`, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
 
 ### Scripts
 
-Use a **Script** codebase when you want to add *seal* to an existing project to run build or glue scripts, without making *seal* the whole point of your project. This option generates a `.seal` directory locally for seal configuration, but will otherwise link to user-wide typedefs in `~/.seal/typedefs/*`. `.vscode/settings.json` and `.luaurc`s will also be created or updated to include *seal*'s typedefs and default config.
+Use a **Script** codebase when you want to add *seal* to an existing project to run build, glue, or extension scripts.
 
-Run `seal setup script` or `seal ss` to add a **Script** codebase to your current directory.
+This option generates a `.seal` directory locally for seal configuration, but will otherwise link to user-wide typedefs in `~/.seal/typedefs/*`.
+
+Locally, `.vscode/settings.json` and `.luaurc`s will also be created or updated to include *seal*'s typedefs and default config.
 
 #### Configuring codebases
 
 Both Project and Script codebases should have a `.seal/config.luau` file, which you can modify to set a codebase entry path, test runner path, etc.
 
-To run a codebase at its entry path, use `seal run` or `seal r`. Note this command is similar to `cargo run` in Rust, and isn't used to run single files.
+The default config is:
+
+```luau
+local config = {
+    entry_path = "./src/main.luau",
+    test_path = "./tests/run.luau",
+    seal_version = "<SEAL_VERSION_REPLACE>"
+}
+
+export type SealConfig = {
+    --- Script that `seal run` runs; usually the entrypoint to your codebase.
+    --- Defaults to `./src/main.luau`.
+    entry_path: string?,
+    --- Script that `seal test` runs; usually a test runner.
+    test_path: string?,
+    --- semver version of seal this project/typedefs expects to run on
+    seal_version: string,
+}
+
+return config :: SealConfig
+
+```
 
 Automatic setup for Zed is not fully ready yet, but all the other settings are available for config when you run `seal setup custom`.
 
