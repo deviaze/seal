@@ -13,7 +13,8 @@
 - Process library with both blocking and nonblocking `ChildProcess` spawning APIs, including iterating over a running child process' `stdout` and `stderr`, reading streams line by line, reading until a specific token is reached, etc.
 - UTF-8 and grapheme-aware string library (`@str`) with grapheme-aware iteration and grapheme-aware string splitting as well as many convenience functions.
 - UX and convenience features across the API, including automatic JSON serialization of tables passed to `@std/net/http` APIs alongside the relevant headers.
-- Some cryptography and password hashing functions are built into seal for security reasons.
+- Some cryptography and password hashing functions (built into seal for security reasons).
+- Many other standard libraries!
 
 ## Upcoming features (0.1.0 -> 0.2.0 roadmap)
 
@@ -42,7 +43,7 @@
 To use *seal*, you need 3 things:
 
 1. A text editor that supports the Luau Language Server, such as `VSCode`, `Zed`, or `nvim`.
-2. [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp), which provides amazing inline documentation, static analysis and typechecking support, and diagnostics for the Luau programming language. *seal* automatically sets up everything for Luau Language Server when you run `seal setup`.
+2. [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp), which provides amazing inline documentation, static analysis and typechecking support, and diagnostics for the Luau programming language. *seal* automatically sets up everything for Luau Language Server when you run `seal setup/project/script/custom`.
 3. The *seal* executable, which you can find packaged for your platform here: <https://github.com/deviaze/seal/releases/latest>.
 
 ### Setup
@@ -51,8 +52,6 @@ To use *seal*, you need 3 things:
 
 <details>
 <summary>How to add seal to PATH?</summary>
-
-On Windows using VSCode:
 
 Option 1 - using *seal*
 
@@ -116,7 +115,8 @@ If you're using VSCode and Luau Language Server, you should be able to see docum
 
 ### Common tasks
 
-#### Read and write files/directories
+<details>
+<summary> Read and write files/directories </summary>
 
 ```luau
 local fs = require("@std/fs")
@@ -159,7 +159,12 @@ for entry_path, entry in entries do
 end
 ```
 
-#### Send http requests
+</details>
+
+<!-- #### Read and write files/directories -->
+
+</details>
+<summary> #### Send http requests </summary>
 
 ```luau
 local http = require("@std/net/http")
@@ -176,6 +181,8 @@ local post_response = http.post {
     }, -- pass a table? seal serializes it for you (and sets Content-Type: application/json)!
 }
 ```
+
+</details>
 
 #### Spawning processes ~~(ffi at home)~~
 
@@ -208,7 +215,7 @@ end
 
 seal is sans-tokio for performance and simplicity, but provides access to Real Rust Threads with a relatively simple, low-level API. Each thread has its own Luau VM, which allows you to execute code in parallel. To send messages between threads, you can use the `:send()` and `:read()` methods located on both `channel`s (child threads) and `JoinHandle`s (parent threads), which seamlessly serialize, transmit, and deserialize Luau data tables between threads (VMs) for you! For better performance, you can use their `bytes` APIs to exchange buffers without the serialization overhead.
 
-Although this style of thread management is definitely less ergonomic than a `task` library, I hope this makes it more reliable and less prone to yields and UB, and is all-around a stable experience.
+Although this style of thread management is can be less ergonomic than a `task` library, I hope this makes it more reliable and less prone to yields and UB, and is all-around a stable experience.
 
 ```luau
 -- parent.luau
