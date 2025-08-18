@@ -38,7 +38,7 @@ local index_contents = [[
 ## Libraries
 
 ]] .. tt.maptostring(standard_libraries, function(_, v: string)
-    return `[{v}]({v})`
+    return `[{v}]({v})\n`
 end)
 
 fs.writefile(index_md, index_contents)
