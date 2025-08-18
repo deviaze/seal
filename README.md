@@ -8,10 +8,9 @@
 
 ## Goals
 
-- Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau.
-- Provide a simple, useful, and expressive standard library that allows users to get real work done—*seal* should work right of out the box so you can get straight into working on your script, shim, or project.
+- Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau. *seal* should work right of out the box so you can get straight into working on your script, shim, or project.
 - Be extremely helpful and user friendly. If run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
-- Reliability and transparency. *seal* should *\*just work\** and never cause unexpected blocks, panics, nor unexpected behavior. All of *seal*'s internals should be readily accessible so *seal* remains easy to understand, hackable, customizable, and fixable by its users.
+- Reliability and transparency. *seal* should *\*just work\** and never cause unexpected blocks, panics, nor unexpected behavior. *seal*'s internals should be readily accessible so it remains easy to understand, hackable, customizable, and fixable by its users.
 <!-- - *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy. -->
 
 ## Features
@@ -78,39 +77,13 @@ Option 2 - Windows Terminal on Windows:
 
 *seal* codebases can be either *Projects*, *Scripts*, or single files.
 
-### Projects
+To run a project, run `seal run` or `seal r`.
 
-Use a **Project** codebase when you want to use *seal* as the primary runtime for your project; this option will generate `.seal` directory, all typedefs locally for easy portability (and soon, compilation), a `src` dir, a `.luaurc`, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
+To run a single file with seal, run `seal ./<filename>.luau`.
 
-Run `seal setup project` or `seal sp` to generate a **Project** codebase at your current directory.
+To generate a codebase in your current directory, use `seal setup <codebase>`, where codebase can be `project`, `script`, or `custom`.
 
-### Scripts
-
-Use a **Script** codebase when you want to add *seal* to an existing project to run build or glue scripts, without making *seal* the whole point of your project. This option generates a `.seal` directory locally for seal configuration, but will otherwise link to user-wide typedefs in `~/.seal/typedefs/*`. `.vscode/settings.json` and `.luaurc`s will also be created or updated to include *seal*'s typedefs and default config.
-
-Run `seal setup script` or `seal ss` to add a **Script** codebase to your current directory.
-
-### Using Projects/Scripts
-
-Both Project and Script codebases should have a `.seal/config.luau` file, which you can modify to set a codebase entry path, test runner path, etc.
-
-To run a codebase at its entry path, use `seal run` or `seal r`. Note this command is similar to `cargo run` in Rust, and isn't used to run single files.
-
-The general setup for a project should follow:
-
-1. Open a terminal
-2. `mkdir/md ProjectName`
-3. `cd ProjectName`
-4. `seal sp` (setup a project codebase)
-5. `code .` or `zeditor .`
-
-Automatic setup for Zed is not fully ready yet, but all the other settings are available for config when you run `seal setup custom`.
-
-### Running single files
-
-To run a `.luau` file with seal, use `seal <filename_with_ext>` (like `seal ./get_the_endpoint.luau`).
-
-To evaluate code with seal, use `seal eval '<string src>'`. `seal eval` comes with the `fs`, `http`, and `process` libs loaded in for convenience. An interactive REPL is planned for the future.
+Check out the full [usage instructions](docs/usage.md) for more.
 
 ### Programming and Standard Library
 
