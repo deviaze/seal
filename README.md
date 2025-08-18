@@ -8,11 +8,11 @@
 
 ## Features
 
-- Expressive filesystem library `@std/fs` with support for partial reads, reading files line-by-line, granular error handling, filesystem watching, an integrated path library that handles cross-platform edgecases, etc.
-- Spawn blocking and nonblocking `ChildProcesses` through `@std/process`, supporting platform-aware shell commands with `process.shell`, blocking processes with `process.run`, and non-blocking, long-running child processes with `process.spawn`.
+- An extensive, expressive, easy to use, and well documented standard library, covering many usecases from simple filesystem operations (`@std/fs`) to password hashing (`@std/crypt/password`).
+- A filesystem library API with support for partial reads, reading files line-by-line, granular error handling, filesystem watching, with an integrated path library that handles cross-platform edgecases, etc.
+- A process library (`@std/process`) for spawning platform-aware shell commands, executing programs, and running long-running, nonblocking `ChildProcesses` with nonblocking access to their stdout, stderr, and stdin.
 - User-defined parallelism with `@std/thread` featuring communication via message passing and automatic table serialization, backed by Rust threads and crossbeam-channel.
-- UTF-8 and grapheme-aware string library `@std/str` with extremely fast grapheme-aware string splitting, and many other convenience functions.
-- Some cryptography and password hashing functions (built into seal for security reasons).
+- A UTF-8 and grapheme-aware string library (`@std/str`) with extremely fast grapheme-aware string splitting, and many other convenience functions.
 - Many other standard libraries!
 
 ## Upcoming features (0.1.0 -> 0.2.0 roadmap)
