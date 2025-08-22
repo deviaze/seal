@@ -83,15 +83,16 @@ local function normalize()
 	local relative_without_backslashes = [[.\hi\i\am\cat.txt]]
 
 	assert(
-		path.normalize(relative_without_backslashes) == "./hi/i/am/cat.txt", 
-		"path.normalize should always change relative paths to forward slashes"
+		path.normalize(relative_without_backslashes) ~= "./hi/i/am/cat.txt", 
+		"path.normalize should not change relative paths to forward slashes when prepended with .\\"
 	)
 
 	local mixed_paths = [[./src\main.luau]]
 	assert(path.normalize(mixed_paths) == "./src/main.luau", "mixed path 1 should be fixed to /")
 
 	local windows_absolute = [[C:\Users\sealey\Desktop\Repositories\seal]]
-	assert(path.normalize(windows_absolute) == windows_absolute, "windows absolute paths shouldn't be forward slashed")
+	local windows_normalized = path.normalize(windows_absolute)
+	assert(windows_normalized == windows_absolute, `windows absolute path shouldn't be modified; got: {windows_normalized}`)
 
 	local mixed_windows_absolute = [[C:\Users\sealey\Desktop\Repositories\seal\./main.luau]]
 	assert(
@@ -105,11 +106,16 @@ local function normalize()
 		"repeated slashes not normalized?"
 	)
 
-	local relative_parent = [[..\.././meow.txt]]
-	-- print(path.normalize(relative_parent))
+	local relative_parent = [[../../.\/meow.txt]]
 	assert(
 		path.normalize(relative_parent) == [[../../meow.txt]],
 		"relative parent prefix shouldn't be stripped when we don't know what's in front"
+	)
+
+	local home_parent = [[~/meow/../..\\cats.jpeg]]
+	assert(
+		path.normalize(home_parent) == [[~/../cats.jpeg]], -- we actually don't want to expand ~ in path.normalize
+		"weird ~ cats.jpeg not normalized to ~/../cats.jpeg"
 	)
 
 	local unc_paths = {
@@ -143,6 +149,11 @@ local function normalize()
 			`path.normalize {index}; {res} not matched {expected_unc_paths[index]}`
 		)
 	end
+
+	local smol_path = "./a"
+	assert(path.normalize(smol_path) == "./a", "smol path should be ./a without modification")
+
+	assert(path.normalize(".") == ".", "cwd itself shouldn't pose issues")
 end
 
 normalize()

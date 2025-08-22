@@ -39,7 +39,7 @@ pub fn parse_traceback(raw_traceback: String) -> String {
     match luau_for_traceback.load(parse_traceback).eval() {
         Ok(LuaValue::Function(parse_traceback)) => {
             parse_traceback.call::<LuaString>(raw_traceback)
-                .unwrap()
+                .expect("calling parse_traceback.luau should not fail unexpectedly.")
                 .to_string_lossy()
                 .to_string()
         },

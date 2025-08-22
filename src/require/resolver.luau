@@ -78,13 +78,13 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 			}
 			if config.aliases then
 				for key, replacement in config.aliases do
-					local absolutized_replacement = fs.path.join(
-						current_path :: string,
+					local absolutized_replacement =
 						if str.startswith(replacement, "./") then
-							string.sub(replacement, 3)
-						else 
+							fs.path.join(current_path, string.sub(replacement, 3))
+						elseif str.startswith(replacement, "~/") then
+							fs.path.join(fs.path.home(), string.sub(replacement, 3))
+						else
 							replacement
-					)
 					current_luaurc.aliases[key] = absolutized_replacement
 				end
 			end
@@ -233,7 +233,7 @@ local debug_name: string = override_debug_name or debug.info(3, "s") --[[
 	else
 		return {
 			err = `requested path '{requested_path}' does not start with './', '../', or '@'; it cannot be required.\n`
-			    .. '  note: implicitly relative requires (like require("sibling")) are no longer supported by seal'
+				.. '  note: implicitly relative requires (like require("sibling")) are no longer supported by seal'
 		}
 	end
 
@@ -310,11 +310,11 @@ local debug_name: string = override_debug_name or debug.info(3, "s") --[[
 	elseif use_new_init_luau_semantics == false and string.match(requested_path, "%.%.?/") then
 		return {
 			err = `module '{requested_path}' not found: relative require from the init.luau at '{requiring_file_path}' resolved to '{current_path}', which wasn't found on the filesystem.\n`
-			     .. "  note on require resolution semantics:\n"
-			     .. "    - old: './meow' means meow.luau is in the same directory as the requiring init.luau\n"
-				 .. "    - new: './meow' means meow.luau is in the parent directory of the requiring init.luau\n"
-				 .. "    + for more information, check out: https://github.com/luau-lang/rfcs/pull/109\n"
-				 .. "  seal tried both old and new require resolution semantics but was unable to find your module :("
+				.. "  note on require resolution semantics:\n"
+				.. "    - old: './meow' means meow.luau is in the same directory as the requiring init.luau\n"
+				.. "    - new: './meow' means meow.luau is in the parent directory of the requiring init.luau\n"
+				.. "    + for more information, check out: https://github.com/luau-lang/rfcs/pull/109\n"
+				.. "  seal tried both old and new require resolution semantics but was unable to find your module :("
 		}
 	else
 		return {
