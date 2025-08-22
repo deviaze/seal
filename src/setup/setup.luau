@@ -327,11 +327,13 @@ function should_replace_extra(seal_dir: fs.DirectoryEntry): boolean
     local extra_dir = fs.dir(seal_dir:join("extra"))
     if not extra_dir then
         return true
+    else
+        return false
     end
-    local response = str.trim(io.input.get(
-        `Replace '.seal/extra' dir at {extra_dir.path}? This may remove any customizations you've made to @extra libraries. \z(Y/n): `
-    )):lower()
-    return response == "y" or response == ""
+    -- local response = str.trim(io.input.get(
+    --     `Replace '.seal/extra' dir at {extra_dir.path}? This may remove any customizations you've made to @extra libraries. \z(Y/n): `
+    -- )):lower()
+    -- return response == "y" or response == ""
 end
 
 function is_git_repo(cwd: fs.DirectoryEntry): boolean

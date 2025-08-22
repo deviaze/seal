@@ -182,7 +182,7 @@ pub fn get_chunk_name_for_module(path: &str, function_name: &'static str) -> Lua
     let path = match std::path::absolute(path) {
         Ok(path) => path,
         Err(err) => {
-            return wrap_err!("{} can't figure out an absolute path for '{}' (we're trying to get a chunk_name): {}", function_name, &path, err);
+            return wrap_err!("{} can't figure out an absolute path for '{}' (we're trying to get a chunk_name). Can you verify that both file exists and your current directory exists (maybe another program removed your current directory, try reloading your editor or cd-ing out in back in)? err: {}", function_name, &path, err);
         }
     };
 
