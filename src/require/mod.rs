@@ -61,9 +61,11 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/io/format" => ok_function(std_io::output::format, luau),
         "@std/colors" => ok_table(colors::create(luau)),
 
+        // "@std/time" => ok_table(std_time_old::create(luau)),
+        // "@std/time/datetime" => ok_table(std_time_old::create_datetime(luau)),
+        // "@std/datetime" => ok_table(std_time_old::create_datetime(luau)),
         "@std/time" => ok_table(std_time::create(luau)),
-        "@std/time/datetime" => ok_table(std_time::create_datetime(luau)),
-        "@std/datetime" => ok_table(std_time::create_datetime(luau)),
+        "@std/time/datetime" => ok_table(std_time::datetime::create(luau)),
 
         "@std/process" => ok_table(std_process::create(luau)),
 
@@ -104,8 +106,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .with_value("io", std_io::create(luau)?)?
                 .with_value("colors", colors::create(luau)?)?
                 .with_function("format", std_io::output::format)?
-                .with_value("time", std_time::create(luau)?)?
-                .with_value("datetime", std_time::create_datetime(luau)?)?
+                .with_value("time", std_time_old::create(luau)?)?
+                .with_value("datetime", std_time_old::create_datetime(luau)?)?
                 .with_value("process", std_process::create(luau)?)?
                 .with_value("serde", std_serde::create(luau)?)?
                 .with_value("json", std_json::create(luau)?)?

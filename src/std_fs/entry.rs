@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use mluau::prelude::*;
 use crate::prelude::*;
-use crate::std_time;
+use crate::std_time_old;
 use copy_dir::copy_dir;
 
 #[cfg(unix)]
@@ -67,19 +67,19 @@ pub fn metadata(luau: &Lua, value: LuaValue) -> LuaValueResult {
     };
     let created_at = match metadata.created() {
         Ok(created_at) => {
-            std_time::from_system_time(luau, created_at)?
+            std_time_old::from_system_time(luau, created_at)?
         },
         Err(_err) => LuaNil,
     };
     let modified_at = match metadata.modified() {
         Ok(modified_at) => {
-            std_time::from_system_time(luau, modified_at)?
+            std_time_old::from_system_time(luau, modified_at)?
         },
         Err(_err) => LuaNil,
     };
     let accessed_at = match metadata.accessed() {
         Ok(accessed_at) => {
-            std_time::from_system_time(luau, accessed_at)?
+            std_time_old::from_system_time(luau, accessed_at)?
         },
         Err(_err) => LuaNil,
     };

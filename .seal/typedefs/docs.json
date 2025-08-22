@@ -1,0 +1,5 @@
+{
+    "@roblox/globaltype/DateTime": {
+        "documentation": "Represents a Timezone-aware moment in date and time."
+    }
+}
