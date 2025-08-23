@@ -18,12 +18,18 @@ local function canadd()
     local now = datetime.now()
     local three_days = datetime.days(3)
     local three_days_from_now = now + three_days
-    print(three_days_from_now:display())
 
     local one_monthish = datetime.days(30)
     local next_month = now + one_monthish
 end
 canadd()
+
+local function cansub()
+    local now = datetime.now()
+    local three_days_ago = datetime.now() - datetime.days(3)
+end
+
+cansub()
 
 local function differenttimezones()
     local now = datetime.now()
@@ -34,3 +40,19 @@ local function differenttimezones()
 end
 
 differenttimezones()
+
+local function simplecomparisons()
+    local now = datetime.now()
+    local five_days_ago = now - datetime.days(5)
+    assert((now < five_days_ago) == false, "now cannot be < five days ago the world is broken")
+    assert(now > five_days_ago, "now should be greater than five days ago")
+
+    local feb2 = datetime.parse("02/02/2025 10:00", "%m/%d/%Y %H:%M", "UTC")
+    local feb2_02 = datetime.parse("02/02/2025 10:00", "%m/%d/%Y %H:%M", "UTC")
+    feb2_02 -= datetime.seconds(1)
+    assert(feb2_02 ~= feb2, "minusing 1 second should cause false ==")
+    feb2_02 += datetime.seconds(1)
+    assert(feb2 == feb2_02, "minusing and plussing 1 second to feb2_02 should be == feb2")
+end
+
+simplecomparisons()

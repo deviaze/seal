@@ -202,6 +202,29 @@ impl LuaUserData for DateTime {
             }
         });
 
+        methods.add_method("since", |luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
+            let function_name = "DateTime:since(other: DateTime)";
+            match other {
+                LuaValue::UserData(ud) => {
+                    if ud.is::<DateTime>() {
+                        let other_dt = ud.borrow::<DateTime>().expect("no way not DateTime");
+                        let span = match this.inner.since(&other_dt.deref().inner) {
+                            Ok(span) => span,
+                            Err(err) => {
+                                return wrap_err!("{} unable to compute timespan due to err: {}", function_name, err);
+                            }
+                        };
+                        TimeSpan::new(span).get_userdata(luau)
+                    } else {
+                        wrap_err!("{} expected other to be a DateTime, got: {:?}", function_name, ud.type_name()?)
+                    }
+                },
+                other => {
+                    wrap_err!("{} expected other to be a DateTime, got: {:?}", function_name, other)
+                }
+            }
+        });
+
         // DateTime + TimeSpan -> DateTime
         methods.add_meta_method(LuaMetaMethod::Add, |luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
             let function_name = "DateTime.__add(self, other: TimeSpan)";
@@ -227,13 +250,13 @@ impl LuaUserData for DateTime {
         });
 
         // DateTime - TimeSpan -> DateTime;
-        methods.add_meta_method(LuaMetaMethod::Add, |luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
+        methods.add_meta_method(LuaMetaMethod::Sub, |luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
             let function_name = "DateTime.__sub(self, other: TimeSpan)";
             match other {
                 LuaValue::UserData(ud) => {
                     if ud.is::<TimeSpan>() {
                         let other_timespan = ud.borrow::<TimeSpan>().expect("impossible not TimeSpan");
-                        let new_dt = &this.inner + other_timespan.deref().inner;
+                        let new_dt = &this.inner - other_timespan.deref().inner;
                         DateTime::from(new_dt).get_userdata(luau)
                     } else if ud.is::<DateTime>() {
                         // let other_dt = ud.borrow::<DateTime>().expect("impossible not DateTime");
@@ -246,6 +269,63 @@ impl LuaUserData for DateTime {
                 },
                 other => {
                     wrap_err!("{} expected other to be a TimeSpan, got: {:?}", function_name, other)
+                }
+            }
+        });
+
+        methods.add_meta_method(LuaMetaMethod::Eq, |_luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
+            let function_name = "DateTime.__eq(self, other: DateTime)";
+            match other {
+                LuaValue::UserData(ud) => {
+                    if ud.is::<DateTime>() {
+                        let other_dt = ud.borrow::<DateTime>().expect("impossible not DateTime");
+                        Ok(LuaValue::Boolean(this.inner == other_dt.deref().inner))
+                    } else if ud.is::<TimeSpan>() {
+                        wrap_err!("{}: DateTime == TimeSpan makes no sense to me lol", function_name)
+                    } else {
+                        wrap_err!("{}: other must be a DateTime", function_name)
+                    }
+                },
+                other => {
+                    wrap_err!("{} expected other to be a DateTime, got: {:?}", function_name, other)
+                }
+            }
+        });
+
+        methods.add_meta_method(LuaMetaMethod::Lt, |_luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
+            let function_name = "DateTime.__lt(self, other: DateTime)";
+            match other {
+                LuaValue::UserData(ud) => {
+                    if ud.is::<DateTime>() {
+                        let other_dt = ud.borrow::<DateTime>().expect("impossible not DateTime");
+                        Ok(LuaValue::Boolean(this.inner < other_dt.deref().inner))
+                    } else if ud.is::<TimeSpan>() {
+                        wrap_err!("{}: DateTime < TimeSpan makes no sense to me lol", function_name)
+                    } else {
+                        wrap_err!("{}: other must be a DateTime", function_name)
+                    }
+                },
+                other => {
+                    wrap_err!("{} expected other to be a DateTime, got: {:?}", function_name, other)
+                }
+            }
+        });
+
+        methods.add_meta_method(LuaMetaMethod::Le, |_luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
+            let function_name = "DateTime.__le(self, other: DateTime)";
+            match other {
+                LuaValue::UserData(ud) => {
+                    if ud.is::<DateTime>() {
+                        let other_dt = ud.borrow::<DateTime>().expect("impossible not DateTime");
+                        Ok(LuaValue::Boolean(this.inner <= other_dt.deref().inner))
+                    } else if ud.is::<TimeSpan>() {
+                        wrap_err!("{}: DateTime <= TimeSpan makes no sense to me lol", function_name)
+                    } else {
+                        wrap_err!("{}: other must be a DateTime", function_name)
+                    }
+                },
+                other => {
+                    wrap_err!("{} expected other to be a DateTime, got: {:?}", function_name, other)
                 }
             }
         });

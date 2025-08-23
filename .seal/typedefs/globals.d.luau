@@ -58,8 +58,10 @@ declare class DateTime
 	timezone: string
 	iso: string
 
-	function format(self, format: string | COMMON_FORMATS): string
 	function timespan(self, other: DateTime): TimeSpan
+	function since(self, other: DateTime): TimeSpan
+
+	function format(self, format: string | COMMON_FORMATS): string
 	function display(self): string
 	function rfc_2822(self): string
 	function rfc_3339(self): string
@@ -69,6 +71,9 @@ declare class DateTime
 
 	function __add(self, span: TimeSpan): DateTime
 	function __sub(self, span: TimeSpan): DateTime
+	function __eq(self, other: DateTime): boolean
+    function __lt(self, other: DateTime): boolean
+    function __le(self, other: DateTime): boolean
 end
 
 declare class TimeSpan
