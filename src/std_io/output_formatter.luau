@@ -359,10 +359,12 @@ end
 
 local function process_pretty_values(
     value: any,
-    -- seen_tables' keys are tables since they get uniquely hashed, value is stringified path
+    --- seen_tables' keys are tables since they get uniquely hashed, value is stringified path
     seen_tables: { [{ [any]: any }]: string? }?,
-    depth: number?,
-    current_table_path: { any }? -- used to put table paths in seen_tables
+    --- recursion depth of table we're processing
+    depth: number?, 
+    --- used to put table paths in seen_tables
+    current_table_path: { any }?
 ): string
     seen_tables = seen_tables or {}
     local depth = depth or 0

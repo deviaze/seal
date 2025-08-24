@@ -61,7 +61,8 @@ local extern_types: ExternTypeDocs = {
             - To make a new `DateTime`, use `@std/time/datetime`'s `now` or `parse` functions.
             - Use `DateTime:format` to format a datetime by passing in a strftime format string or COMMON_FORMAT.
             - To do arithmetic on a `DateTime`, add or subtract a `TimeSpan` from it.
-            - You can also compare `DateTimes` using the standard `>`, `<`, `<=`, `>=`, and `==` operators.
+            - Use `DateTime:since`, `DateTime:to`, and `DateTime:timespan` to get `TimeSpan`s between two `DateTime`s.
+            - You can also compare `DateTime`s using the standard `>`, `<`, `<=`, `>=`, and `==` operators.
 
             ## Usage
             
@@ -149,6 +150,9 @@ local extern_types: ExternTypeDocs = {
                     print(`Days in year to date: {math.round(now:since(jan_01):duration().days}`))
                     ```
                 ]]
+            },
+            in_timezone = {
+                documentation = "Returns a new `DateTime` representing the same instant in time but in a different timezone."
             }
         }
     },

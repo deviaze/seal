@@ -17,6 +17,11 @@ impl DateTime {
             inner: zoned,
         }
     }
+    pub fn from_unix_timestamp(timestamp: jiff::Timestamp, timezone: jiff::tz::TimeZone) -> Self {
+        Self {
+            inner: Zoned::new(timestamp, timezone)
+        }
+    }
     pub fn now() -> Self {
         Self {
             inner: Zoned::now(),
@@ -43,6 +48,7 @@ impl DateTime {
     pub fn parse(source: &mut String, format_string: &str, iana_timezone: &str, function_name: &'static str) -> LuaResult<Self> {
         let mut format_string = Self::get_format_string(format_string).to_string();
 
+        // all Zoned DateTimes must have a %Q specifier, so we expose it as the third param
         if !format_string.contains("%Q") {
             format_string.push_str(" %Q");
             source.push(' ');
@@ -77,46 +83,6 @@ impl DateTime {
     }
 }
 
-fn datetime_now(luau: &Lua, _: ()) -> LuaValueResult {
-    ok_userdata(DateTime::now(), luau)
-}
-
-fn datetime_parse(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let function_name = "datetime.parse(source: string, format: string)";
-    let mut source = match multivalue.pop_front() {
-        Some(LuaValue::String(s)) => match s.to_str() {
-            Ok(s) => s.to_owned(),
-            Err(_) => {
-                return wrap_err!("{}: source string was unexpectedly invalid utf-8", function_name);
-            }
-        },
-        Some(LuaNil) | None => {
-            return wrap_err!("{} expected source to be a datetime-formattable string, but was incorrectly called with zero arguments or nil", function_name);
-        },
-        Some(other) => {
-            return wrap_err!("{} expected source to be a datetime-formattable string, got: {:?}", function_name, other);
-        }
-    };
-    let format_string = match multivalue.pop_front() {
-        Some(LuaValue::String(s)) => s.to_string_lossy(),
-        Some(LuaNil) | None => {
-            return wrap_err!("{} expected format to be a common datetime format or valid datetime formatting string, but was incorrectly called with zero arguments or nil", function_name);
-        },
-        Some(other) => {
-            return wrap_err!("{} expected format to be a common datetime format or valid datetime formatting string, got: {:?}", function_name, other);
-        }
-    };
-    let iana_timezone = match multivalue.pop_front() {
-        Some(LuaValue::String(s)) => s.to_string_lossy(),
-        Some(LuaNil) | None => String::from("UTC"),
-        Some(other) => {
-            return wrap_err!("{} expected the timezone to be one of the 500+ IANA timezones or nil (defaults to UTC), got: {:?}", function_name, other);
-        }
-    };
-
-    ok_userdata(DateTime::parse(&mut source, &format_string,  &iana_timezone, function_name)?, luau)
-}
-
 impl LuaUserData for DateTime {
     fn add_fields<F: LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_field_method_get("year", |_: &Lua, this: &DateTime| Ok(this.inner.date().year()));
@@ -132,12 +98,12 @@ impl LuaUserData for DateTime {
         fields.add_field_method_get("unix_timestamp", |_: &Lua, this: &DateTime| {
             Ok(this.inner.timestamp().as_second())
         });
-        fields.add_field_method_get("timezone", |_: &Lua, this: &DateTime| {
+        fields.add_field_method_get("timezone", |luau: &Lua, this: &DateTime| {
             let timezone = match this.inner.time_zone().iana_name() {
-                Some(tz) => tz.as_bytes().to_owned(),
-                None => Vec::<u8>::default(),
+                Some(tz) => tz.to_string(),
+                None => String::default(),
             };
-            Ok(timezone)
+            ok_string(timezone, luau)
         });
         fields.add_field_method_get("iso", |_: &Lua, this: &DateTime| {
             Ok(this.inner.to_string())
@@ -157,16 +123,6 @@ impl LuaUserData for DateTime {
             ok_string(format!("DateTime<{:?}>", this.inner), luau)
         });
 
-        // methods.add_method("add_months", |luau: &Lua, this: &DateTime, value: LuaValue| -> LuaValueResult {
-        //     let months = match value {
-        //         LuaValue::Integer(i) => i,
-        //         LuaValue::Number(n) => n as i64,
-        //         other => todo!()
-        //     };
-        //     let new = this.inner.saturating_add(months.months());
-        //     DateTime::from(new).get_userdata(luau)
-        // });
-
         methods.add_method("format", |luau: &Lua, this: &DateTime, value: LuaValue| -> LuaValueResult { 
             let function_name = "DateTime:format(format: string)";
             let format_string = match value {
@@ -178,6 +134,50 @@ impl LuaUserData for DateTime {
             ok_string(this.format(&format_string, function_name)?, luau)
         });
 
+        methods.add_method("in_timezone", |luau: &Lua, this: &DateTime, value: LuaValue| -> LuaValueResult {
+            let function_name = "DateTime:in_timezone(timezone: IanaTimezone)";
+            let timezone = match value {
+                LuaValue::String(s) => s.to_string_lossy(),
+                other => {
+                    return wrap_err!("{} expected timezone to be a string (one of the IanaTimezones), got: {:?}", function_name, other);
+                }
+            };
+            let new_dt = match this.inner.in_tz(&timezone) {
+                Ok(zoned) => zoned,
+                Err(err) => {
+                    return wrap_err!(
+                        "{}: unable to convert DateTime to timezone '{}'; is it a valid IanaTimezone? err: {}",
+                        function_name, timezone, err
+                    )
+                }
+            };
+            DateTime::from(new_dt).get_userdata(luau)
+        });
+
+
+        // literally the same as "timespan"
+        methods.add_method("to", |luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
+            let function_name = "DateTime:to(other: DateTime)";
+            match other {
+                LuaValue::UserData(ud) => {
+                    if ud.is::<DateTime>() {
+                        let other_dt = ud.borrow::<DateTime>().expect("no way not DateTime");
+                        let span = match this.inner.until(&other_dt.deref().inner) {
+                            Ok(span) => span,
+                            Err(err) => {
+                                return wrap_err!("{} unable to compute timespan due to err: {}", function_name, err);
+                            }
+                        };
+                        TimeSpan::new(span).get_userdata(luau)
+                    } else {
+                        wrap_err!("{} expected other to be a DateTime, got: {:?}", function_name, ud.type_name()?)
+                    }
+                },
+                other => {
+                    wrap_err!("{} expected other to be a DateTime, got: {:?}", function_name, other)
+                }
+            }
+        });
 
         methods.add_method("timespan", |luau: &Lua, this: &DateTime, other: LuaValue| -> LuaValueResult {
             let function_name = "DateTime:timespan(other: DateTime)";
@@ -359,10 +359,91 @@ impl LuaUserData for DateTime {
 }
 
 
+fn datetime_now(luau: &Lua, _: ()) -> LuaValueResult {
+    DateTime::now().get_userdata(luau)
+}
+
+fn datetime_parse(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "datetime.parse(source: string, format: string)";
+    let mut source = match multivalue.pop_front() {
+        Some(LuaValue::String(s)) => match s.to_str() {
+            Ok(s) => s.to_owned(),
+            Err(_) => {
+                return wrap_err!("{}: source string was unexpectedly invalid utf-8", function_name);
+            }
+        },
+        Some(LuaNil) | None => {
+            return wrap_err!("{} expected source to be a datetime-formattable string, but was incorrectly called with zero arguments or nil", function_name);
+        },
+        Some(other) => {
+            return wrap_err!("{} expected source to be a datetime-formattable string, got: {:?}", function_name, other);
+        }
+    };
+    let format_string = match multivalue.pop_front() {
+        Some(LuaValue::String(s)) => s.to_string_lossy(),
+        Some(LuaNil) | None => {
+            return wrap_err!("{} expected format to be a common datetime format or valid datetime formatting string, but was incorrectly called with zero arguments or nil", function_name);
+        },
+        Some(other) => {
+            return wrap_err!("{} expected format to be a common datetime format or valid datetime formatting string, got: {:?}", function_name, other);
+        }
+    };
+    let iana_timezone = match multivalue.pop_front() {
+        Some(LuaValue::String(s)) => s.to_string_lossy(),
+        Some(LuaNil) | None => String::from("UTC"),
+        Some(other) => {
+            return wrap_err!("{} expected the timezone to be one of the 500+ IANA timezones or nil (defaults to UTC), got: {:?}", function_name, other);
+        }
+    };
+
+    DateTime::parse(&mut source, &format_string, &iana_timezone, function_name)?.get_userdata(luau)
+}
+
+fn datetime_from(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "datetime.from(timestamp: number, timezone: string?, nanos: number?)";
+    let timestamp = match multivalue.pop_front() {
+        Some(LuaValue::Integer(i)) => i,
+        Some(LuaNil) | None => {
+            return wrap_err!("{} expected timestamp to be an integer number, got nothing or nil", function_name);
+        },
+        Some(other) => {
+            return wrap_err!("{} expected timestamp to be an integer number, got: {:?}", function_name, other);
+        }
+    };
+    let timezone = match multivalue.pop_front() {
+        Some(LuaValue::String(tz)) => tz.to_string_lossy(),
+        Some(LuaNil) | None => "UTC".to_string(),
+        Some(other) => {
+            return wrap_err!("{} expected timezone to be an IanaTimezone string, got: {:?}", function_name, other);
+        }
+    };
+    let nanos = match multivalue.pop_front() {
+        Some(LuaValue::Integer(n)) => n,
+        Some(LuaNil) | None => 0,
+        Some(other) => {
+            return wrap_err!("{} expected nanos to be an integer number or nil/unspecified, got: {:?}", function_name, other);
+        }
+    };
+    let stampy = match jiff::Timestamp::new(timestamp, nanos as i32) {
+        Ok(stamp) => stamp,
+        Err(err) => {
+            return wrap_err!("{} unable to generate timestamp from input due to err: {}", function_name, err);
+        }
+    };
+    let jiff_timezone = match jiff::tz::TimeZone::get(&timezone) {
+        Ok(tz) => tz,
+        Err(err) => {
+            return wrap_err!("{} unable to create TimeZone (is it valid?): {}", function_name, err);
+        }
+    };
+    DateTime::from_unix_timestamp(stampy, jiff_timezone).get_userdata(luau)
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("now", datetime_now)?
         .with_function("parse", datetime_parse)?
+        .with_function("from", datetime_from)?
         .with_value("COMMON_FORMATS", TableBuilder::create(luau)?
             .with_value("ISO_8601", "%Y-%m-%d %H:%M")?
             .with_value("RFC_2822", "%a, %d %b %Y %H:%M:%S %z")?
@@ -380,6 +461,32 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
             .with_value("AMERICAN_FULL_DATE_TIME", "%A, %B %d, %Y %I:%M:%S %p")?
             .build_readonly()?
         )?
+        .with_function("years", | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
+            let function_name = "datetime.years(years: number)";
+            let months = match multivalue.pop_front() {
+                Some(LuaValue::Number(f)) => f as i64,
+                Some(LuaValue::Integer(i)) => i,
+                other => {
+                    return wrap_err!("{} expected years to be an integer number, got: {:?}", function_name, other);
+                }
+            };
+            let relative_to = match multivalue.pop_front() {
+                Some(LuaValue::UserData(ud)) => {
+                    if ud.is::<DateTime>() {
+                        let dt = ud.borrow::<DateTime>().expect("impossible not DateTime");
+                        Some(dt.deref().clone())
+                    } else {
+                        let type_name = ud.type_name()?.unwrap_or_default();
+                        return wrap_err!("{} expected relative_to to be a DateTime or nil/unspecified, got a userdata of type: {}", function_name, type_name);
+                    }
+                },
+                Some(LuaNil) | None => None,
+                Some(other) => {
+                    return wrap_err!("{} expected relative_to to be DateTime or nil/unspecified, got: {:?}", function_name, other);
+                }
+            };
+            TimeSpan::years(months, relative_to).get_userdata(luau)
+        })?
         .with_function("months", | luau: &Lua, mut multivalue: LuaMultiValue | -> LuaValueResult {
             let function_name = "time.months(months: number)";
             let months = match multivalue.pop_front() {

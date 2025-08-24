@@ -1,8 +1,6 @@
-use std::ops::Deref;
-
-use crate::{prelude::*, std_time::datetime::DateTime};
+use crate::prelude::*;
 use mluau::prelude::*;
-use jiff::{SignedDuration, Span, SpanArithmetic, SpanRelativeTo};
+use jiff::SignedDuration;
 
 /// using SignedDuration instead of std::time::Duration
 /// this is because we want to allow time.days(3) - time.days(5)
@@ -10,44 +8,112 @@ pub struct TimeDuration {
     pub inner: SignedDuration, 
 }
 
+const SECONDS_IN_A_YEAR: f64 = 31_536_000.0;
+const SECONDS_IN_A_DAY: f64 = 86_400.0;
+const SECONDS_IN_AN_HOUR: f64 = 3_600.0;
+const SECONDS_IN_A_MINUTE: f64 = 60.0;
+
 impl TimeDuration {
     pub fn new(duration: SignedDuration) -> Self {
         Self { inner: duration }
     }
 
-    pub fn days(days: f64) -> Self {
-        let secs = (days * 86_400.0).clamp(-631_107_417_600.0, 631_107_417_600.0);
-        Self::new(SignedDuration::from_secs_f64(secs))
+    pub fn years(years: f64) -> LuaResult<Self> {
+        let secs = years * SECONDS_IN_A_YEAR;
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("years overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
     }
 
-    pub fn hours(hours: f64) -> Self {
-        let secs = (hours * 3_600.0).clamp(-631_107_417_600.0, 631_107_417_600.0);
-        Self::new(SignedDuration::from_secs_f64(secs))
+    pub fn months(months: f64) -> LuaResult<Self> {
+        let secs = months * (SECONDS_IN_A_YEAR / 12.0);
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("months overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
     }
 
-    pub fn minutes(mins: f64) -> Self {
-        let secs = (mins * 60.0).clamp(-631_107_417_600.0, 631_107_417_600.0);
-        Self::new(SignedDuration::from_secs_f64(secs))
+    pub fn days(days: f64) -> LuaResult<Self> {
+        let secs = days * SECONDS_IN_A_DAY;
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("days overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
     }
 
-    pub fn seconds(secs: f64) -> Self {
-        let secs = secs.clamp(-631_107_417_600.0, 631_107_417_600.0);
-        Self::new(SignedDuration::from_secs_f64(secs))
+    pub fn hours(hours: f64) -> LuaResult<Self> {
+        let secs = hours * SECONDS_IN_AN_HOUR;
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("hours overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
     }
 
-    pub fn milliseconds(ms: f64) -> Self {
-        let secs = (ms / 1_000.0).clamp(-631_107_417_600.0, 631_107_417_600.0);
-        Self::new(SignedDuration::from_secs_f64(secs))
+    pub fn minutes(mins: f64) -> LuaResult<Self> {
+        let secs = mins * SECONDS_IN_A_MINUTE;
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("minutes overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
     }
 
-    pub fn microseconds(us: f64) -> Self {
-        let secs = (us / 1_000_000.0).clamp(-631_107_417_600.0, 631_107_417_600.0);
-        Self::new(SignedDuration::from_secs_f64(secs))
+    pub fn seconds(secs: f64) -> LuaResult<Self> {
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("seconds overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
     }
 
-    pub fn nanoseconds(ns: f64) -> Self {
-        let secs = (ns / 1_000_000_000.0).clamp(-631_107_417_600.0, 631_107_417_600.0);
-        Self::new(SignedDuration::from_secs_f64(secs))
+    pub fn milliseconds(ms: f64) -> LuaResult<Self> {
+        let secs = ms / 1_000.0;
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("milliseconds overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
+    }
+
+    pub fn microseconds(us: f64) -> LuaResult<Self> {
+        let secs = us / 1_000_000.0;
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("microseconds overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
+    }
+
+    pub fn nanoseconds(ns: f64) -> LuaResult<Self> {
+        let secs = ns / 1_000_000_000.0;
+        let signed = match SignedDuration::try_from_secs_f64(secs) {
+            Ok(signed) => signed,
+            Err(err) => {
+                return wrap_err!("nanoseconds overflowed bounds, err: {}", err);
+            }
+        };
+        Ok(Self::new(signed))
     }
 
     pub fn get_userdata(self, luau: &Lua) -> LuaValueResult {
@@ -60,9 +126,30 @@ impl LuaUserData for TimeDuration {
     fn add_fields<F: LuaUserDataFields<Self>>(fields: &mut F) {
         fields.add_meta_field("__type", "Duration");
 
-        fields.add_field_method_get("days", |_, this| Ok(this.inner.as_secs_f64() / 86_400.0));
-        fields.add_field_method_get("hours", |_, this| Ok(this.inner.as_secs_f64() / 3_600.0));
-        fields.add_field_method_get("minutes", |_, this| Ok(this.inner.as_secs_f64() / 60.0));
+        fn round_4_decimals(val: f64) -> f64 {
+            (val * 10_000.0).round() / 10_000.0
+        }
+
+        fields.add_field_method_get("years", |_, this| {
+            let years = this.inner.as_secs_f64() / 31_536_000.0;
+            Ok(round_4_decimals(years))
+        });
+
+        fields.add_field_method_get("months", |_, this| {
+            // 1 month = 1/12 of a year = 2_628_000 seconds
+            let months = this.inner.as_secs_f64() / (31_536_000.0 / 12.0);
+            Ok(round_4_decimals(months))
+        });
+
+        fields.add_field_method_get("days", |_, this| {
+            Ok(round_4_decimals(this.inner.as_secs_f64() / 86_400.0))
+        });
+        fields.add_field_method_get("hours", |_, this| {
+            Ok(round_4_decimals(this.inner.as_secs_f64() / 3_600.0))
+        });
+        fields.add_field_method_get("minutes", |_, this| {
+            Ok(round_4_decimals(this.inner.as_secs_f64() / 60.0))
+        });
         fields.add_field_method_get("seconds", |_, this| Ok(this.inner.as_secs_f64()));
         fields.add_field_method_get("milliseconds", |_, this| Ok(this.inner.as_secs_f64() * 1_000.0));
         fields.add_field_method_get("microseconds", |_, this| Ok(this.inner.as_secs_f64() * 1_000_000.0));
@@ -175,146 +262,4 @@ impl LuaUserData for TimeDuration {
     }
 }
 
-pub struct TimeSpan {
-    pub inner: Span,
-    pub relative_to: Option<DateTime>,
-}
-
-impl TimeSpan {
-    pub fn new(span: Span) -> Self {
-        Self {
-            inner: span,
-            relative_to: None,
-        }
-    }
-    pub fn relative_to(span: Span, relative_to: DateTime) -> Self {
-        Self {
-            inner: span,
-            relative_to: Some(relative_to),
-        }
-    }
-    pub fn months(months: i64, relative_to: Option<DateTime>) -> Self {
-        let clamped = months.clamp(-239_976, 239_976);
-        if let Some(relative) = relative_to {
-            Self::relative_to(
-                Span::new().months(clamped), 
-                relative
-            )
-        } else {
-            Self::new(Span::new().months(clamped))
-        }
-    }
-    pub fn days(days: i64) -> Self {
-        // Self::new(Span::new().days(days))
-        Self::new(Span::new().days(days.clamp(-7_304_484, 7_304_484)))
-    }
-    pub fn hours(hours: i64) -> Self {
-        Self::new(Span::new().hours(hours.clamp(-175_307_616, 175_307_616)))
-    }
-    pub fn minutes(mins: i64) -> Self {
-        Self::new(Span::new().minutes(mins.clamp(-10_518_456_960, 10_518_456_960)))
-    }
-    pub fn seconds(secs: i64) -> Self {
-        Self::new(Span::new().seconds(secs.clamp(-631_107_417_600, 631_107_417_600)))
-    }
-    pub fn get_userdata(self, luau: &Lua) -> LuaValueResult {
-        ok_userdata(self, luau)
-    }
-}
-
-impl LuaUserData for TimeSpan {
-    fn add_fields<F: LuaUserDataFields<Self>>(fields: &mut F) {
-        fields.add_field_method_get("years", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_years()));
-        fields.add_field_method_get("months", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_months()));
-        fields.add_field_method_get("days", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_days()));
-        fields.add_field_method_get("hours", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_hours()));
-        fields.add_field_method_get("minutes", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_minutes()));
-        fields.add_field_method_get("seconds", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_seconds()));
-        fields.add_field_method_get("milliseconds", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_milliseconds()));
-        fields.add_field_method_get("microseconds", |_: &Lua, this: &TimeSpan| Ok(this.inner.get_microseconds()));
-    }
-    fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
-        methods.add_meta_method(LuaMetaMethod::ToString, | luau: &Lua, this: &TimeSpan, _: LuaValue| -> LuaValueResult {
-            ok_string(format!("TimeSpan<{:#}>", this.inner), luau)
-        });
-
-        methods.add_method("duration", |luau: &Lua, this: &TimeSpan, _: LuaValue| {
-            let function_name = "TimeSpan:duration()";
-            let total = match this.inner.to_duration(SpanRelativeTo::days_are_24_hours()) {
-                Ok(total) => total,
-                Err(err) => {
-                    return wrap_err!("{} unable to convert to duration: {}", function_name, err);
-                }
-            };
-            ok_userdata(TimeDuration::new(total), luau)
-        });     
-
-        /// we want to not error.. so we check if either TimeSpan is relative_to a DateTime for SpanArithmetic
-        fn which_relative<'a>(this: &'a TimeSpan, other: &'a TimeSpan) -> Option<&'a DateTime> {
-            if let Some(this_relative) = &this.relative_to {
-                Some(this_relative)
-            } else if let Some(other_relative) = &other.relative_to {
-                Some(other_relative)
-            } else {
-                None
-            }
-        }
-
-        methods.add_meta_method(LuaMetaMethod::Add, | luau: &Lua, this: &TimeSpan, other: LuaValue | {
-            let function_name = "TimeSpan.__add(self, other: TimeSpan)";
-            let added = match other {
-                LuaValue::UserData(ud) => match ud.borrow::<TimeSpan>() {
-                    Ok(other) => {
-                        let relative_to = which_relative(this, &other);
-                        match if let Some(relative) = relative_to {
-                            this.inner.checked_add((other.deref().inner, relative.date()))
-                        } else {
-                            this.inner.checked_add(SpanArithmetic::from(other.deref().inner).days_are_24_hours())
-                        } {
-                            Ok(span) => span,
-                            Err(err) => {
-                                return wrap_err!("{} error adding timespans {} + {}; err: {}", function_name, this.inner, other.inner, err);
-                            }
-                        }
-                    },
-                    Err(err) => {
-                        return wrap_err!("{}: other must be another TimeSpan; err: {:?}", function_name, err);
-                    }
-                },
-                other => {
-                    return wrap_err!("{} expected other to be another TimeSpan, got: {:?}", function_name, other);
-                }
-            };
-            ok_userdata(TimeSpan::new(added), luau)
-        });
-
-        methods.add_meta_method(LuaMetaMethod::Sub, | luau: &Lua, this: &TimeSpan, other: LuaValue | {
-            let function_name = "TimeSpan.__sub(self, other: TimeSpan)";
-            let subbed = match other {
-                LuaValue::UserData(ud) => match ud.borrow::<TimeSpan>() {
-                    Ok(other) => {
-                        let relative_to = which_relative(this, &other);
-                        match if let Some(relative) = relative_to {
-                            this.inner.checked_sub((other.deref().inner, relative.date()))
-                        } else {
-                            this.inner.checked_sub(SpanArithmetic::from(other.deref().inner).days_are_24_hours())
-                        } {
-                            Ok(span) => span,
-                            Err(err) => {
-                                return wrap_err!("{} error subtracting timespans {} + {}; err: {}", function_name, this.inner, other.inner, err);
-                            }
-                        }
-                    },
-                    Err(err) => {
-                        return wrap_err!("{}: other must be another TimeSpan; err: {:?}", function_name, err);
-                    }
-                },
-                other => {
-                    return wrap_err!("{} expected other to be another TimeSpan, got: {:?}", function_name, other);
-                }
-            };
-            ok_userdata(TimeSpan::new(subbed), luau)
-        });
-    }
-}
 

@@ -4,8 +4,9 @@ use std::time::Duration;
 
 pub mod datetime;
 pub mod duration;
+pub mod timespan;
 
-use duration::TimeSpan;
+use timespan::TimeSpan;
 use duration::TimeDuration;
 
 /// Sleeps for the given number of seconds using thread::sleep.
@@ -28,6 +29,31 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("wait", time_wait)?
         .with_value("datetime", datetime::create(luau)?)?
 
+        .with_function("years", |luau: &Lua, value: LuaValue| -> LuaValueResult {
+            let function_name = "time.years(y: number)";
+            let years = match value {
+                LuaValue::Number(f) => f,
+                LuaValue::Integer(i) => i as f64,
+                other => {
+                    return wrap_err!("{} expected number, got: {:?}", function_name, other);
+                }
+            };
+            TimeDuration::years(years)?.get_userdata(luau)
+        })?
+
+
+        .with_function("months", |luau: &Lua, value: LuaValue| -> LuaValueResult {
+            let function_name = "time.months(m: number)";
+            let months = match value {
+                LuaValue::Number(f) => f,
+                LuaValue::Integer(i) => i as f64,
+                other => {
+                    return wrap_err!("{} expected number, got: {:?}", function_name, other);
+                }
+            };
+            TimeDuration::months(months)?.get_userdata(luau)
+        })?
+
         .with_function("days", |luau: &Lua, value: LuaValue| -> LuaValueResult {
             let function_name = "time.days(d: number)";
             let days = match value {
@@ -37,7 +63,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
                     return wrap_err!("{} expected number, got: {:?}", function_name, other);
                 }
             };
-            TimeDuration::days(days).get_userdata(luau)
+            TimeDuration::days(days)?.get_userdata(luau)
         })?
 
         .with_function("hours", |luau: &Lua, value: LuaValue| -> LuaValueResult {
@@ -49,7 +75,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
                     return wrap_err!("{} expected number, got: {:?}", function_name, other);
                 }
             };
-            TimeDuration::hours(hours).get_userdata(luau)
+            TimeDuration::hours(hours)?.get_userdata(luau)
         })?
 
         .with_function("minutes", |luau: &Lua, value: LuaValue| -> LuaValueResult {
@@ -61,7 +87,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
                     return wrap_err!("{} expected number, got: {:?}", function_name, other);
                 }
             };
-            TimeDuration::minutes(minutes).get_userdata(luau)
+            TimeDuration::minutes(minutes)?.get_userdata(luau)
         })?
 
         .with_function("seconds", |luau: &Lua, value: LuaValue| -> LuaValueResult {
@@ -73,7 +99,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
                     return wrap_err!("{} expected number, got: {:?}", function_name, other);
                 }
             };
-            TimeDuration::seconds(seconds).get_userdata(luau)
+            TimeDuration::seconds(seconds)?.get_userdata(luau)
         })?
 
         .with_function("milliseconds", |luau: &Lua, value: LuaValue| -> LuaValueResult {
@@ -85,7 +111,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
                     return wrap_err!("{} expected number, got: {:?}", function_name, other);
                 }
             };
-            TimeDuration::milliseconds(ms).get_userdata(luau)
+            TimeDuration::milliseconds(ms)?.get_userdata(luau)
         })?
 
         .with_function("microseconds", |luau: &Lua, value: LuaValue| -> LuaValueResult {
@@ -97,7 +123,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
                     return wrap_err!("{} expected number, got: {:?}", function_name, other);
                 }
             };
-            TimeDuration::microseconds(us).get_userdata(luau)
+            TimeDuration::microseconds(us)?.get_userdata(luau)
         })?
 
         .with_function("nanoseconds", |luau: &Lua, value: LuaValue| -> LuaValueResult {
@@ -109,7 +135,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
                     return wrap_err!("{} expected number, got: {:?}", function_name, other);
                 }
             };
-            TimeDuration::nanoseconds(ns).get_userdata(luau)
+            TimeDuration::nanoseconds(ns)?.get_userdata(luau)
         })?
 
         .build_readonly()

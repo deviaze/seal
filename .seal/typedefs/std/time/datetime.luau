@@ -16,39 +16,58 @@ local datetime = {
     }
 }
 
+--- Constructs a `DateTime` from right now (based on system time) in your local timezone.
 function datetime.now(): DateTime
 	return nil :: any
 end
 
+--- Constructs a `DateTime` from a Unix Timestamp and an `IanaTimezone`.
+---
+--- - `timezone` defaults to `"UTC"` if not specified
+--- - `nanos` defaults to `0` if not specified
+function datetime.from(timestamp: number, timezone: IanaTimezone?, nanos: number?)
+    return nil :: any
+end
+
 type CommonFormatKeys = keyof<index<typeof(datetime), "COMMON_FORMATS">>
 
---- date
+--- Constructs a `DateTime` from a strtime string or `COMMON_FORMAT`.
 function datetime.parse(source: string, format: string | CommonFormatKeys, timezone: IanaTimezone): DateTime
     return nil :: any
 end
 
+--- Constructs a `TimeSpan` from years. 
+---
+--- You *need* to supply a `relative_to` `DateTime` to do any arithmetic between the returned `TimeSpan` and other `TimeSpan`s.
+function datetime.years(years: number, relative_to: DateTime?): TimeSpan
+    return nil :: any
+end
+--- Constructs a `TimeSpan` from months. 
+---
+--- You *need* to supply a `relative_to` `DateTime` to do any arithmetic between the returned `TimeSpan` and other `TimeSpan`s.
 function datetime.months(months: number, relative_to: DateTime?): TimeSpan
     return nil :: any
 end
+--- Constructs a `TimeSpan` from days. Assumes every day is 24 hours.
 function datetime.days(days: number): TimeSpan
     return nil :: any
 end
+--- Constructs a `TimeSpan` from hours.
 function datetime.hours(hours: number): TimeSpan
     return nil :: any
 end
+--- Constructs a `TimeSpan` from minutes.
 function datetime.minutes(minutes: number): TimeSpan
     return nil :: any
 end
+--- Constructs a `TimeSpan` from seconds.
 function datetime.seconds(seconds: number): TimeSpan
     return nil :: any
 end
+--- Constructs a `TimeSpan` from milliseconds.
 function datetime.milliseconds(milliseconds: number): TimeSpan
     return nil :: any
 end
-
--- function datetime.from(unix_timestamp: number): DateTimeUtc
---     return nil :: any
--- end
 
 export type IanaTimezone =
     | "Africa/Abidjan"

@@ -16,28 +16,36 @@ type time = {
     --- Implemented with Rust's `thread::sleep`.
     wait: (seconds: number) -> true,
 
-    --- TimeSpan constructors and utilities
+    --- `DateTime` and `TimeSpan` libraries.
     datetime: typeof(require("@self/datetime")),
 
-    --- Constructs a Duration representing `d` days.
+    --- Constructs a `Duration` representing `y` years. This assumes years are `365` days long.
+    years: (y: number) -> Duration,
+
+    --- Constructs a `Duration` representing `months` months. This assumes months are 365 / 12 days long.
+    --- <br> For accurate months, use `TimeSpan`s instead.
+    months: (months: number) -> Duration,
+
+    --- Constructs a `Duration` representing `d` days.
     days: (d: number) -> Duration,
 
-    --- Constructs a Duration representing `h` hours.
+    --- Constructs a `Duration` representing `h` hours.
     hours: (h: number) -> Duration,
 
-    --- Constructs a Duration representing `m` minutes.
+    --- Constructs a `Duration` representing `m` minutes.
     minutes: (m: number) -> Duration,
 
-    --- Constructs a Duration representing `s` seconds.
+    --- Constructs a `Duration` representing `s` seconds.
     seconds: (s: number) -> Duration,
 
-    --- Constructs a Duration representing `ms` milliseconds.
+    --- Constructs a `Duration` representing `ms` milliseconds.
     milliseconds: (ms: number) -> Duration,
 
-    --- Constructs a Duration representing `us` microseconds.
+    --- Constructs a `Duration` representing `us` microseconds.
     microseconds: (us: number) -> Duration,
 
-    -- nanoseconds: (ns: number) -> Duration -- disabled due to overflow issue
+    --- Constructs a `Duration` representing `n` nanoseconds. This is accurate only up to ~285 years (expressed in nanoseconds).
+    nanoseconds: (n: number) -> Duration,
 }
 
 return {} :: time
