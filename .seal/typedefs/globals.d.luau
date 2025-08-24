@@ -6,7 +6,7 @@ declare function pp<T...>(...: T...): T...
 
 declare function dp<T...>(...: T...): T...
 
-declare function warn<T...>(...: T...): nil
+declare function warn<T...>(...: T...): ()
 
 declare _SEAL_VERSION: string
 
@@ -59,6 +59,7 @@ declare class DateTime
 	iso: string
 
 	function timespan(self, other: DateTime): TimeSpan
+	function to(self, other: DateTime): TimeSpan
 	function since(self, other: DateTime): TimeSpan
 
 	function format(self, format: string | COMMON_FORMATS): string
@@ -77,16 +78,19 @@ declare class DateTime
 end
 
 declare class TimeSpan
-	years: number
-	months: number
-	days: number
-	hours: number
-	minutes: number
-	seconds: number
-	milliseconds: number
-	microseconds: number
+	relative_to: DateTime?
 
 	function duration(self): Duration
+	function units(self): {
+		read years: number,
+		read months: number,
+		read days: number,
+		read hours: number,
+		read minutes: number,
+		read seconds: number,
+		read milliseconds: number,
+		read microseconds: number
+	}
 	function __add(self, other: TimeSpan): TimeSpan
 	function __sub(self, other: TimeSpan): TimeSpan
 end
@@ -98,7 +102,7 @@ declare class Duration
     seconds: number
     milliseconds: number
     microseconds: number
-    nanoseconds: number -- disabled due to overflow issue
+    nanoseconds: number
 
 	function abs(self): Duration
     function __add(self, other: Duration): Duration

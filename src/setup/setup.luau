@@ -75,6 +75,7 @@ local function setup(config: SetupConfig?)
     
     local prefix = if config.typedefs == "link" then "~/" else "./"
     local globals_path = fs.path.join(prefix, ".seal", "typedefs", "globals.d.luau")
+    local global_docs_path = fs.path.join(prefix, ".seal", "typedefs", "docs.json")
     
     local luaurc_defaults = {
         languageMode = "strict",
@@ -102,6 +103,7 @@ local function setup(config: SetupConfig?)
             ["luau-lsp.fflags.enableByDefault"] = true,
             ["luau-lsp.platform.type"] = "standard",
             ["luau-lsp.types.definitionFiles"] = { globals_path },
+            ["luau-lsp.types.documentationFiles"] = { global_docs_path },
             ["luau-lsp.inlayHints.parameterNames"] = "literals",
             ["workbench.editor.customLabels.patterns"] = {
                 ["**/init.luau"] = "${dirname}",
@@ -220,6 +222,13 @@ function get_updated_vscode_settings(existing: json.JsonData, default: json.Json
         for _, definition_file in default["luau-lsp.types.definitionFiles"] do
             if not table.find(existing["luau-lsp.types.definitionFiles"], definition_file) then
                 table.insert(existing["luau-lsp.types.definitionFiles"], definition_file)
+            end
+        end
+    end
+    if not update("luau-lsp.types.documentationFiles") then
+        for _, definition_file in default["luau-lsp.types.documentationFiles"] do
+            if not table.find(existing["luau-lsp.types.documentationFiles"], definition_file) then
+                table.insert(existing["luau-lsp.types.documentationFiles"], definition_file)
             end
         end
     end
