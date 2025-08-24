@@ -1,5 +1,4 @@
 -- common types that we don't want cyclic require errors on
-local datetime = require("@std/time/datetime")
 
 export type TreeBuilder = {
 	--- The `DirectoryTree` being constructed by the `TreeBuilder`.

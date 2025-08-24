@@ -9,7 +9,6 @@ mod std_env;
 mod std_fs;
 mod std_json;
 mod std_process;
-mod std_time_old;
 mod std_time;
 pub mod table_helpers;
 #[macro_use]

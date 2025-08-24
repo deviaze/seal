@@ -3,9 +3,10 @@ use std::io;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
+use std::time::SystemTime;
 use mluau::prelude::*;
 use crate::prelude::*;
-use crate::std_time_old;
+use crate::std_time::datetime::DateTime;
 use copy_dir::copy_dir;
 
 #[cfg(unix)]
@@ -65,21 +66,24 @@ pub fn metadata(luau: &Lua, value: LuaValue) -> LuaValueResult {
             return wrap_io_read_errors(err, "Entry:metadata()", &entry_path);
         }
     };
+    fn from_system_time(system_time: SystemTime, luau: &Lua) -> LuaValueResult {
+        DateTime::from_system_time(system_time, "Entry:metadata()")?.get_userdata(luau)
+    }
     let created_at = match metadata.created() {
         Ok(created_at) => {
-            std_time_old::from_system_time(luau, created_at)?
+            from_system_time(created_at, luau)?
         },
         Err(_err) => LuaNil,
     };
     let modified_at = match metadata.modified() {
         Ok(modified_at) => {
-            std_time_old::from_system_time(luau, modified_at)?
+            from_system_time(modified_at, luau)?
         },
         Err(_err) => LuaNil,
     };
     let accessed_at = match metadata.accessed() {
         Ok(accessed_at) => {
-            std_time_old::from_system_time(luau, accessed_at)?
+            from_system_time(accessed_at, luau)?
         },
         Err(_err) => LuaNil,
     };

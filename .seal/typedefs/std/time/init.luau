@@ -1,16 +1,6 @@
--- local time = {}
-
--- --- Waits `seconds` in the current program thread (implemented with Rust's `thread::sleep`)
--- function time.wait(seconds: number): true
--- 	return nil :: any
--- end
-
--- time.datetime = require("@self/datetime")
-
--- type time = typeof(time)
-
--- return time
-
+--[=[
+    A time library with `time.wait` and functions for creating `Duration` objects.
+]=]
 type time = {
     --- Blocks the current VM for approximately `seconds`, accurate to millisecond-ish precision.
     --- Implemented with Rust's `thread::sleep`.

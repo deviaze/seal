@@ -106,8 +106,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .with_value("io", std_io::create(luau)?)?
                 .with_value("colors", colors::create(luau)?)?
                 .with_function("format", std_io::output::format)?
-                .with_value("time", std_time_old::create(luau)?)?
-                .with_value("datetime", std_time_old::create_datetime(luau)?)?
+                .with_value("time", std_time::create(luau)?)?
+                .with_value("datetime", std_time::datetime::create(luau)?)?
                 .with_value("process", std_process::create(luau)?)?
                 .with_value("serde", std_serde::create(luau)?)?
                 .with_value("json", std_json::create(luau)?)?

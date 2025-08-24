@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::{ops::Deref, time::SystemTime};
 
 use crate::{prelude::*, std_time::duration::TimeDuration};
 use mluau::prelude::*;
@@ -21,6 +21,16 @@ impl DateTime {
         Self {
             inner: Zoned::new(timestamp, timezone)
         }
+    }
+    pub fn from_system_time(system_time: SystemTime, function_name: &'static str) -> LuaResult<Self> {
+        let timestamp = match jiff::Timestamp::try_from(system_time) {
+            Ok(stamp) => stamp,
+            Err(err) => {
+                return wrap_err!("{} cannot convert SystemTime to jiff::Timestamp due to err: {}", function_name, err);
+            }
+        };
+        let timezone = jiff::tz::TimeZone::system();
+        Ok(Self::from_unix_timestamp(timestamp, timezone))
     }
     pub fn now() -> Self {
         Self {
@@ -444,7 +454,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("now", datetime_now)?
         .with_function("parse", datetime_parse)?
         .with_function("from", datetime_from)?
-        .with_value("COMMON_FORMATS", TableBuilder::create(luau)?
+        .with_value("common_formats", TableBuilder::create(luau)?
             .with_value("ISO_8601", "%Y-%m-%d %H:%M")?
             .with_value("RFC_2822", "%a, %d %b %Y %H:%M:%S %z")?
             .with_value("RFC_3339", "%Y-%m-%dT%H:%M:%S%:z")?

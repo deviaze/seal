@@ -9,7 +9,6 @@ pub struct TimeSpan {
     pub relative_to: Option<DateTime>,
 }
 
-
 impl TimeSpan {
     pub fn new(span: Span) -> Self {
         Self {

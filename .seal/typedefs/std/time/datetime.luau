@@ -1,5 +1,5 @@
 local datetime = {
-    COMMON_FORMATS = {
+    common_formats = {
         ISO_8601 = "%Y-%m-%d %H:%M" :: "%Y-%m-%d %H:%M",
         RFC_2822 = "%a, %d %b %Y %H:%M:%S %z" :: "%a, %d %b %Y %H:%M:%S %z",
         RFC_3339 = "%Y-%m-%dT%H:%M:%S%:z" :: "%Y-%m-%dT%H:%M:%S%:z",
@@ -29,9 +29,9 @@ function datetime.from(timestamp: number, timezone: IanaTimezone?, nanos: number
     return nil :: any
 end
 
-type CommonFormatKeys = keyof<index<typeof(datetime), "COMMON_FORMATS">>
+type CommonFormatKeys = keyof<index<typeof(datetime), "common_formats">>
 
---- Constructs a `DateTime` from a strtime string or `COMMON_FORMAT`.
+--- Constructs a `DateTime` from a strtime string or `common_format`.
 function datetime.parse(source: string, format: string | CommonFormatKeys, timezone: IanaTimezone): DateTime
     return nil :: any
 end
