@@ -22,6 +22,7 @@
   "luau-lsp.types.definitionFiles": [
     "./.seal/typedefs/globals.d.luau"
   ],
+  "luau-lsp.types.documentationFiles": ["./.seal/typedefs/docs.json"],
   "luau-lsp.fflags.enableNewSolver": true,
   "luau-lsp.inlayHints.variableTypes": false,
   "luau-lsp.plugin.enabled": false,

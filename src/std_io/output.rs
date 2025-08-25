@@ -25,6 +25,17 @@ fn process_debug_values(value: LuaValue, result: &mut String, depth: usize) -> L
             let formatted_string = format!("{:?}", s);
             result.push_str(&formatted_string);
         },
+        LuaValue::UserData(data) => {
+            match data.call_method::<LuaString>("__dp", ()) {
+                Ok(dp_output) => {
+                    result.push_str(&dp_output.to_string_lossy());
+                },
+                Err(_) => {
+                    // __dp isn't defined or fails
+                    result.push_str(&format!("{:?}", data));
+                }
+            }
+        },
         _ => {
             result.push_str(&format!("{:?}", value));
         }

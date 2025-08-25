@@ -1,5 +1,4 @@
 -- common types that we don't want cyclic require errors on
-local datetime = require("@std/time/datetime")
 
 export type TreeBuilder = {
 	--- The `DirectoryTree` being constructed by the `TreeBuilder`.
@@ -177,13 +176,16 @@ export type Entry = FileEntry | DirectoryEntry
 export type FsMetadata = {
 	--- A UTC DateTime representing when the `Entry` was created.
 	--- This field is optional because it might not be available on all platforms.
-	created_at: datetime.DateTimeUtc?,
+	-- created_at: datetime.DateTimeUtc?,
+	created_at: DateTime?,
 	--- A UTC DateTime representing when the `Entry` was last modified.
 	--- This field is optional because it might not be available on all platforms.
-	modified_at: datetime.DateTimeUtc?,
+	-- modified_at: datetime.DateTimeUtc?,
+	modified_at: DateTime?,
 	--- A UTC DateTime representing when the `Entry` was last accessed.
 	--- This field is optional because it might not be available on all platforms.
-	accessed_at: datetime.DateTimeUtc?,
+	-- accessed_at: datetime.DateTimeUtc?,
+	accessed_at: DateTime?,
 	permissions: {
 		--- Whether the `Entry` is read-only or not. Should be accessible on both Windows and Unix-like operating systems.
 		readonly: boolean,

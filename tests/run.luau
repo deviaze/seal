@@ -141,7 +141,7 @@ while (os.clock() - start_time) < 20 do
             -- check stderr for any error messages; anything written to stderr = fail
             if child.stderr:len() > 0 then
                 local err = child.stderr:read()
-                if err and err:match("ERR") then
+                if err and err:match("ERR") or err and err:match("PANIC") then
                     print(` ❌ {colors.red("test failed")}: {test_path}`)
                     table.insert(tests.failed, {
                         path = test_path,
@@ -192,13 +192,14 @@ print("")
 local elapsed = math.round((os.clock() - start_time) * 100) / 100
 
 print(`elapsed: {colors.blue(`{elapsed} seconds`)}`)
+print(`test files: {#test_files}`)
 print(`{colors.yellow("passed")}: {#tests.passed}`)
 print(`{colors.red("failed")}: {#tests.failed}`)
 
 if #tests.failed > 0 then
     print("")
     for index, test in tests.failed do
-        print(`{colors.red("[FAILED]")} # {index}. {test.path} \n{test.err}\n`)
+        print(`{colors.red("[FAILED]")} #{index} {test.path} \n{test.err}\n`)
     end
     print("")
     io.output.ewrite(colors.red("[FAILED]")) -- make sure we fail cicd

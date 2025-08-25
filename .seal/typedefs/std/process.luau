@@ -67,7 +67,7 @@ export type SpawnOptions = {
 
 		## Truncation
 
-		By default, seal truncates bytes from the front of inner, causing old data to be lost first. Set `truncate == "back` to override this behavior (and preserve old data at the expense of incoming data)
+		By default, seal truncates bytes from the front of inner, causing old data to be lost first. Set `truncate == "back"` to override this behavior (and preserve old data at the expense of incoming data)
 	]=]
 	stream: {
 		--- inner buffer capacity of `ChildProcess.stdout`, default 2048

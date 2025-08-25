@@ -6,7 +6,9 @@ local datetime = {
         SHORT_DATE = "%Y-%m-%d" :: "%Y-%m-%d",
         SHORT_TIME = "%H:%M" :: "%H:%M",
         FULL_DATE_TIME = "%A, %B %d, %Y %H:%M:%S" :: "%A, %B %d, %Y %H:%M:%S",
-		["MM/DD/YYYY"] = "%m/%d/%Y" :: "%m/%d/%Y",
+        LOGGING_24_HR = "%a %b %e %H:%M:%S %Z %Y" :: "%a %b %e %H:%M:%S %Z %Y",
+        LOGGING_12_HR = "%a %b %e %I:%M:%S %p %Z %Y" :: "%a %b %e %I:%M:%S %p %Z %Y",
+        ["MM/DD/YYYY"] = "%m/%d/%Y" :: "%m/%d/%Y",
         ["MM/DD/YYYY HH:MM (AM/PM)"] = "%m/%d/%Y %I:%M %p" :: "%m/%d/%Y %I:%M %p",
         ["MM/DD/YY"] = "%m/%d/%y" :: "%m/%d/%y",
         ["HH:MM (AM/PM)"] = "%I:%M %p" :: "%I:%M %p",
@@ -14,36 +16,710 @@ local datetime = {
     }
 }
 
-export type DateTimeLocal = {
-	unix_timestamp: number,
-	--- format a DateTime with Rust chrono format string
-	format: (self: DateTimeLocal, format: string) -> string,
-}
-
-export type DateTimeUtc = {
-	unix_timestamp: number,
-	--- format a DateTime with Rust chrono format string
-	format_utc: (self: DateTimeUtc, format: string) -> string,
-	format_local: (self: DateTimeUtc, format: string) -> string,
-}
-
-
---[=[
-Returns handle to a `chrono::Local` `DateTime`.
-
-## Usage
-```luau
-local datetime = require("@std/time/datetime")
-print(`the time is now {datetime.now():format(datetime.common_formats["HH:MM (AM/PM)"])}`)
-print(`in unix, this means {datetime.now().unix_timestamp}`)
-```
-]=]
-function datetime.now(): DateTimeLocal
+--- Constructs a `DateTime` from right now (based on system time) in your local timezone.
+function datetime.now(): DateTime
 	return nil :: any
 end
 
-function datetime.from(unix_timestamp: number): DateTimeUtc
+--- Constructs a `DateTime` from a Unix Timestamp and an `IanaTimezone`.
+---
+--- - `timezone` defaults to `"UTC"` if not specified
+--- - `nanos` defaults to `0` if not specified
+function datetime.from(timestamp: number, timezone: IanaTimezone?, nanos: number?)
     return nil :: any
 end
+
+type CommonFormatKeys = keyof<index<typeof(datetime), "common_formats">>
+
+--[=[
+    Constructs a `DateTime` from a strtime string or `common_format`.
+
+    All seal `DateTime`s are timezone aware, which prevents annoying and complex bugs down the line. 
+    
+    - Specify `"AUTO"` as your `timezone` if your `format` string is timezone-aware by default (RFC 3339, has `%Q` or `%z/z/%Z` specifiers, etc.)
+    - Specify `"UTC"` as your `timezone` if you want to treat `source` as UTC.
+
+    ## Usage
+
+    ```luau
+    -- Parse a simple ISO 8601 timestamp that we're sure came from US/CST time.
+    local dt = datetime.parse("2025-01-02 05:00", "ISO_8601", "US/Central")
+    -- Parse an RFC 3339 timestamp that already has timezone offset info in it.
+    local brazilian_dt = datetime.parse("2025-08-24T21:48:20-00:00", "RFC_3339", "AUTO")
+    ```
+]=]
+function datetime.parse(source: string, format: string | CommonFormatKeys, timezone: IanaTimezone): DateTime
+    return nil :: any
+end
+
+--[=[
+    Constructs a `TimeSpan` from years. Months and years *must* be relative to a `DateTime` do any `TimeSpan` arithmetic!
+
+    ## how relatives work
+    ```luau
+    local now = datetime.now()
+
+    -- you don't need to specify relative here, because we know it's relative to `now`
+    local next_year = now + datetime.years(1)
+
+    -- you don't need to specify relative here, because operands execute left to right
+    local next_year = now + datetime.years(1) + datetime.months(2)
+
+    -- you NEED to specify relative here because we don't know what it's relative to
+    local span = datetime.years(1, datetime.now()) + datetime.seconds(10)
+
+    -- only one of the operands needs to have a relative date (and it's inherited by the resulting `TimeSpan`)
+    local span2 = datetime.years(1) + datetime.months(1, datetime.now())
+    assert(span2.relative_to ~= nil, "should have relative DateTime")
+    ```
+]=]
+function datetime.years(years: number, relative_to: DateTime?): TimeSpan
+    return nil :: any
+end
+
+--[=[
+    Constructs a `TimeSpan` from months. Months and years *must* be relative to a `DateTime` do any `TimeSpan` arithmetic!
+
+    ## how relatives work
+    ```luau
+    local now = datetime.now()
+
+    -- you don't need to specify relative here, because we know it's relative to `now`
+    local next_year = now + datetime.years(1)
+
+    -- you don't need to specify relative here, because operands execute left to right
+    local next_year = now + datetime.years(1) + datetime.months(2)
+
+    -- you NEED to specify relative here because we don't know what it's relative to
+    local span = datetime.years(1, datetime.now()) + datetime.seconds(10)
+
+    -- only one of the operands needs to have a relative date (and it's inherited by the resulting `TimeSpan`)
+    local span2 = datetime.years(1) + datetime.months(1, datetime.now())
+    assert(span2.relative_to ~= nil, "should have relative DateTime")
+    ```
+]=]
+function datetime.months(months: number, relative_to: DateTime?): TimeSpan
+    return nil :: any
+end
+--- Constructs a `TimeSpan` from days. Assumes every day is 24 hours.
+function datetime.days(days: number): TimeSpan
+    return nil :: any
+end
+--- Constructs a `TimeSpan` from hours.
+function datetime.hours(hours: number): TimeSpan
+    return nil :: any
+end
+--- Constructs a `TimeSpan` from minutes.
+function datetime.minutes(minutes: number): TimeSpan
+    return nil :: any
+end
+--- Constructs a `TimeSpan` from seconds.
+function datetime.seconds(seconds: number): TimeSpan
+    return nil :: any
+end
+--- Constructs a `TimeSpan` from milliseconds.
+function datetime.milliseconds(milliseconds: number): TimeSpan
+    return nil :: any
+end
+
+export type IanaTimezone =
+    | "AUTO" -- timezone info already included in input data
+    | "Africa/Abidjan"
+    | "Africa/Accra"
+    | "Africa/Addis_Ababa"
+    | "Africa/Algiers"
+    | "Africa/Asmara"
+    | "Africa/Asmera"
+    | "Africa/Bamako"
+    | "Africa/Bangui"
+    | "Africa/Banjul"
+    | "Africa/Bissau"
+    | "Africa/Blantyre"
+    | "Africa/Brazzaville"
+    | "Africa/Bujumbura"
+    | "Africa/Cairo"
+    | "Africa/Casablanca"
+    | "Africa/Ceuta"
+    | "Africa/Conakry"
+    | "Africa/Dakar"
+    | "Africa/Dar_es_Salaam"
+    | "Africa/Djibouti"
+    | "Africa/Douala"
+    | "Africa/El_Aaiun"
+    | "Africa/Freetown"
+    | "Africa/Gaborone"
+    | "Africa/Harare"
+    | "Africa/Johannesburg"
+    | "Africa/Juba"
+    | "Africa/Kampala"
+    | "Africa/Khartoum"
+    | "Africa/Kigali"
+    | "Africa/Kinshasa"
+    | "Africa/Lagos"
+    | "Africa/Libreville"
+    | "Africa/Lome"
+    | "Africa/Luanda"
+    | "Africa/Lubumbashi"
+    | "Africa/Lusaka"
+    | "Africa/Malabo"
+    | "Africa/Maputo"
+    | "Africa/Maseru"
+    | "Africa/Mbabane"
+    | "Africa/Mogadishu"
+    | "Africa/Monrovia"
+    | "Africa/Nairobi"
+    | "Africa/Ndjamena"
+    | "Africa/Niamey"
+    | "Africa/Nouakchott"
+    | "Africa/Ouagadougou"
+    | "Africa/Porto-Novo"
+    | "Africa/Sao_Tome"
+    | "Africa/Timbuktu"
+    | "Africa/Tripoli"
+    | "Africa/Tunis"
+    | "Africa/Windhoek"
+    | "America/Adak"
+    | "America/Anchorage"
+    | "America/Anguilla"
+    | "America/Antigua"
+    | "America/Araguaina"
+    | "America/Argentina/Buenos_Aires"
+    | "America/Argentina/Catamarca"
+    | "America/Argentina/ComodRivadavia"
+    | "America/Argentina/Cordoba"
+    | "America/Argentina/Jujuy"
+    | "America/Argentina/La_Rioja"
+    | "America/Argentina/Mendoza"
+    | "America/Argentina/Rio_Gallegos"
+    | "America/Argentina/Salta"
+    | "America/Argentina/San_Juan"
+    | "America/Argentina/San_Luis"
+    | "America/Argentina/Tucuman"
+    | "America/Argentina/Ushuaia"
+    | "America/Aruba"
+    | "America/Asuncion"
+    | "America/Atikokan"
+    | "America/Atka"
+    | "America/Bahia"
+    | "America/Bahia_Banderas"
+    | "America/Barbados"
+    | "America/Belem"
+    | "America/Belize"
+    | "America/Blanc-Sablon"
+    | "America/Boa_Vista"
+    | "America/Bogota"
+    | "America/Boise"
+    | "America/Buenos_Aires"
+    | "America/Cambridge_Bay"
+    | "America/Campo_Grande"
+    | "America/Cancun"
+    | "America/Caracas"
+    | "America/Catamarca"
+    | "America/Cayenne"
+    | "America/Cayman"
+    | "America/Chicago"
+    | "America/Chihuahua"
+    | "America/Ciudad_Juarez"
+    | "America/Coral_Harbour"
+    | "America/Cordoba"
+    | "America/Costa_Rica"
+    | "America/Creston"
+    | "America/Cuiaba"
+    | "America/Curacao"
+    | "America/Danmarkshavn"
+    | "America/Dawson"
+    | "America/Dawson_Creek"
+    | "America/Denver"
+    | "America/Detroit"
+    | "America/Dominica"
+    | "America/Edmonton"
+    | "America/Eirunepe"
+    | "America/El_Salvador"
+    | "America/Ensenada"
+    | "America/Fort_Nelson"
+    | "America/Fort_Wayne"
+    | "America/Fortaleza"
+    | "America/Glace_Bay"
+    | "America/Godthab"
+    | "America/Goose_Bay"
+    | "America/Grand_Turk"
+    | "America/Grenada"
+    | "America/Guadeloupe"
+    | "America/Guatemala"
+    | "America/Guayaquil"
+    | "America/Guyana"
+    | "America/Halifax"
+    | "America/Havana"
+    | "America/Hermosillo"
+    | "America/Indiana/Indianapolis"
+    | "America/Indiana/Knox"
+    | "America/Indiana/Marengo"
+    | "America/Indiana/Petersburg"
+    | "America/Indiana/Tell_City"
+    | "America/Indiana/Vevay"
+    | "America/Indiana/Vincennes"
+    | "America/Indiana/Winamac"
+    | "America/Indianapolis"
+    | "America/Inuvik"
+    | "America/Iqaluit"
+    | "America/Jamaica"
+    | "America/Jujuy"
+    | "America/Juneau"
+    | "America/Kentucky/Louisville"
+    | "America/Kentucky/Monticello"
+    | "America/Knox_IN"
+    | "America/Kralendijk"
+    | "America/La_Paz"
+    | "America/Lima"
+    | "America/Los_Angeles"
+    | "America/Louisville"
+    | "America/Lower_Princes"
+    | "America/Maceio"
+    | "America/Managua"
+    | "America/Manaus"
+    | "America/Marigot"
+    | "America/Martinique"
+    | "America/Matamoros"
+    | "America/Mazatlan"
+    | "America/Mendoza"
+    | "America/Menominee"
+    | "America/Merida"
+    | "America/Metlakatla"
+    | "America/Mexico_City"
+    | "America/Miquelon"
+    | "America/Moncton"
+    | "America/Monterrey"
+    | "America/Montevideo"
+    | "America/Montreal"
+    | "America/Montserrat"
+    | "America/Nassau"
+    | "America/New_York"
+    | "America/Nipigon"
+    | "America/Nome"
+    | "America/Noronha"
+    | "America/North_Dakota/Beulah"
+    | "America/North_Dakota/Center"
+    | "America/North_Dakota/New_Salem"
+    | "America/Nuuk"
+    | "America/Ojinaga"
+    | "America/Panama"
+    | "America/Pangnirtung"
+    | "America/Paramaribo"
+    | "America/Phoenix"
+    | "America/Port-au-Prince"
+    | "America/Port_of_Spain"
+    | "America/Porto_Acre"
+    | "America/Porto_Velho"
+    | "America/Puerto_Rico"
+    | "America/Punta_Arenas"
+    | "America/Rainy_River"
+    | "America/Rankin_Inlet"
+    | "America/Recife"
+    | "America/Regina"
+    | "America/Resolute"
+    | "America/Rio_Branco"
+    | "America/Rosario"
+    | "America/Santa_Isabel"
+    | "America/Santarem"
+    | "America/Santiago"
+    | "America/Santo_Domingo"
+    | "America/Sao_Paulo"
+    | "America/Scoresbysund"
+    | "America/Shiprock"
+    | "America/Sitka"
+    | "America/St_Barthelemy"
+    | "America/St_Johns"
+    | "America/St_Kitts"
+    | "America/St_Lucia"
+    | "America/St_Thomas"
+    | "America/St_Vincent"
+    | "America/Swift_Current"
+    | "America/Tegucigalpa"
+    | "America/Thule"
+    | "America/Thunder_Bay"
+    | "America/Tijuana"
+    | "America/Toronto"
+    | "America/Tortola"
+    | "America/Vancouver"
+    | "America/Virgin"
+    | "America/Whitehorse"
+    | "America/Winnipeg"
+    | "America/Yakutat"
+    | "America/Yellowknife"
+    | "Antarctica/Casey"
+    | "Antarctica/Davis"
+    | "Antarctica/DumontDUrville"
+    | "Antarctica/Macquarie"
+    | "Antarctica/Mawson"
+    | "Antarctica/McMurdo"
+    | "Antarctica/Palmer"
+    | "Antarctica/Rothera"
+    | "Antarctica/South_Pole"
+    | "Antarctica/Syowa"
+    | "Antarctica/Troll"
+    | "Antarctica/Vostok"
+    | "Arctic/Longyearbyen"
+    | "Asia/Aden"
+    | "Asia/Almaty"
+    | "Asia/Amman"
+    | "Asia/Anadyr"
+    | "Asia/Aqtau"
+    | "Asia/Aqtobe"
+    | "Asia/Ashgabat"
+    | "Asia/Ashkhabad"
+    | "Asia/Atyrau"
+    | "Asia/Baghdad"
+    | "Asia/Bahrain"
+    | "Asia/Baku"
+    | "Asia/Bangkok"
+    | "Asia/Barnaul"
+    | "Asia/Beirut"
+    | "Asia/Bishkek"
+    | "Asia/Brunei"
+    | "Asia/Calcutta"
+    | "Asia/Chita"
+    | "Asia/Choibalsan"
+    | "Asia/Chongqing"
+    | "Asia/Chungking"
+    | "Asia/Colombo"
+    | "Asia/Dacca"
+    | "Asia/Damascus"
+    | "Asia/Dhaka"
+    | "Asia/Dili"
+    | "Asia/Dubai"
+    | "Asia/Dushanbe"
+    | "Asia/Famagusta"
+    | "Asia/Gaza"
+    | "Asia/Harbin"
+    | "Asia/Hebron"
+    | "Asia/Ho_Chi_Minh"
+    | "Asia/Hong_Kong"
+    | "Asia/Hovd"
+    | "Asia/Irkutsk"
+    | "Asia/Istanbul"
+    | "Asia/Jakarta"
+    | "Asia/Jayapura"
+    | "Asia/Jerusalem"
+    | "Asia/Kabul"
+    | "Asia/Kamchatka"
+    | "Asia/Karachi"
+    | "Asia/Kashgar"
+    | "Asia/Kathmandu"
+    | "Asia/Katmandu"
+    | "Asia/Khandyga"
+    | "Asia/Kolkata"
+    | "Asia/Krasnoyarsk"
+    | "Asia/Kuala_Lumpur"
+    | "Asia/Kuching"
+    | "Asia/Kuwait"
+    | "Asia/Macao"
+    | "Asia/Macau"
+    | "Asia/Magadan"
+    | "Asia/Makassar"
+    | "Asia/Manila"
+    | "Asia/Muscat"
+    | "Asia/Nicosia"
+    | "Asia/Novokuznetsk"
+    | "Asia/Novosibirsk"
+    | "Asia/Omsk"
+    | "Asia/Oral"
+    | "Asia/Phnom_Penh"
+    | "Asia/Pontianak"
+    | "Asia/Pyongyang"
+    | "Asia/Qatar"
+    | "Asia/Qostanay"
+    | "Asia/Qyzylorda"
+    | "Asia/Rangoon"
+    | "Asia/Riyadh"
+    | "Asia/Saigon"
+    | "Asia/Sakhalin"
+    | "Asia/Samarkand"
+    | "Asia/Seoul"
+    | "Asia/Shanghai"
+    | "Asia/Singapore"
+    | "Asia/Srednekolymsk"
+    | "Asia/Taipei"
+    | "Asia/Tashkent"
+    | "Asia/Tbilisi"
+    | "Asia/Tehran"
+    | "Asia/Tel_Aviv"
+    | "Asia/Thimbu"
+    | "Asia/Thimphu"
+    | "Asia/Tokyo"
+    | "Asia/Tomsk"
+    | "Asia/Ujung_Pandang"
+    | "Asia/Ulaanbaatar"
+    | "Asia/Ulan_Bator"
+    | "Asia/Urumqi"
+    | "Asia/Ust-Nera"
+    | "Asia/Vientiane"
+    | "Asia/Vladivostok"
+    | "Asia/Yakutsk"
+    | "Asia/Yangon"
+    | "Asia/Yekaterinburg"
+    | "Asia/Yerevan"
+    | "Atlantic/Azores"
+    | "Atlantic/Bermuda"
+    | "Atlantic/Canary"
+    | "Atlantic/Cape_Verde"
+    | "Atlantic/Faeroe"
+    | "Atlantic/Faroe"
+    | "Atlantic/Jan_Mayen"
+    | "Atlantic/Madeira"
+    | "Atlantic/Reykjavik"
+    | "Atlantic/South_Georgia"
+    | "Atlantic/St_Helena"
+    | "Atlantic/Stanley"
+    | "Australia/ACT"
+    | "Australia/Adelaide"
+    | "Australia/Brisbane"
+    | "Australia/Broken_Hill"
+    | "Australia/Canberra"
+    | "Australia/Currie"
+    | "Australia/Darwin"
+    | "Australia/Eucla"
+    | "Australia/Hobart"
+    | "Australia/LHI"
+    | "Australia/Lindeman"
+    | "Australia/Lord_Howe"
+    | "Australia/Melbourne"
+    | "Australia/NSW"
+    | "Australia/North"
+    | "Australia/Perth"
+    | "Australia/Queensland"
+    | "Australia/South"
+    | "Australia/Sydney"
+    | "Australia/Tasmania"
+    | "Australia/Victoria"
+    | "Australia/West"
+    | "Australia/Yancowinna"
+    | "Brazil/Acre"
+    | "Brazil/DeNoronha"
+    | "Brazil/East"
+    | "Brazil/West"
+    | "CET"
+    | "CST6CDT"
+    | "Canada/Atlantic"
+    | "Canada/Central"
+    | "Canada/Eastern"
+    | "Canada/Mountain"
+    | "Canada/Newfoundland"
+    | "Canada/Pacific"
+    | "Canada/Saskatchewan"
+    | "Canada/Yukon"
+    | "Chile/Continental"
+    | "Chile/EasterIsland"
+    | "Cuba"
+    | "EET"
+    | "EST"
+    | "EST5EDT"
+    | "Egypt"
+    | "Eire"
+    | "Etc/GMT"
+    | "Etc/GMT+0"
+    | "Etc/GMT+1"
+    | "Etc/GMT+10"
+    | "Etc/GMT+11"
+    | "Etc/GMT+12"
+    | "Etc/GMT+2"
+    | "Etc/GMT+3"
+    | "Etc/GMT+4"
+    | "Etc/GMT+5"
+    | "Etc/GMT+6"
+    | "Etc/GMT+7"
+    | "Etc/GMT+8"
+    | "Etc/GMT+9"
+    | "Etc/GMT-0"
+    | "Etc/GMT-1"
+    | "Etc/GMT-10"
+    | "Etc/GMT-11"
+    | "Etc/GMT-12"
+    | "Etc/GMT-13"
+    | "Etc/GMT-14"
+    | "Etc/GMT-2"
+    | "Etc/GMT-3"
+    | "Etc/GMT-4"
+    | "Etc/GMT-5"
+    | "Etc/GMT-6"
+    | "Etc/GMT-7"
+    | "Etc/GMT-8"
+    | "Etc/GMT-9"
+    | "Etc/GMT0"
+    | "Etc/Greenwich"
+    | "Etc/UCT"
+    | "Etc/UTC"
+    | "Etc/Universal"
+    | "Etc/Zulu"
+    | "Europe/Amsterdam"
+    | "Europe/Andorra"
+    | "Europe/Astrakhan"
+    | "Europe/Athens"
+    | "Europe/Belfast"
+    | "Europe/Belgrade"
+    | "Europe/Berlin"
+    | "Europe/Bratislava"
+    | "Europe/Brussels"
+    | "Europe/Bucharest"
+    | "Europe/Budapest"
+    | "Europe/Busingen"
+    | "Europe/Chisinau"
+    | "Europe/Copenhagen"
+    | "Europe/Dublin"
+    | "Europe/Gibraltar"
+    | "Europe/Guernsey"
+    | "Europe/Helsinki"
+    | "Europe/Isle_of_Man"
+    | "Europe/Istanbul"
+    | "Europe/Jersey"
+    | "Europe/Kaliningrad"
+    | "Europe/Kiev"
+    | "Europe/Kirov"
+    | "Europe/Kyiv"
+    | "Europe/Lisbon"
+    | "Europe/Ljubljana"
+    | "Europe/London"
+    | "Europe/Luxembourg"
+    | "Europe/Madrid"
+    | "Europe/Malta"
+    | "Europe/Mariehamn"
+    | "Europe/Minsk"
+    | "Europe/Monaco"
+    | "Europe/Moscow"
+    | "Europe/Nicosia"
+    | "Europe/Oslo"
+    | "Europe/Paris"
+    | "Europe/Podgorica"
+    | "Europe/Prague"
+    | "Europe/Riga"
+    | "Europe/Rome"
+    | "Europe/Samara"
+    | "Europe/San_Marino"
+    | "Europe/Sarajevo"
+    | "Europe/Saratov"
+    | "Europe/Simferopol"
+    | "Europe/Skopje"
+    | "Europe/Sofia"
+    | "Europe/Stockholm"
+    | "Europe/Tallinn"
+    | "Europe/Tirane"
+    | "Europe/Tiraspol"
+    | "Europe/Ulyanovsk"
+    | "Europe/Uzhgorod"
+    | "Europe/Vaduz"
+    | "Europe/Vatican"
+    | "Europe/Vienna"
+    | "Europe/Vilnius"
+    | "Europe/Volgograd"
+    | "Europe/Warsaw"
+    | "Europe/Zagreb"
+    | "Europe/Zaporozhye"
+    | "Europe/Zurich"
+    | "GB"
+    | "GB-Eire"
+    | "GMT"
+    | "GMT+0"
+    | "GMT-0"
+    | "GMT0"
+    | "Greenwich"
+    | "HST"
+    | "Hongkong"
+    | "Iceland"
+    | "Indian/Antananarivo"
+    | "Indian/Chagos"
+    | "Indian/Christmas"
+    | "Indian/Cocos"
+    | "Indian/Comoro"
+    | "Indian/Kerguelen"
+    | "Indian/Mahe"
+    | "Indian/Maldives"
+    | "Indian/Mauritius"
+    | "Indian/Mayotte"
+    | "Indian/Reunion"
+    | "Iran"
+    | "Israel"
+    | "Jamaica"
+    | "Japan"
+    | "Kwajalein"
+    | "Libya"
+    | "MET"
+    | "MST"
+    | "MST7MDT"
+    | "Mexico/BajaNorte"
+    | "Mexico/BajaSur"
+    | "Mexico/General"
+    | "NZ"
+    | "NZ-CHAT"
+    | "Navajo"
+    | "PRC"
+    | "PST8PDT"
+    | "Pacific/Apia"
+    | "Pacific/Auckland"
+    | "Pacific/Bougainville"
+    | "Pacific/Chatham"
+    | "Pacific/Chuuk"
+    | "Pacific/Easter"
+    | "Pacific/Efate"
+    | "Pacific/Enderbury"
+    | "Pacific/Fakaofo"
+    | "Pacific/Fiji"
+    | "Pacific/Funafuti"
+    | "Pacific/Galapagos"
+    | "Pacific/Gambier"
+    | "Pacific/Guadalcanal"
+    | "Pacific/Guam"
+    | "Pacific/Honolulu"
+    | "Pacific/Johnston"
+    | "Pacific/Kanton"
+    | "Pacific/Kiritimati"
+    | "Pacific/Kosrae"
+    | "Pacific/Kwajalein"
+    | "Pacific/Majuro"
+    | "Pacific/Marquesas"
+    | "Pacific/Midway"
+    | "Pacific/Nauru"
+    | "Pacific/Niue"
+    | "Pacific/Norfolk"
+    | "Pacific/Noumea"
+    | "Pacific/Pago_Pago"
+    | "Pacific/Palau"
+    | "Pacific/Pitcairn"
+    | "Pacific/Pohnpei"
+    | "Pacific/Ponape"
+    | "Pacific/Port_Moresby"
+    | "Pacific/Rarotonga"
+    | "Pacific/Saipan"
+    | "Pacific/Samoa"
+    | "Pacific/Tahiti"
+    | "Pacific/Tarawa"
+    | "Pacific/Tongatapu"
+    | "Pacific/Truk"
+    | "Pacific/Wake"
+    | "Pacific/Wallis"
+    | "Pacific/Yap"
+    | "Poland"
+    | "Portugal"
+    | "ROC"
+    | "ROK"
+    | "Singapore"
+    | "Turkey"
+    | "UCT"
+    | "US/Alaska"
+    | "US/Aleutian"
+    | "US/Arizona"
+    | "US/Central"
+    | "US/East-Indiana"
+    | "US/Eastern"
+    | "US/Hawaii"
+    | "US/Indiana-Starke"
+    | "US/Michigan"
+    | "US/Mountain"
+    | "US/Pacific"
+    | "US/Samoa"
+    | "UTC"
+    | "Universal"
+    | "W-SU"
+    | "WET"
+    | "Zulu"
+
 
 return datetime

@@ -266,10 +266,10 @@ local function stringify_simple_type(value: any): string
     elseif type(value) == "userdata" then
         local userdata_id = string.match(tostring(value), ID_CATCHER_PATTERN)
         local typeof_userdata = typeof(value)
-        if userdata_id == "0" then -- mlua's json null uses address 0x0000000000000000 which gets caught as "0"
+        if userdata_id == "0" then -- mluau's json null uses address 0x0000000000000000 which gets caught as "0"
             return colors.bold.red("null")
-        elseif typeof_userdata ~= "userdata" then -- userdatas with custom names
-            return colors.bold.magenta(typeof_userdata)
+        elseif typeof_userdata ~= "userdata" then -- userdatas with custom names (__type)
+            return colors.bold.magenta(tostring(value)) -- we most likely have a custom tostring implementation for it
         else
             return BOLD_MAGENTA .. "userdata" .. RESET .. LEFT_ANGLED .. "0x" .. userdata_id .. RIGHT_ANGLED
         end
@@ -359,10 +359,12 @@ end
 
 local function process_pretty_values(
     value: any,
-    -- seen_tables' keys are tables since they get uniquely hashed, value is stringified path
+    --- seen_tables' keys are tables since they get uniquely hashed, value is stringified path
     seen_tables: { [{ [any]: any }]: string? }?,
-    depth: number?,
-    current_table_path: { any }? -- used to put table paths in seen_tables
+    --- recursion depth of table we're processing
+    depth: number?, 
+    --- used to put table paths in seen_tables
+    current_table_path: { any }?
 ): string
     seen_tables = seen_tables or {}
     local depth = depth or 0
