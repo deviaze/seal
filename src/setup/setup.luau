@@ -190,6 +190,17 @@ local function setup(config: SetupConfig?)
             :add_file("guided_tour.luau", seal_setup.GUIDED_TOUR_SRC)
     end
 
+    print(`Created new {
+        if config.codebase == "project" then 
+            colors.bold.blue("project") 
+        else
+            colors.bold.red("script")
+    } codebase in your cwd for {colors.green(config.editor)}! Typedefs {
+        if config.typedefs == "gen" then
+            "were generated here in ./.seal/typedefs"
+        else 
+            "are linked to your existing seal directory"
+    }.\nhappy coding (•ᴥ•)!`)
 end
 
 function get_updated_luaurc(existing: json.JsonData, default: json.JsonData): json.JsonData
