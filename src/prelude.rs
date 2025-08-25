@@ -33,6 +33,10 @@ pub fn ok_buffy<B: AsRef<[u8]>>(b: B, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::Buffer(luau.create_buffer(b)?))
 }
 
+pub fn ok_userdata<S: LuaUserData + Send + 'static>(u: S, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::UserData(luau.create_userdata(u)?))
+}
+
 pub fn pop_self(multivalue: &mut LuaMultiValue, function_name: &'static str) -> LuaEmptyResult {
     match multivalue.pop_front() {
         Some(LuaValue::Table(_s)) => Ok(()),
