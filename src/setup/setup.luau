@@ -75,6 +75,7 @@ local function setup(config: SetupConfig?)
     
     local prefix = if config.typedefs == "link" then "~/" else "./"
     local globals_path = fs.path.join(prefix, ".seal", "typedefs", "globals.d.luau")
+    local global_docs_path = fs.path.join(prefix, ".seal", "typedefs", "docs.json")
     
     local luaurc_defaults = {
         languageMode = "strict",
@@ -102,6 +103,7 @@ local function setup(config: SetupConfig?)
             ["luau-lsp.fflags.enableByDefault"] = true,
             ["luau-lsp.platform.type"] = "standard",
             ["luau-lsp.types.definitionFiles"] = { globals_path },
+            ["luau-lsp.types.documentationFiles"] = { global_docs_path },
             ["luau-lsp.inlayHints.parameterNames"] = "literals",
             ["workbench.editor.customLabels.patterns"] = {
                 ["**/init.luau"] = "${dirname}",
@@ -188,6 +190,17 @@ local function setup(config: SetupConfig?)
             :add_file("guided_tour.luau", seal_setup.GUIDED_TOUR_SRC)
     end
 
+    print(`Created new {
+        if config.codebase == "project" then 
+            colors.bold.blue("project") 
+        else
+            colors.bold.red("script")
+    } codebase in your cwd for {colors.green(config.editor)}! Typedefs {
+        if config.typedefs == "gen" then
+            "were generated here in ./.seal/typedefs"
+        else 
+            "are linked to your existing seal directory"
+    }.\nhappy coding (•ᴥ•)!`)
 end
 
 function get_updated_luaurc(existing: json.JsonData, default: json.JsonData): json.JsonData
@@ -220,6 +233,13 @@ function get_updated_vscode_settings(existing: json.JsonData, default: json.Json
         for _, definition_file in default["luau-lsp.types.definitionFiles"] do
             if not table.find(existing["luau-lsp.types.definitionFiles"], definition_file) then
                 table.insert(existing["luau-lsp.types.definitionFiles"], definition_file)
+            end
+        end
+    end
+    if not update("luau-lsp.types.documentationFiles") then
+        for _, definition_file in default["luau-lsp.types.documentationFiles"] do
+            if not table.find(existing["luau-lsp.types.documentationFiles"], definition_file) then
+                table.insert(existing["luau-lsp.types.documentationFiles"], definition_file)
             end
         end
     end
@@ -327,11 +347,13 @@ function should_replace_extra(seal_dir: fs.DirectoryEntry): boolean
     local extra_dir = fs.dir(seal_dir:join("extra"))
     if not extra_dir then
         return true
+    else
+        return false
     end
-    local response = str.trim(io.input.get(
-        `Replace '.seal/extra' dir at {extra_dir.path}? This may remove any customizations you've made to @extra libraries. \z(Y/n): `
-    )):lower()
-    return response == "y" or response == ""
+    -- local response = str.trim(io.input.get(
+    --     `Replace '.seal/extra' dir at {extra_dir.path}? This may remove any customizations you've made to @extra libraries. \z(Y/n): `
+    -- )):lower()
+    -- return response == "y" or response == ""
 end
 
 function is_git_repo(cwd: fs.DirectoryEntry): boolean

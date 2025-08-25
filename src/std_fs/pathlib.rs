@@ -54,87 +54,96 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
     result
 }
 
-// fixes `./tests/luau/std\fs\pathlib_join.luau` nonsense on windows
-pub fn normalize_path(path: &str) -> String {
-    // check if path is a Windows absolute path (drive letter or UNC path)
-    let is_windows_unc = path.starts_with(r"\\");
-    let is_windows_absolute = is_windows_unc || path.chars().nth(1) == Some(':');
+pub fn normalize_path<P: AsRef<str>>(path: P) -> String {
+    let path = path.as_ref();
 
-    // we use / for all relative paths and \ for windows absolute paths
-    let separator = if is_windows_absolute { '\\' } else { '/' };
+    let slash = "/";
+    let backslash = r"\";
 
-    // dont allocate strings multiple times
-    let mut slashes_normalized = String::with_capacity(path.len());
-    let mut previous_was_separator = false;
+    // we default to / separators except when dealing with windows absolute paths
+    // or the user explicitly passed a path starting with .\ or ..\ as the first param
+    let mut standardized_separator = slash;
 
-    // first loop gets rid of all duplicate slashes and normalizes all to either / or \
-    for (index, c) in path.chars().enumerate() {
-        if c == '/' || c == '\\' {
-            if previous_was_separator {
-                if index == 1 && is_windows_absolute && path.starts_with(r"\\") {
-                    // dont strip unc prefixes on windows :cry:
-                } else {
-                    continue;
-                }
-            }
-            slashes_normalized.push(separator);
-            previous_was_separator = true;
-        } else {
-            slashes_normalized.push(c);
-            previous_was_separator = false;
-        }
+    let mut new_components = Vec::<&str>::with_capacity(path.len());
+    if path.len() < 3 {
+        return path.to_string(); // give back any baby paths so we don't panic on the following range index
     }
-    
-    // second loop gets rid of any intermediate /./ or /../s that aren't needed
-    let separator_str = if separator == '\\' { r"\" } else { "/" };
-    let mut normalized = Vec::<&str>::with_capacity(path.len());
-    for (index, part) in slashes_normalized.split(['/', '\\']) .enumerate() {
-        if part.is_empty() {
-            if normalized.is_empty() && is_windows_unc {
-                // puts the first \ on the front and idk where the second \ comes from
-                normalized.push(separator_str);
-            }
-        } else if part == ".." {
-            // normalized.pop();
-            if normalized.len() > 1 
-                && let Some(last) = normalized.last() 
-                && *last != ".." 
-            {
-                // we have ./somethin/cats/.. so pop the last parent to get ./somethin
-                normalized.pop();
-                // now that we popped cats we have to detect if there's another separator
-                // otherwise next time we push something we get ./something//otherthing
-                if let Some(possible_sep) = normalized.last() 
-                    && *possible_sep == separator_str 
+
+    let first_two = &path[..2];
+    let third = &path[2..=2];
+
+    let mut is_windows_drive_path = false;
+
+    // check for the first most common prefixes
+    let mut root = match first_two {
+        // relative paths on unix-like and our default for windows relative paths
+        "./" => "./",
+        // relative windows paths
+        r".\" => {
+            standardized_separator = backslash; // preserve user intent
+            r".\"
+        },
+        // parent paths
+        ".." if third == slash => "../", // parent path
+        ".." if third == backslash => { // windows parent path
+            standardized_separator = backslash;
+            r"..\"
+        },
+        // home dirs /home/<user> on linux or C:\Users\<User> on Windows
+        "~/" => "~/",
+        r"~\" => {
+            standardized_separator = backslash;
+            r"~\"
+        },
+        // windows unc paths
+        r"\\" => {
+            standardized_separator = backslash;
+            r"\\"
+        },
+        // unix/linux/macos absolute paths
+        other if other.starts_with("/") => {
+            other
+        },
+        // windows drive letter absolute path like C:\Users\deviaze\meow
+        other if other.chars().nth(1) == Some(':') => {
+            standardized_separator = backslash;
+            is_windows_drive_path = true;
+            other
+        },
+        other => other,
+    }.to_owned();
+
+    // fix C: to be C:\ for path joining
+    if is_windows_drive_path { 
+        root.push('\\');
+    }
+
+    // slice path by the remaining
+    let path = &path[2..];
+    let mut old_components = path
+        .split(['/', '\\'])
+        .filter(|s| !s.is_empty())
+        .collect::<VecDeque<&str>>();
+
+    while let Some(component) = old_components.pop_front() {
+        match component {
+            "." => continue, // skip redundant . in middle of ./animals/cats/./meow.jpg
+            ".." => {
+                if let Some(last) = new_components.last() 
+                    && *last != ".." // redundant .. we can normalize by popping last parent
                 {
-                    normalized.pop();
+                    let _ = new_components.pop();
+                } else { // if the last is .. then we have a ../../../situation going on we don't want to pop
+                    new_components.push("..");
                 }
-            } else {
-                // we need the .. like in `../../something.txt` where we don't know what ../.. refers to
-                if index > 0 {
-                    normalized.push(separator_str);
-                }
-                normalized.push("..");
+            },
+            other => {
+                new_components.push(other);
             }
-        } else if part == "." {
-            if index == 0 {
-                // we want to keep ./ and .\ prefixes as they're most often intentional
-                normalized.push(".");
-            } else {
-                // redundant . in the middle like ./cats/./meow.luau
-                continue;
-            }
-        } else {
-            if index == 0 && is_windows_absolute {
-                // don't put a slash in front of windows drive letter like C:
-            } else {
-                normalized.push(separator_str);
-            }
-            normalized.push(part);
         }
     }
 
-    normalized.concat()
+    root + &new_components.join(standardized_separator)
 }
 
 pub fn canonicalize_path(path: &str) -> LuaResult<String> {

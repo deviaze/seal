@@ -9,15 +9,26 @@ local process = require("@std/process")
 local format = require("@std/io/format")
 
 local project_path = 
-	if env.os == "Android" then fs.path.join(fs.path.home(), "sealproject")
-	else fs.path.join(fs.path.home(), "Documents", "sealproject")
+	if env.os == "Android" then 
+		fs.path.join(fs.path.home(), "sealproject")
+	else 
+		fs.path.join(fs.path.home(), "Documents", "sealproject")
 
-if fs.path.exists(project_path) then
-	fs.removetree(project_path) -- don't tell me abt toctou pls
-end
+fs.dir.try_remove(project_path)
+
 local sealproject = fs.dir.ensure(project_path, true)
 
 local absolute_executable_path = fs.path.canonicalize(env.executable_path)
+
+local function run_file(path: string)
+	local result = process.run {
+		program = absolute_executable_path,
+		args = { path },
+		cwd = project_path,
+	}
+	assert(result.ok, `running 'seal {path}' not okay?, got: \n{format(result)}`)
+	return result:unwrap()
+end
 
 local function sealsetup()
 	local seal_setup_result = process.run {
@@ -34,7 +45,6 @@ local function sealsetup()
 		return fs.path.exists(sealproject:join(...))
 	end
 
-	-- assert(fs.path.exists(sealproject:join("src")), "sealproject/src dir not exists?")
 	assert(projectpathexists("src"), "sealproject/src dir not exists?")
 	assert(projectpathexists("src", "main.luau"), "sealproject/src/main.luau not exists?")
 	assert(projectpathexists(".seal"), "sealproject/.seal not exists?")
@@ -45,7 +55,9 @@ end
 
 sealsetup()
 
-local function testsealsetuprequires()
+local srcs = {}
+
+local function sealsetuprequires()
 	local srcs = {
 		relative = [[
 			return function()
@@ -71,9 +83,8 @@ local function testsealsetuprequires()
 				return math.random(1, 200)
 			end
 		]],
-		-- TODO: deal with require resolution change and @self
 		wrapper_init = [[
-			local other = require("./other")
+			local other = require("@self/other")
 			print(other.call("hi"))
 			return "initted"
 		]],
@@ -111,22 +122,63 @@ local function testsealsetuprequires()
 	config.aliases["custom"] = "./libraries/custom_modules/"
 	json.writefile(luaurc_path, config :: any)
 
-	local function run_file(path: string)
-		local result = process.run {
-			program = absolute_executable_path,
-			args = { path },
-			cwd = project_path,
-		}
-		assert(result.ok, `running 'seal {path}' not okay?, got: \n{format(result)}`)
-		return result:unwrap()
-	end
-
 	assert(run_file("./src/relative_caller.luau"):match("yes"), "relative should be yes")
 	local alias_caller_output = run_file("./src/alias_caller.luau")
 	assert(alias_caller_output:match("bye"), "bye should have been printed because it's in wrapper/init.luau")
 	assert(alias_caller_output:match("initted"), "alias thing should have been initted")
 end
 
-testsealsetuprequires()
+sealsetuprequires()
 
 sealproject:remove()
+
+local scriptproject = fs.dir.ensure(project_path, true)
+
+local function scriptsetup()
+	local seal_setup_result = process.run {
+		program = absolute_executable_path,
+		args = { "setup", "script" },
+		cwd = project_path,
+	}
+	if not seal_setup_result.ok then
+		print(seal_setup_result.stderr)
+	end
+	assert(seal_setup_result.ok == true, "seal setup not ok?")
+
+	local function projectpathexists(...: string)
+		return fs.path.exists(scriptproject:join(...))
+	end
+
+	assert(projectpathexists(".seal"), "scriptproject/.seal not exists?")
+	assert(projectpathexists(".seal", "config.luau"), "scriptproject/.seal/config.luau not exists?")
+	assert(projectpathexists(".luaurc"), "scriptproject/.luaurc not exists?")
+	assert(projectpathexists(".seal", "script.luau"), "scriptproject/.seal/script.luau not exists?")
+	assert(projectpathexists(".vscode", "settings.json"), "scriptproject/.vscode/settings.json not exists?")
+end
+
+scriptsetup()
+
+local function scriptsetuprequires()
+	local script_src = [[
+		local tt = require("@extra/tt")
+		local str = require("@std/str")
+
+		local arr = { 1, 2, 3, 4, "meow" }
+		arr = tt.arraymap(arr, function(_, v)
+			return if v == 2 or str.startswith(v, "m") then v else nil
+		end)
+		assert(#arr == 2, "len of arr should be 2 because of tt.arraymap")
+		print("yay")
+	]]
+	scriptproject
+		:expect_dir(".seal")
+		:expect_file("script.luau")
+		:append(script_src)
+	
+	local result = run_file(scriptproject:join(".seal", "script.luau"))
+	assert(result:match("yay"), "script result should say yay somewhere in stdout")
+end
+
+scriptsetuprequires()
+
+scriptproject:remove()

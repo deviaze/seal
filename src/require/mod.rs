@@ -61,9 +61,12 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/io/format" => ok_function(std_io::output::format, luau),
         "@std/colors" => ok_table(colors::create(luau)),
 
+        // "@std/time" => ok_table(std_time_old::create(luau)),
+        // "@std/time/datetime" => ok_table(std_time_old::create_datetime(luau)),
+        // "@std/datetime" => ok_table(std_time_old::create_datetime(luau)),
         "@std/time" => ok_table(std_time::create(luau)),
-        "@std/time/datetime" => ok_table(std_time::create_datetime(luau)),
-        "@std/datetime" => ok_table(std_time::create_datetime(luau)),
+        "@std/datetime" => ok_table(std_time::datetime::create(luau)),
+        "@std/time/datetime" => ok_table(std_time::datetime::create(luau)),
 
         "@std/process" => ok_table(std_process::create(luau)),
 
@@ -105,7 +108,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .with_value("colors", colors::create(luau)?)?
                 .with_function("format", std_io::output::format)?
                 .with_value("time", std_time::create(luau)?)?
-                .with_value("datetime", std_time::create_datetime(luau)?)?
+                .with_value("datetime", std_time::datetime::create(luau)?)?
                 .with_value("process", std_process::create(luau)?)?
                 .with_value("serde", std_serde::create(luau)?)?
                 .with_value("json", std_json::create(luau)?)?
@@ -180,7 +183,7 @@ pub fn get_chunk_name_for_module(path: &str, function_name: &'static str) -> Lua
     let path = match std::path::absolute(path) {
         Ok(path) => path,
         Err(err) => {
-            return wrap_err!("{} can't figure out an absolute path for '{}' (we're trying to get a chunk_name): {}", function_name, &path, err);
+            return wrap_err!("{} can't figure out an absolute path for '{}' (we're trying to get a chunk_name). Can you verify that both file exists and your current directory exists (maybe another program removed your current directory, try reloading your editor or cd-ing out in back in)? err: {}", function_name, &path, err);
         }
     };
 

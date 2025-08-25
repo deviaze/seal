@@ -10,7 +10,6 @@ edition = "2024"
 # but mlua's main branch is relatively stable and hasn't broken for us before nor for other projects.
 # we need to enable error-send so we can propogate errors across threads in std_thread.rs
 mluau = { git = "https://github.com/mluau/mluau.git", features = ["luau", "serialize", "error-send"] }
-chrono = "0.4.38"
 regex = "1.11.1"
 # needed for seal setup (really useful!)
 include_dir = { version = "0.7.4" }
@@ -44,6 +43,7 @@ unicode_reader = "1.0.2"
 petname = { version = "2.0.2", features = ["default-rng", "default-words"] }
 libc = "0.2.174"
 notify = { version = "8.2.0", features = ["crossbeam-channel"] }
+jiff = "0.2.15"
 
 [profile.dev.package.num-bigint-dig]
 opt-level = 3 # otherwise rsa keygen takes forever
