@@ -121,3 +121,19 @@ local function addingyearsneedsrelativeto()
 end
 
 addingyearsneedsrelativeto()
+
+local function rn_mdy()
+    local now = datetime.now()
+    local now_mdy = now:format("MM/DD/YY")
+end
+
+rn_mdy()
+
+local function braziltimeroundtrip()
+    local dt1 = datetime.parse("2025-08-24T21:48:20-03:00", "RFC_3339", "AUTO")
+    local dt2_timestamp = dt1:format("RFC_3339")
+    local dt2 = datetime.parse(dt2_timestamp, "RFC_3339", "AUTO")
+    assert(dt1 == dt2, "roundtrip brazil should be equal")
+end
+
+braziltimeroundtrip()

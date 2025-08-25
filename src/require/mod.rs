@@ -65,6 +65,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         // "@std/time/datetime" => ok_table(std_time_old::create_datetime(luau)),
         // "@std/datetime" => ok_table(std_time_old::create_datetime(luau)),
         "@std/time" => ok_table(std_time::create(luau)),
+        "@std/datetime" => ok_table(std_time::datetime::create(luau)),
         "@std/time/datetime" => ok_table(std_time::datetime::create(luau)),
 
         "@std/process" => ok_table(std_process::create(luau)),
