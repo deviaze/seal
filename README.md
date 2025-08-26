@@ -2,13 +2,12 @@
 <!-- markdownlint-disable MD026 -->
 <!-- markdownlint-disable MD041 -->
 
-<!-- # *seal* <small>the cutest runtime for luau</small>
+<div style="display: flex; align-items: baseline; gap: 0.5em;">
+  <h1 style="margin: 0;">seal</h1>
+  <sub style="font-size: 1rem;">– the cutest runtime for luau</sub>
+</div>
 
-## is a highly reliable cross-platform scripting and automation runtime. -->
-
-<h1>seal</h1><sub> - the cutest runtime for luau</sub>
-
-## A highly reliable cross platform scripting and automation runtime.
+## A highly reliable cross-platform scripting and automation runtime.
 
 Use *seal* to write shell-like, easily-deployable programs with [Luau](https://luau.org), a simple, dependable, and extremely fast scripting language with strict typechecking and good tooling support.
 
