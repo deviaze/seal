@@ -9,6 +9,8 @@ flowery version
 - Many other standard libraries! -->
 # Programming and Standard Library
 
+Luau is a simple, dependable, and extremely fast scripting language with strict typechecking and tooling support.
+
 Although seal provides some builtin globals (such as `p`, `pp`, `channel` (in a child thread), and `script`), most features are in the standard library. You can import stdlibs like so:
 
 ```luau

@@ -4,29 +4,31 @@
 
 ~~*seal* makes writing scripts and programs fun and easy, and runs them seally fast.~~
 
-*seal* is a highly reliable cross-platform scripting runtime.
+*seal* is a highly reliable cross-platform scripting and automation runtime.
+
+Use *seal* to write shell-like, easily-deployable programs with Luau, a simple, dependable, and extremely fast scripting language with strict typechecking and good tooling support.
 
 ## Goals
 
-- Focus on high-level scripting, light general purpose programming, and being the best Python alternative for Luau. *seal* should work right of out the box so you can get straight into working on your script, shim, or project.
-- Be extremely helpful and user friendly. If run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
-- Reliability and transparency. *seal* should *\*just work\** and never cause unexpected blocks, panics, nor unexpected behavior. *seal*'s internals should be readily accessible so it remains easy to understand, hackable, customizable, and fixable by its users.
+- Focus on **high-level scripting**, shell and input automation, and being the best shell/Python alternative for Luau.
+- Be **extremely helpful and user friendly**. When you run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
+- **Reliability and transparency.** *seal* should *\*just work\** and never cause undocumented blocks, panics, nor unexpected behavior. *seal*'s internals should be readily accessible so it remains easy to understand, hackable, customizable, and fixable by its users.
 <!-- - *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy. -->
 
 ## Features
 
-- Batteries-included, immediate project setup for both standalone projects and extension scripts.
-- User-defined multithreading with automatic serialization and message passing.
-- Strings extension library with full Unicode graphemes support.
+- **Batteries-included setup** that helps you get straight into working on your script, shim, or project.
+- Expressive **standard library** with easy-to-use **fs**, **process/shell**, **http**, **multithreading**, etc. APIs.
+- First-class editor support for autocomplete, inline documentation, and type safety.
 
 ... and more; see the [full list of features](docs/standard-library/index.md).
 
 ## Upcoming features (0.1.0 -> 0.2.0 roadmap)
 
-- Integrated standalone project compilation for portability (with Darklua).
-- Integrated webview bindings/UI library for GUI scripts.
+- 0.0.7: Standalone project compilation for portability (with Darklua).
+- 0.1.0: Integrated webview bindings/UI library for GUI scripts.
 - Automation:
-  - Keyboard rebinding bindings to write custom keyboard mapping layers for all desktop platforms.
+  - Keyboard rebinding bindings to write custom keyboard mapping layers.
   - Mouse/keyboard automation if possible.
 
 ## Install and Setup
@@ -69,11 +71,11 @@ Option 2 - Windows Terminal on Windows:
 
 *seal* codebases can be either *Projects*, *Scripts*, or single files.
 
-To run a project, run `seal run` or `seal r`.
-
-To run a single file with seal, run `seal ./<filename>.luau`.
-
 To generate a codebase in your current directory, use `seal setup <codebase>`, where codebase can be `project`, `script`, or `custom`.
+
+- To start a project in your current directory, run `seal setup project`.
+- To run a project, run `seal run` or `seal r`.
+- To run a single file with seal, run `seal ./<filename>.luau`.
 
 Check out the full [usage instructions](docs/usage.md) for more.
 
