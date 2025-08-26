@@ -2,10 +2,11 @@
 <!-- markdownlint-disable MD026 -->
 <!-- markdownlint-disable MD041 -->
 
-<div style="display: flex; align-items: baseline; gap: 0.5em;">
-  <h1 style="margin: 0;">seal</h1>
-  <sub style="font-size: 1rem;">– the cutest runtime for luau</sub>
-</div>
+<!-- # *seal* <small>the cutest runtime for luau</small>
+
+## is a highly reliable cross-platform scripting and automation runtime. -->
+
+<h1>seal</h1><sub> - the cutest runtime for luau</sub>
 
 ## A highly reliable cross-platform scripting and automation runtime.
 
@@ -14,7 +15,7 @@ Use *seal* to write shell-like, easily-deployable programs with [Luau](https://l
 ## Features
 
 - **Batteries-included setup** that helps you get straight into working on your script, shim, or project.
-- Expressive **standard library** with easy-to-use **fs**, **process/shell**, **http**, **multithreading**, etc. APIs.
+- Expressive **standard library** with easy-to-use filesystem, network, process/shell command, multithreading, etc. APIs.
 - First-class editor support for autocomplete, inline documentation, and type safety.
 
 ... and more; see the [full list of features](docs/standard-library/index.md).
@@ -34,10 +35,7 @@ To use *seal*, you need 3 things:
 1. A text editor that supports the Luau Language Server, such as `VSCode`, `Zed`, or `nvim`.
 2. [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp), which provides amazing inline documentation, static analysis and typechecking support, and diagnostics for the Luau programming language. *seal* automatically sets up everything for Luau Language Server when you run `seal setup/project/script/custom`.
 3. The *seal* executable, which you can find packaged for your platform here: <https://github.com/deviaze/seal/releases/latest>.
-
-## Setup
-
-1. Make *seal* available in your `PATH` so you can use it in a terminal.
+4. Once installed, make *seal* available in your `PATH` so you can use it in a terminal.
 
 <details>
 <summary>How to add seal to PATH?</summary>
@@ -61,17 +59,14 @@ Option 2 - Windows Terminal on Windows:
 
 </details>
 
-2. Make a new project directory with `md` or `mkdir`.
-3. `cd` into that directory and run `seal setup` to create a new project.
-4. Open the project in your code editor (`code .` for vscode).
-
 ## Usage
 
 *seal* codebases can be either *Projects*, *Scripts*, or single files.
 
 To generate a codebase in your current directory, use `seal setup <codebase>`, where codebase can be `project`, `script`, or `custom`.
 
-- To start a project in your current directory, run `seal setup project`.
+<!-- - To start a project in your current directory, run `seal setup project`. -->
+- To start a project with *seal*, make a new directory, `cd` into it, and run `seal setup`.
 - To run a project, run `seal run` or `seal r`.
 - To run a single file with seal, run `seal ./<filename>.luau`.
 
@@ -91,13 +86,6 @@ local input = require("@std/io/input")
 
 [See the docs](docs/libraries_and_programming.md) for all available libraries and APIs.
 
-## Goals
-
-- Focus on **high-level scripting**, shell and input automation, and being the best shell/Python alternative for Luau.
-- Be **extremely helpful and user friendly**. When you run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
-- **Reliability and transparency.** *seal* should *\*just work\** and never cause undocumented blocks, panics, nor unexpected behavior. *seal*'s internals should be readily accessible so it remains easy to understand, hackable, customizable, and fixable by its users.
-<!-- - *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy. -->
-
 ## Contributing
 
 I would greatly appreciate any contributions and feedback, including issues, PRs, or even messages on Discord saying "hey can you add this to seal"!
@@ -105,5 +93,13 @@ I would greatly appreciate any contributions and feedback, including issues, PRs
 See the [contribution instructions](CONTRIBUTING.md) if you'd like to contribute to seal's codebase :3
 
 If you find a bug in seal, please make a bug report issue on GitHub and ping me on Discord.
+
+## Goals
+
+- Focus on **high-level scripting**, shell and input automation, and being the best shell/Python alternative for Luau.
+- Be **extremely helpful and user friendly**. When you run into trouble, *seal* should tell you *exactly* what went wrong with a custom, handcrafted recommendation, warning or error message.
+- **Reliability and transparency.** *seal* should *\*just work\** and never cause undocumented blocks, panics, nor unexpected behavior. *seal*'s internals should be readily accessible so it remains easy to understand, hackable, customizable, and fixable by its users.
+<!-- - *seal* should integrate well with tooling, other languages, and other runtimes. Setting up new projects should be instantaneous, and adding *seal* to existing (*seal* and non-*seal*) projects should be just as easy. -->
+
 
 ~~*seal* makes writing scripts and programs fun and easy, and runs them seally fast.~~
