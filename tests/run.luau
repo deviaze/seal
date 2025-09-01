@@ -12,7 +12,7 @@ type FailedTest = {
     err: string,
 }
 
-type IgnoredFunctionbyName = {
+type IgnoredFunctionByName = {
     path: string,
     reason: string,
 }
@@ -23,7 +23,7 @@ type IgnoredFunctionByPath = {
 }
 
 type IgnoredFunctionsByName = {
-    [string]: IgnoredFunctionbyName
+    [string]: IgnoredFunctionByName
 }
 
 type IgnoredFunctionsByPath = {
@@ -68,7 +68,7 @@ local function get_ignored_functions(test_files: { string }): (IgnoredFunctionsB
         local last_reason: string = ""
         local grab_next_line = false
         local looking_for_asserts_in_function: string? = nil
-        
+
         for n, line in fs.readlines(test_path) do
             if grab_next_line then
                 local function_name = string.match(line, "%s*local function ([%w_]+)%(")
