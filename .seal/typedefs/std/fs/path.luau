@@ -77,8 +77,19 @@ export type PathLib = {
 	child: (path: string) -> string?,
 	--- returns the user's home directory, also known as `~`
 	home: () -> string,
-	--- returns the current working directory, errors if not found or is invalid utf-8
+	--- returns the current working directory, errors if not found or invalid utf-8.
+	---
+	--- Consider using `fs.path.project()` or `fs.dir.project()` instead if you want paths to be relative
+	--- to the current project instead of relying on the user's cwd.
 	cwd: () -> string,
+	--[=[
+		Returns the *seal* project directory `n` projects up, relative to the current `script:path()`.
+
+		To get the closest project directory to the current file, use `fs.path.project()`.
+
+		Returns the project directory if found, or `nil` if no project directory was found exactly `n` projects up.
+	]=]
+	project: (n: number?) -> string?
 }
 
 return {} :: PathLib

@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use mluau::prelude::*;
 use crate::prelude::*;
 use crate::{require, std_io};
@@ -33,6 +35,7 @@ pub fn set_globals<S: AsRef<str>>(luau: &Lua, entry_path: S) -> LuaValueResult {
         .with_value("entry_path", entry_path.as_ref())?
         .with_function("path", get_script_path)?
         .with_function("parent", get_script_parent)?
+        .with_function("project", get_script_project)?
         .build_readonly()?
     )?;
 
@@ -66,10 +69,59 @@ pub fn get_script_parent(luau: &Lua, _multivalue: LuaMultiValue) -> LuaValueResu
         match std::path::PathBuf::from(script_path).parent() {
             Some(parent) => parent.to_string_lossy().to_string(),
             None => {
-                return wrap_err!("script:path(): script does not have a parent");
+                return wrap_err!("script:parent(): script does not have a parent :skull 💀:");
             }
         }
     };
     let parent_string = luau.create_string(&requiring_parent)?;
     Ok(LuaValue::String(parent_string))
+}
+
+pub fn find_project(path: &str, projects_up: usize) -> Option<PathBuf> {
+    let mut current = Path::new(path).to_path_buf();
+
+    if current.is_file() {
+        current = current.parent()?.to_path_buf();
+    }
+
+    let mut matches = 0;
+
+    loop {
+        let seal_dir = current.join(".seal");
+        if seal_dir.is_dir() {
+            matches += 1;
+            if matches == projects_up {
+                return Some(current);
+            }
+        }
+
+        // Move up one directory
+        match current.parent() {
+            Some(parent) => current = parent.to_path_buf(),
+            None => break, // Reached filesystem root
+        }
+    }
+
+    None
+}
+
+pub fn get_script_project(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "script:project(n: number?)";
+    pop_self(&mut multivalue, function_name)?;
+    let projects_up = match multivalue.pop_front() {
+        Some(LuaValue::Integer(i)) => int_to_usize(i, function_name, "n")?,
+        Some(LuaValue::Number(f)) => float_to_usize(f, function_name, "n")?,
+        Some(LuaNil) | None => 1,
+        Some(other) => {
+            return wrap_err!("{} expected number of projects up to be a number or nil/unspecified, got: {:?}", function_name, other);
+        }
+    };
+    
+    let requiring_file = get_debug_name(luau)?;
+    match find_project(&requiring_file, projects_up) {
+        Some(project) => ok_string(project.to_string_lossy().to_string(), luau),
+        None => {
+            wrap_err!("{}: project not found relative to '{}'! consider using fs.path.project instead (which doesn't error)", function_name, requiring_file)
+        }
+    }
 }

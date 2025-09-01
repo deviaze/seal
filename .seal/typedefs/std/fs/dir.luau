@@ -36,7 +36,51 @@ export type DirLib = setmetatable<{
 		## Errors
 		- if provided invalid arguments (`path` is not a valid utf-8 encoded string that could exist on the filesystem)
 	]=]
-	try_remove: (path: string) -> (boolean, "Ok" | "PermissionDenied" | "NotFound" | "NotADirectory" | "Other", string?)
+	try_remove: (path: string) -> (boolean, "Ok" | "PermissionDenied" | "NotFound" | "NotADirectory" | "Other", string?),
+	--[=[
+		Returns a `DirectoryEntry` corresponding to the user's home directory, erroring if not found.
+
+		## Usage
+
+		```luau
+		local zip_downloads = fs.dir.home()
+			:expect_dir("Downloads")
+			:list(false, function(path: string)
+				return str.endswith(path, ".zip")
+			end)
+		```
+	]=] 
+	home: () -> DirectoryEntry,
+	--[=[
+		Constructs a `DirectoryEntry` from the user's current working directory (cwd)
+	
+		If you're looking for project-relative pathing, I recommend using `fs.dir.project()` instead, as those will work no matter
+		where the user is when they execute your code.
+	]=]
+	cwd: () -> DirectoryEntry,
+	--[=[
+		Constructs a `DirectoryEntry` from the script's current *seal* project.
+
+		Use this for most project-relative paths instead of `fs.path.cwd` or `fs.dir.cwd` usages.
+
+		## Errors
+
+		- if a *seal* project couldn't be found exactly `n` project parents relative to `script:path()`.
+		- use `fs.path.project` instead if you want to get the *seal* project without erroring.
+
+		## Usage
+
+		```luau
+		local fs = require("@std/fs")
+		local str = require("@std/str")
+		
+		local input_files = fs.dir.project()
+			:expect_dir("input")
+			:list(false, function(path: string) 
+				return str.endswith(path, ".csv")
+			end)
+	]=]
+	project: (n: number?) -> DirectoryEntry,
 }, {
 	--[=[
 	Convenient and slightly more efficient alternative to `fs.find(path):try_dir()`
