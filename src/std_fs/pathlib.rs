@@ -18,8 +18,8 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
     // absolute paths on windows
     // but if a user passes ".\" as their first component they obviously want \ paths
     let path_sep = match first_component.as_str() {
-        "./" | "../" | "." | "" | "/" => "/", // unix style '/' (default) that works on windows, linux, unix, macos, etc.
-        ".\\" | "..\\" => "\\", // windows style '\' for windows absolute paths
+        "./" | "../" | "." | "" | "/" | "~/" => "/", // unix style '/' (default) that works on windows, linux, unix, macos, etc.
+        ".\\" | "..\\" | "~\\" => "\\", // windows style '\' for windows absolute paths
         // stupid windows absolute path edge cases
         component if component.ends_with(':') => "\\", // handle drive letters like "C:"
         component if component.starts_with(r"\\") => "\\", // absolute paths starting with backslash (\\wsl\\)
@@ -29,19 +29,22 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
 
     let mut result = String::new();
 
-    // Avoid stripping unix root `/` on first component
-    result.push_str(if first_component.starts_with('/') {
-        if first_component.len() > 1 {
-            first_component.trim_end_matches(['/', '\\'])
-        } else {
-            "/"
+    // handle absolute paths/roots
+    match first_component.as_str() {
+        "/" => {},
+        r"\\" => {
+            // push first \ of \\ unc path; for loop pushes the next \ so unc path ends up starting with \\
+            result.push('\\');
+        },
+        first if first.starts_with("/") || first.starts_with(r"\\") => {
+            // prevent stripping leading unix root / or windows unc root \\
+            // if component contains either but isn't exactly either
+            result.push_str(first.trim_end_matches(['/', '\\']));
+        },
+        other => {
+            result.push_str(trim_path(other));
         }
-    } else if first_component.starts_with(r"\\") {
-        // avoid stripping windows root `\\` (unc paths like \\?\C:\Users\sealey...) on first component
-        first_component.trim_end_matches(['/', '\\'])
-    } else {
-        trim_path(&first_component)
-    });
+    };
 
     for component in components {
         let trimmed_component = trim_path(&component);
