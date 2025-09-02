@@ -170,8 +170,8 @@ function csv.sort(c: Csv, column_name: string): ()
 		error("column '" .. column_name .. "' not found in csv")
 	end
 
-	table.sort(c.rows, function(a, b)
-		return (a[column_index] or "") < (b[column_index] or "") :: any
+	table.sort(c.rows, function(a: { string }, b: { string })
+		return (a[column_index] or "") < (b[column_index] or "")
 	end)
 end
 
@@ -215,7 +215,7 @@ function csv.join(left: Csv, right: Csv, left_on: string, right_on: string): Csv
 		end
 	end
 
-	local right_lookup = {}
+	local right_lookup: { [string]: { {string} } } = {}
 	for _, right_row in right.rows do
 		local key = right_row[right_index]
 		if not right_lookup[key] then

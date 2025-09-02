@@ -12,7 +12,8 @@ local function watchiter()
 
     local start_time = os.clock()
 
-    local event_categories: { fs.WatchEventCategory } = {}
+    -- local event_categories: { fs.WatchEventCategory } = {}
+    local event_categories: { string } = {} -- LUAU FIXME: table.insert bounds are broken
 
     local files_created: { string } = {}
     local creates_found = {

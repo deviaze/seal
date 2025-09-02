@@ -103,7 +103,7 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 			aliases = {
 				self = fs.path.parent(requiring_file_path) :: string
 			}
-		})
+		} :: LuaurcAliases)
 	end
 	
 	return aliases_by_luaurc, nil

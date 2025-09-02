@@ -122,8 +122,8 @@ local function process_raw_values(
         -- result ..= current_indent ..  "}"
         table.insert(result, current_indent ..  "}")
     elseif typeof(value) == "string" then
-        -- result ..= if depth == 0 then value else  '"' .. value .. '"'
-        table.insert(result, if depth == 0 then value else  '"' .. value .. '"')
+        -- LUAU FIXME: need to cast to string here to fix error type
+        table.insert(result, (if depth == 0 then value else  '"' .. value .. '"') :: string)
     elseif typeof(value) == "boolean" then
         -- result ..= tostring(value)
         table.insert(result, tostring(value))
@@ -390,11 +390,13 @@ local function process_pretty_values(
         local value_meta = getmetatable(value :: any) :: { [any]: any }?
         if value_meta then
             for k, v in pairs(value) do -- use pairs to avoid unexpectedly calling __call on tables w/ metatable
-                table.insert(unsorted_pairs, { key = k, val = v }) 
+                -- LUAU FIXME: table.insert horribly broken
+                (table.insert :: any)(unsorted_pairs, { key = k, val = v }) 
             end
         else
             for k, v in value do
-                table.insert(unsorted_pairs, { key = k, val = v }) 
+                -- LUAU FIXME: table.insert horribly broken
+                (table.insert :: any)(unsorted_pairs, { key = k, val = v }) 
             end
         end
 
