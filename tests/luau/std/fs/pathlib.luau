@@ -157,3 +157,10 @@ local function normalize()
 end
 
 normalize()
+
+local function project()
+	local proj = path.project()
+	assert(fs.path.child(proj :: any) ~= nil, "why is project dir nil hmm")
+end
+
+project()

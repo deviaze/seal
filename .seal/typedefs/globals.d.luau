@@ -15,6 +15,7 @@ declare script: {
 	context: string?,
 	path: (self: any) -> string,
 	parent: (self: any) -> string,
+    project: (self: any) -> string,
 }
 
 declare channel: {

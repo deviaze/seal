@@ -1,7 +1,9 @@
 use std::fs;
 use std::io;
+use std::env;
 use std::path::PathBuf;
 use mluau::prelude::*;
+use crate::globals;
 use crate::prelude::*;
 use super::entry::wrap_io_read_errors;
 use super::validate_path_without_checking_fs;
@@ -193,6 +195,47 @@ fn fs_dir_try_remove(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaMultiResul
     Ok(result_multi)
 }
 
+fn fs_dir_cwd(luau: &Lua, _: LuaValue) -> LuaValueResult {
+    let function_name = "fs.dir.cwd()";
+    let cwd = match env::current_dir() {
+        Ok(cwd) => cwd,
+        Err(err) => {
+            return wrap_err!("{}: unable to get your current working directory; try refreshing your editor or cd-ing out and back in? err: {}", function_name, err);
+        }
+    };
+    ok_table(directory_entry::create(luau, &cwd.to_string_lossy()))
+}
+
+fn fs_dir_home(luau: &Lua, _: LuaValue) -> LuaValueResult {
+    let function_name = "fs.dir.home()";
+    let homedir = match env::home_dir() {
+        Some(home) => home,
+        None => {
+            return wrap_err!("{}: unable to get your home directory :(", function_name);
+        }
+    };
+    ok_table(directory_entry::create(luau, &homedir.to_string_lossy()))
+}
+
+fn fs_dir_project(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.dir.project(n: number?)";
+    let projects_up = match multivalue.pop_front() {
+        Some(LuaValue::Integer(i)) => int_to_usize(i, function_name, "n")?,
+        Some(LuaValue::Number(f))=> float_to_usize(f, function_name, "n")?,
+        Some(LuaNil) | None => 1,
+        Some(other) => {
+            return wrap_err!("{} expected n, the number of projects up (default 1) to be a number or nil/unspecified, got: {:?}", function_name, other);
+        }
+    };
+    let script_path = globals::get_debug_name(luau)?;
+    match globals::find_project(&script_path, projects_up) {
+        Some(project) => ok_table(directory_entry::create(luau, project.to_string_lossy().as_ref())),
+        None => {
+            wrap_err!("{}: project directory not found! consider using fs.path.project (which doesn't error)")
+        }
+    }
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("from", fs_dir_from)?
@@ -200,6 +243,9 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("create", fs_dir_create)?
         .with_function("ensure", fs_dir_ensure)?
         .with_function("try_remove", fs_dir_try_remove)?
+        .with_function("cwd", fs_dir_cwd)?
+        .with_function("home", fs_dir_home)?
+        .with_function("project", fs_dir_project)?
         .with_metatable(TableBuilder::create(luau)?
             .with_function("__call", fs_dir_call)?
             .build_readonly()?
