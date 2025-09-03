@@ -23,8 +23,10 @@ mod std_serde;
 mod std_str_internal;
 mod std_thread;
 mod std_luau;
+mod std_err;
 mod sealconfig;
 mod setup;
+mod compile;
 
 use err::display_error_and_exit;
 use sealconfig::SealConfig;

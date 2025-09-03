@@ -243,7 +243,7 @@ local function stringify_simple_type(value: any): string
         local last_five = string.sub(buffer_id, #buffer_id - 4, # buffer_id)
         local first_part = string.sub(buffer_id, 1, #buffer_id - 5)
         return BOLD_MAGENTA .. "buffer" .. RESET .. LEFT_ANGLED .. MAGENTA .. "0x" .. first_part .. colors.bold.magenta(last_five) .. RESET .. MAGENTA .. RIGHT_ANGLED
-    elseif mlua.iserror(value) then
+    elseif mlua.iserror(value) or typeof(value) == "error" then
         local stringified_error = tostring(value)
         local errsplit = string.split(stringified_error, "\n")
         local errmsglist = {}

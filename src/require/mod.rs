@@ -53,6 +53,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
 
         "@std/env" => ok_table(std_env::create(luau)),
 
+        "@std/err" => ok_table(std_err::create(luau)),
+
         "@std/io" => ok_table(std_io::create(luau)),
         "@std/io/input" => ok_table(std_io::input::create(luau)),
         "@std/io/output" => ok_table(std_io::output::create(luau)),
@@ -61,9 +63,6 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/io/format" => ok_function(std_io::output::format, luau),
         "@std/colors" => ok_table(colors::create(luau)),
 
-        // "@std/time" => ok_table(std_time_old::create(luau)),
-        // "@std/time/datetime" => ok_table(std_time_old::create_datetime(luau)),
-        // "@std/datetime" => ok_table(std_time_old::create_datetime(luau)),
         "@std/time" => ok_table(std_time::create(luau)),
         "@std/datetime" => ok_table(std_time::datetime::create(luau)),
         "@std/time/datetime" => ok_table(std_time::datetime::create(luau)),
