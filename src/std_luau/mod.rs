@@ -218,10 +218,15 @@ fn luau_bytecode(luau: &Lua, value: LuaValue) -> LuaValueResult {
     ok_buffy(res, luau)
 }
 
+fn luau_require_resolver(luau: &Lua, _: LuaValue) -> LuaValueResult {
+    ok_table(crate::require::get_resolver(luau))
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("eval", luau_eval)?
         .with_function("eval_unsafe", luau_eval_unsafe)?
         .with_function("bytecode", luau_bytecode)?
+        .with_function("require_resolver", luau_require_resolver)?
         .build_readonly()
 }

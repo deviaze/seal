@@ -53,6 +53,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
 
         "@std/env" => ok_table(std_env::create(luau)),
 
+        "@std/err" => ok_table(std_err::create(luau)),
+
         "@std/io" => ok_table(std_io::create(luau)),
         "@std/io/input" => ok_table(std_io::input::create(luau)),
         "@std/io/output" => ok_table(std_io::output::create(luau)),
@@ -61,9 +63,6 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/io/format" => ok_function(std_io::output::format, luau),
         "@std/colors" => ok_table(colors::create(luau)),
 
-        // "@std/time" => ok_table(std_time_old::create(luau)),
-        // "@std/time/datetime" => ok_table(std_time_old::create_datetime(luau)),
-        // "@std/datetime" => ok_table(std_time_old::create_datetime(luau)),
         "@std/time" => ok_table(std_time::create(luau)),
         "@std/datetime" => ok_table(std_time::datetime::create(luau)),
         "@std/time/datetime" => ok_table(std_time::datetime::create(luau)),
@@ -136,6 +135,14 @@ fn load_std_str(luau: &Lua) -> LuaResult<LuaTable> {
 const STD_SEMVER_SRC: &str = include_str!("../std_semver.luau");
 fn load_std_semver(luau: &Lua) -> LuaResult<LuaTable> {
     luau.load(STD_SEMVER_SRC).eval::<LuaTable>()
+}
+
+pub fn get_resolver(luau: &Lua) -> LuaResult<LuaTable> {
+    let resolver_src = include_str!("./resolver.luau");
+    let LuaValue::Table(resolver) = luau.load(resolver_src).eval()? else {
+        panic!("require resolver didnt return table??");
+    };
+    Ok(resolver)
 }
 
 fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {

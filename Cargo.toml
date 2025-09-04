@@ -44,6 +44,7 @@ petname = { version = "2.0.2", features = ["default-rng", "default-words"] }
 libc = "0.2.174"
 notify = { version = "8.2.0", features = ["crossbeam-channel"] }
 jiff = "0.2.15"
+# darklua = "0.17.1"
 
 [profile.dev.package.num-bigint-dig]
 opt-level = 3 # otherwise rsa keygen takes forever

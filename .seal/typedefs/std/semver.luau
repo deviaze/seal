@@ -1,3 +1,4 @@
+--!nonstrict
 -- note! although this library is implemented in luau, modifying its typedefs won't
 -- modify it in seal!
 
@@ -233,17 +234,17 @@ function semver.__eq(self: Semver, other: Semver): boolean
 end
 
 function semver.__lt(self: Semver, other: Semver): boolean
-    if self.major ~= other.major then
+    if self.major ~= other.major then -- self.major and other.major hovers are number
         return self.major < other.major
     end
-    if self.minor ~= other.minor then
+    if self.minor ~= other.minor then -- self.minor hover is any
         return self.minor < other.minor
     end
     if self.patch ~= other.patch then
         return self.patch < other.patch
     end
 
-    local a_rc = self.metadata.release_candidate
+    local a_rc = self.metadata.release_candidate -- why tf is everything here any
     local b_rc = other.metadata.release_candidate
 
     -- Pre-release versions are lower than normal versions
