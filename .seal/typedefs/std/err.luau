@@ -39,4 +39,6 @@ export type err = {
 	throw: (err: error) -> never,
 }
 
+export type Result<T> = T | error
+
 return {} :: err

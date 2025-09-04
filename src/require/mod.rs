@@ -137,6 +137,14 @@ fn load_std_semver(luau: &Lua) -> LuaResult<LuaTable> {
     luau.load(STD_SEMVER_SRC).eval::<LuaTable>()
 }
 
+pub fn get_resolver(luau: &Lua) -> LuaResult<LuaTable> {
+    let resolver_src = include_str!("./resolver.luau");
+    let LuaValue::Table(resolver) = luau.load(resolver_src).eval()? else {
+        panic!("require resolver didnt return table??");
+    };
+    Ok(resolver)
+}
+
 fn resolve_path(luau: &Lua, path: String) -> LuaResult<String> {
     let resolver_src = include_str!("./resolver.luau");
     let LuaValue::Table(resolver) = luau.load(resolver_src).eval()? else {

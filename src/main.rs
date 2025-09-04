@@ -35,7 +35,7 @@ use globals::SEAL_VERSION;
 type LuauLoadResult = LuaResult<Option<LuauLoadInfo>>;
 struct LuauLoadInfo {
     luau: Lua,
-    src: String,
+    src: Vec<u8>,
     /// chunk_name is basically the entry_path except it's always an absolute path
     chunk_name: String,
 }
@@ -78,6 +78,8 @@ enum SealCommand {
     Version,
     /// not yet implemented
     Repl,
+    ExecStandalone(Vec<u8>),
+    Compile(Args),
 }
 
 impl SealCommand {
@@ -88,6 +90,7 @@ impl SealCommand {
             "project" | "sp" => Self::Setup(SetupOptions::Project),
             "script" | "ss" => Self::Setup(SetupOptions::Script),
             "custom" | "sc" => Self::Setup(SetupOptions::Custom),
+            "compile" => Self::Compile(args),
             "eval" | "e" => Self::Eval(args.clone()),
             "run" | "r" => Self::Run,
             "test" | "t" => Self::Test,
@@ -132,6 +135,8 @@ fn main() -> LuaResult<()> {
         SealCommand::Repl => {
             wrap_err!("seal repl coming SOON (tm)")
         },
+        SealCommand::Compile(args) => seal_compile(args),
+        SealCommand::ExecStandalone(bytecode) => seal_standalone(bytecode),
     };
 
     let LuauLoadInfo { luau, src, chunk_name } = match info_result {
@@ -173,7 +178,7 @@ fn resolve_file(requested_path: String, function_name: &'static str) -> LuauLoad
         src = src[first_newline_pos + 1..].to_string();
     }
 
-    Ok(Some(LuauLoadInfo { luau, src, chunk_name }))
+    Ok(Some(LuauLoadInfo { luau, src: src.as_bytes().to_owned(), chunk_name }))
 }
 
 fn seal_eval(mut args: Args) -> LuauLoadResult {
@@ -195,7 +200,7 @@ fn seal_eval(mut args: Args) -> LuauLoadResult {
 
     Ok(Some(LuauLoadInfo {
         luau,
-        src,
+        src: src.as_bytes().to_owned(),
         // relative require probs wont work atm
         chunk_name: std_env::get_cwd("seal eval")?
             .to_string_lossy()
@@ -240,46 +245,86 @@ fn seal_test() -> LuauLoadResult {
 fn seal_setup(options: SetupOptions) -> LuauLoadResult {
     setup::run(options)?;
     Ok(None)
-    // const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
-    // let cwd = std_env::get_cwd("seal setup")?;
-    // let dot_seal_dir = cwd.join(".seal");
-    // let created_seal_dir = match fs::create_dir(&dot_seal_dir) {
-    //     Ok(_) => true,
-    //     Err(err) => match err.kind() {
-    //         io::ErrorKind::AlreadyExists => {
-    //             println!("seal setup - '.seal' already exists; not replacing it");
-    //             false
-    //         }
-    //         _ => {
-    //             return wrap_err!("seal setup = error creating .seal: {}", err);
-    //         }
-    //     },
-    // };
+}
 
-    // if created_seal_dir {
-    //     match DOT_SEAL_DIR.extract(dot_seal_dir) {
-    //         Ok(()) => {
-    //             println!("seal setup .seal in your current directory!");
-    //         }
-    //         Err(err) => {
-    //             return wrap_err!("seal setup - error extracting .seal directory: {}", err);
-    //         }
-    //     };
-    // }
+fn seal_compile(mut args: Args) -> LuauLoadResult {
+    let function_name = "seal compile";
 
-    // let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
-    // let temp_luau = Lua::new();
-    // globals::set_globals(&temp_luau, cwd.to_string_lossy().into_owned())?;
-    // match temp_luau.load(seal_setup_settings).exec() {
-    //     Ok(_) => Ok(None),
-    //     Err(err) => {
-    //         wrap_err!("Hit an error running seal_setup_settings.luau: {}", err)
-    //     }
-    // }
+    let default_entry_path = std_env::get_cwd(function_name)?;
+    let default_output_path = match default_entry_path.file_name() {
+        Some(basename) => basename.to_string_lossy(),
+        None => {
+            return wrap_err!("{} - why can't we figure out the basename of your cwd???", function_name);
+        }
+    };
+
+    let (entry_path, output_path): (String, String) = {
+        if args.is_empty() {
+            (default_entry_path.to_string_lossy().to_string(), default_output_path.to_string())
+        } else if let Some(front) = args.front()
+            && let Some(front) = front.to_str()
+        {
+            if front == "-o" {
+                let _ = args.pop_front();
+                if let Some(exec_name) = args.front() {
+                    (default_entry_path.to_string_lossy().to_string(), exec_name.to_string_lossy().to_string())
+                } else {
+                    return wrap_err!("{} - output switch (-o) provided but missing output file name/path", function_name);
+                }
+            } else {
+                let entry_path = args.pop_front().unwrap(); // UNWRAP: args never empty here
+                if let Some(front) = args.front()
+                    && let Some(front) = front.to_str()
+                {
+                    if front == "-o" {
+                        let _ = args.pop_front();
+                        if let Some(exec_name) = args.front() {
+                            (entry_path.to_string_lossy().to_string(), exec_name.to_string_lossy().to_string())
+                        } else {
+                            return wrap_err!("{} - output switch (-o) provided but missing output file name/path", function_name);
+                        }
+                    } else {
+                        (entry_path.to_string_lossy().to_string(), default_output_path.to_string())
+                    }
+                } else {
+                    return wrap_err!("{} - bad utf8 :skull:", function_name);
+                }
+
+            }
+        } else {
+            return wrap_err!("{} - bad utf8 :skull:", function_name);
+        }
+    };
+
+    let bundled_src = compile::bundle(&entry_path)?;
+    let compiled_standalone_bytes = compile::standalone(&bundled_src)?;
+
+    match fs::write(&*output_path, compiled_standalone_bytes) {
+        Ok(_) => println!("{} - compiled standalone application to {}!", function_name, output_path),
+        Err(err) => {
+            return wrap_err!("{} - error writing compiled program to file: {}", function_name, err);
+        }
+    };
+
+    Ok(None)
+}
+
+fn seal_standalone(bytecode: Vec<u8>) -> LuauLoadResult {
+    let luau = Lua::new();
+    globals::set_globals(&luau, "standalone")?;
+    Ok(Some(LuauLoadInfo {
+        luau,
+        src: bytecode,
+        chunk_name: String::from("main")
+    }))
 }
 
 impl SealCommand {
     fn parse(mut args: Args) -> LuaResult<SealCommand> {
+        if let Some(bytecode) = compile::extract_bytecode() {
+            return Ok(Self::ExecStandalone(bytecode))
+        }
+
         // discard first arg (always "seal")
         let _ = args.pop_front();
 
