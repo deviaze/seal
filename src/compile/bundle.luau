@@ -83,6 +83,68 @@ local function extract_identifier_and_path(line: string, debug_path: string): (e
     return nil, nil
 end
 
+--[=[
+    Check if the line is a comment.
+
+    - If the line starts a new long comment, returns the new long comment prefix `(true, string)`.
+    - If the line is within a long comment, returns the passed comment prefix `(true, string)`.
+    - If the line is a single line comment, returns `(true, nil)`
+
+    Usage
+
+    ```luau
+    local comment_prefix: string? = nil
+    for l, line in readlines(f) do
+        local is_comment, prefix = comment(line)
+        comment_prefix = prefix
+        if is_comment then
+            continue
+        end
+    end
+    ```
+]=]
+local function comment(line: string, current_comment_prefix: string?): (
+    --- whether or not the current line is a comment
+    boolean,
+    --- the new or existing prefix if this line starts or is within a long comment; 
+    --- nil if it ends a long comment, is a single line comment, isn't a comment, etc.
+    string?
+)
+    if current_comment_prefix then
+        local equal_signs = string.match(current_comment_prefix, "%-%-%[(=*)%[") :: string
+        local closing = "]" .. equal_signs .. "]"
+        if string.find(line, closing, 1, true) then
+            -- ends long comment
+            return true, nil
+        else
+            -- line within long comment
+            return true, current_comment_prefix
+        end
+    end
+
+    local new_comment_prefix = string.match(line, "(%-%-%[=*%[)")
+    if new_comment_prefix then
+        -- check if comment closed on same line as it opened
+        local equal_signs = string.match(new_comment_prefix, "%-%-%[(=*)%[") :: string
+        local closing = "]" .. equal_signs .. "]"
+
+        if string.find(line, closing, 1, true) then
+            -- starts and ends on the same line
+            return true, nil
+        else
+            -- starts long comment
+            return true, new_comment_prefix
+        end
+    end
+
+    if str.startswith(str.trimfront(line), "--") then
+        -- single line comment
+        return true, nil
+    end
+
+    return false, nil
+end
+
 local anon_identifier = 0
 
 local seen: { [string]: string? } = {}
@@ -100,7 +162,16 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
     end
 
     local transformed: { string } = {}
+
+    local is_comment = false
+    local comment_prefix: string? = nil
+    
     for line_number, line in fs.readlines(path) do
+        is_comment, comment_prefix = comment(line, comment_prefix)
+        if is_comment then
+            continue
+        end
+
         local identifier, requested_require = extract_identifier_and_path(line, `{path}:{line_number}`)
         if typeof(identifier) == "error" then
             return identifier
@@ -111,6 +182,7 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
             table.insert(transformed, line)
             continue
         end
+
         -- if it's requiring a seal stdlib, check if we've already required it, and only add the line if we haven't yet
         if str.starts(requested_require, "@std", "@interop", "@internal") then
             if not seen_stdlibs[requested_require] then
@@ -123,7 +195,7 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
         -- find out where this require resolves to
         local resolved = resolver.resolve(requested_require, path)
         if resolved.err then
-            return err.message(`unable to resolve require '{requested_require}': {resolved.err}`)
+            return err.message(`unable to resolve require '{requested_require}' at {path}:{line_number}: {resolved.err}`)
         end
 
         -- if we've already seen this require (and therefore assigned an identifier to it)
@@ -208,6 +280,10 @@ local function bundle(project_path: string): err.Result<string>
     end
 
     local bundled_lines = traverse(entry_path)
+    if typeof(bundled_lines) == "error" then
+        return bundled_lines
+    end
+
     table.insert(bundled_lines, 1, `--!nolint LocalShadow`)
     table.insert(bundled_lines, 1, `--!optimize 2`)
 
