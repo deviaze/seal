@@ -127,7 +127,7 @@ function tt.map<K, V, NK, NV>(t: { [K]: V }, mapper: <K, V, NK, NV>(key: K, val:
 	return result
 end
 
-function tt.arraymap<T>(t: { T }, mapper: <T>(index: number, value: T) -> T?): { T }
+function tt.arraymap<T>(t: { T }, mapper: (index: number, value: T) -> T?): { T }
 	local result: { T } = {}
 
 	if tt.caniteratenormally(t) then
