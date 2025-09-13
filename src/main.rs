@@ -2,7 +2,11 @@
 use crate::{prelude::*, setup::SetupOptions};
 use mluau::prelude::*;
 
-use std::{collections::VecDeque, env, ffi::OsString, fs};
+use std::env;
+use std::ffi::OsString;
+use std::collections::VecDeque;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 
 pub mod prelude;
 mod std_env;
@@ -258,6 +262,7 @@ fn seal_compile(mut args: Args) -> LuauLoadResult {
         }
     };
 
+    // ugly asf we should probably be parsing these in SealCommand
     let (entry_path, output_path): (String, String) = {
         if args.is_empty() {
             (default_entry_path.to_string_lossy().to_string(), default_output_path.to_string())
@@ -299,23 +304,46 @@ fn seal_compile(mut args: Args) -> LuauLoadResult {
     let bundled_src = compile::bundle(&entry_path)?;
     let compiled_standalone_bytes = compile::standalone(&bundled_src)?;
 
-    match fs::write(&*output_path, compiled_standalone_bytes) {
-        Ok(_) => println!("{} - compiled standalone application to {}!", function_name, output_path),
+    let mut file = match OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&*output_path)
+    {
+        Ok(f) => f,
         Err(err) => {
-            return wrap_err!("{} - error writing compiled program to file: {}", function_name, err);
+            return wrap_err!("{} - error creating output file: {}", function_name, err);
         }
     };
+
+    // Write the bytes
+    if let Err(err) = file.write_all(&compiled_standalone_bytes) {
+        return wrap_err!("{} - error writing compiled program to file: {}", function_name, err);
+    }
+
+    println!("{} - compiled standalone application to {}!", function_name, output_path);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // give it executable permissions on unix (chmod +x file) rwxr-xr-x (0o755)
+        if let Err(err) = file.set_permissions(PermissionsExt::from_mode(0o755)) {
+            return wrap_err!("{} - error setting executable permissions: {}", function_name, err);
+        }
+    }
 
     Ok(None)
 }
 
 fn seal_standalone(bytecode: Vec<u8>) -> LuauLoadResult {
     let luau = Lua::new();
-    globals::set_globals(&luau, "standalone")?;
+    let entry_path = std::env::current_exe().unwrap_or_default();
+    let entry_path = entry_path.to_string_lossy().into_owned();
+    globals::set_globals(&luau, &entry_path)?;
     Ok(Some(LuauLoadInfo {
         luau,
         src: bytecode,
-        chunk_name: String::from("main")
+        chunk_name: entry_path
     }))
 }
 
