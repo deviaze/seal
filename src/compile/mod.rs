@@ -11,7 +11,7 @@ const BUNDLER_SRC: &str = include_str!("./bundle.luau");
 pub fn bundle(project_path: &str) -> LuaResult<String> {
     let luau = Lua::new();
     globals::set_globals(&luau, "bundler")?;
-    let bundle = match luau.load(BUNDLER_SRC).eval::<LuaFunction>() {
+    let bundle = match luau.load(BUNDLER_SRC).set_name("bundle.luau").eval::<LuaFunction>() {
         Ok(bundle) => bundle,
         Err(err) => {
             panic!("loading seal bundle function broke due to err: {}", err);
@@ -34,6 +34,24 @@ pub fn bundle(project_path: &str) -> LuaResult<String> {
     Ok(res)
 }
 
+pub fn is_standalone() -> bool {
+    const MAGIC: &[u8] = b"ASEALB1N";
+
+    let Some(current_executable) = std::env::current_exe().ok() else {
+        return false;
+    };
+    let Some(executable_bytes) = fs::read(&current_executable).ok() else {
+        return false;
+    };
+
+    let file_len = executable_bytes.len();
+    // check the back of the file (last 12 bytes) to see if we're a standalone exe
+    let magic_start = file_len - MAGIC.len() - 4;
+    let extracted_magic = &executable_bytes[magic_start..magic_start + MAGIC.len()];
+    
+    extracted_magic == MAGIC
+}
+
 /// if this seal executable is standalone, returns its compiled bytecode;
 /// if it's not standalone, returns None
 pub fn extract_bytecode() -> Option<Vec<u8>> {
@@ -41,15 +59,19 @@ pub fn extract_bytecode() -> Option<Vec<u8>> {
 
     let current_executable = std::env::current_exe().ok()?;
     let executable_bytes = fs::read(&current_executable).ok()?;
+    let file_len = executable_bytes.len();
 
-    // look for magic header in current exe
-    let magic_header_pos = executable_bytes
-        .windows(MAGIC.len())
-        .rposition(|window| window == MAGIC)?;
+    // check the back of the file (last 12 bytes) to see if we're a standalone exe
+    let magic_start = file_len - MAGIC.len() - 4;
+    let extracted_magic = &executable_bytes[magic_start..magic_start + MAGIC.len()];
+    if extracted_magic != MAGIC {
+        // we are not a standalone bin, early return None
+        return None;
+    }
 
     // read bytecode length (exactly 4 bytes from end of magic header)
     let bytecode_len = {
-        let len_start = magic_header_pos + MAGIC.len();
+        let len_start = magic_start + MAGIC.len();
         let len_end = len_start + 4;
 
         if len_end > executable_bytes.len() {
@@ -61,7 +83,7 @@ pub fn extract_bytecode() -> Option<Vec<u8>> {
     };
 
     // extract bytecode
-    let bytecode_start = magic_header_pos + MAGIC.len() + 4;
+    let bytecode_start = file_len.checked_sub(MAGIC.len() + 4 + bytecode_len)?;
     let bytecode_end = bytecode_start + bytecode_len;
 
     if bytecode_end > executable_bytes.len() {
@@ -71,6 +93,8 @@ pub fn extract_bytecode() -> Option<Vec<u8>> {
     Some(executable_bytes[bytecode_start..bytecode_end].to_vec())
 }
 
+/// returns a compiled binary of <normal seal machine code><bytecode><magic><len>
+/// so we only need to check the end of the bin to see if it's a standalone exec or not
 pub fn standalone(src: &str) -> LuaResult<Vec<u8>> {
     let comp = Compiler::new();
     let bytecode = match comp.compile(src) {
@@ -101,9 +125,9 @@ pub fn standalone(src: &str) -> LuaResult<Vec<u8>> {
     // append magic 8 byte header + length prefix + bytecode
     const MAGIC: &[u8] = b"ASEALB1N";
     let bytecode_len = (bytecode.len() as u32).to_le_bytes();
+    standalone_bytes.extend_from_slice(&bytecode);
     standalone_bytes.extend_from_slice(MAGIC);
     standalone_bytes.extend_from_slice(&bytecode_len);
-    standalone_bytes.extend_from_slice(&bytecode);
 
     Ok(standalone_bytes)
 }
