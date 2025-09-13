@@ -60,7 +60,7 @@ local function thisproject()
 	end)
 	local tt = require("@extra/tt")
 	src_files = tt.arraymap(src_files, function(_, v)
-		return fs.path.child(v :: string)
+		return fs.path.child(v) :: string
 	end)
 	assert(
 		table.find(src_files, "main.rs") ~= nil,
