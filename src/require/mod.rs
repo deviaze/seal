@@ -2,6 +2,13 @@ use mluau::prelude::*;
 use crate::{std_fs::pathlib::normalize_path, *};
 use std::{fs, io};
 
+const RESERVED_ALIASES: [&str; 3] = ["@std", "@interop", "@internal"];
+
+#[inline(always)]
+fn is_reserved(path: &str) -> bool {
+    RESERVED_ALIASES.iter().any(|alias| path.starts_with(alias))
+}
+
 pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
     let path = match path {
         LuaValue::String(path) => path.to_string_lossy(),
@@ -10,7 +17,7 @@ pub fn require(luau: &Lua, path: LuaValue) -> LuaValueResult {
         }
     };
 
-    if path.starts_with("@std") || path.starts_with("@interop") || path.starts_with("@internal") {
+    if is_reserved(&path) {
         get_standard_library(luau, path)
     } else {
         let path = resolve_path(luau, path)?;
@@ -121,6 +128,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@interop" => ok_table(interop::create(luau)),
         "@interop/mlua" => ok_table(interop::create_mlua(luau)),
         "@internal/setup" => ok_table(setup::create_internal(luau)),
+
+        "@internal/reserved_aliases" => RESERVED_ALIASES.into_lua(luau),
         other => {
             wrap_err!("program required an unexpected standard library: {}", other)
         }

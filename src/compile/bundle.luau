@@ -6,6 +6,8 @@ local str = require("@std/str")
 local err = require("@std/err")
 local luau = require("@std/luau")
 
+local reserved_aliases = (require :: any)("@internal/reserved_aliases") :: { string }
+
 local function get_entry_path(path: string): err.Result<string>
     if fs.file(path) then
         return path -- seal compile ./direct/path/to/file.luau -o myexec
@@ -184,7 +186,7 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
         end
 
         -- if it's requiring a seal stdlib, check if we've already required it, and only add the line if we haven't yet
-        if str.starts(requested_require, "@std", "@interop", "@internal") then
+        if str.starts(requested_require, table.unpack(reserved_aliases)) then
             if not seen_stdlibs[requested_require] then
                 seen_stdlibs[requested_require] = true
                 table.insert(transformed, line)
