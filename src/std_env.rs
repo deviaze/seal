@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use mluau::prelude::*;
+use crate::compile;
 use crate::prelude::*;
 
 pub fn get_current_shell() -> String {
@@ -178,42 +179,40 @@ fn env_environment_removevar(_luau: &Lua, value: LuaValue) -> LuaValueResult {
 }
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
+    let formatted_os = match env::consts::OS {
+        "linux" => String::from("Linux"),
+        "windows" => String::from("Windows"),
+        "android" => String::from("Android"),
+        "macos" => String::from("MacOS"),
+        other => other[0..1].to_uppercase() + &other[1..],
+    };
 
-	let formatted_os = match env::consts::OS {
-		"linux" => String::from("Linux"),
-		"windows" => String::from("Windows"),
-		"android" => String::from("Android"),
-		"macos" => String::from("MacOS"),
-		other => other[0..1].to_uppercase() + &other[1..],
-	};
+    let executable_path = env::current_exe().ok().unwrap_or_default().to_owned();
+    let executable_path = executable_path.to_string_lossy();
+    let luau_args = luau.create_table_with_capacity(4, 0)?;
+    for (index, arg) in env::args_os().enumerate() {
+        if index == 0 {
+            continue; // skip 'seal' argument
+        }
+        if compile::is_standalone() {
+            let arg_bytes = arg.as_encoded_bytes();
+            luau_args.raw_push(luau.create_string(arg_bytes)?)?;
+        } else if index == 1 {
+            continue; // file name for seal ./filename.luau or r in seal r, either way not useful
+        } else {
+            let arg_bytes = arg.as_encoded_bytes();
+            luau_args.raw_push(luau.create_string(arg_bytes)?)?;
+        }
+    }
 
-	let mut executable_path = String::from("");
-	let mut script_path = String::from("");
-
-	let luau_args = {
-		let rust_args: Vec<String> = env::args().collect();
-		let result_args = luau.create_table()?;
-		for (index, arg) in rust_args.iter().enumerate() {
-			if index == 0 {
-				executable_path = arg.to_string();
-			} else if index == 1 {
-				script_path = arg.to_string();
-			} else {
-				result_args.push(arg.to_string())?;
-			}
-		}
-		result_args
-	};
-
-	TableBuilder::create(luau)?
-		.with_value("os", formatted_os)?
-		.with_value("args", luau_args)?
-		.with_value("executable_path", executable_path)?
-		.with_value("shell_path", get_current_shell())?
-		.with_value("script_path", script_path)?
+    TableBuilder::create(luau)?
+        .with_value("os", formatted_os)?
+        .with_value("args", luau_args)?
+        .with_value("executable_path", executable_path)?
+        .with_value("shell_path", get_current_shell())?
         .with_function("getvar", env_environment_getvar)?
         .with_function("setvar", env_environment_setvar)?
         .with_function("removevar", env_environment_removevar)?
         .with_function("cwd", env_cwd)?
-		.build_readonly()
+        .build_readonly()
 }
