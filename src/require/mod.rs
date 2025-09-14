@@ -126,7 +126,9 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
             )
         },
         "@interop" => ok_table(interop::create(luau)),
+        "@interop/standalone" => ok_table(interop::create_standalone(luau)),
         "@interop/mlua" => ok_table(interop::create_mlua(luau)),
+
         "@internal/setup" => ok_table(setup::create_internal(luau)),
 
         "@internal/reserved_aliases" => RESERVED_ALIASES.into_lua(luau),

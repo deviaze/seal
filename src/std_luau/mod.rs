@@ -113,7 +113,7 @@ fn get_safe_globals(luau: &Lua) -> LuaResult<LuaTable> {
     };
     t.raw_set("_VERSION", "Luau")?;
     let dummy_require_fn = luau.create_function(|_l: &Lua, _v: LuaValue| -> LuaValueResult {
-        wrap_err!("require is not allowed here!")
+        wrap_err!("require is not allowed in \"safe\" mode! use \"seal\" stdlib to allow requires.")
     })?;
     t.raw_set("require", dummy_require_fn)?;
     Ok(t)

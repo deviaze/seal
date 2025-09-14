@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Read;
+use std::path::PathBuf;
 
 use crate::prelude::*;
 use mluau::prelude::*;
@@ -34,13 +35,13 @@ pub fn bundle(project_path: &str) -> LuaResult<String> {
     Ok(res)
 }
 
-pub fn is_standalone() -> bool {
+pub fn is_standalone(bin: Option<PathBuf>) -> bool {
     const MAGIC: &[u8] = b"ASEALB1N";
 
-    let Some(current_executable) = std::env::current_exe().ok() else {
+    let Some(executable_path) = bin.or(std::env::current_exe().ok()) else {
         return false;
     };
-    let Some(executable_bytes) = fs::read(&current_executable).ok() else {
+    let Some(executable_bytes) = fs::read(&executable_path).ok() else {
         return false;
     };
 
@@ -54,11 +55,11 @@ pub fn is_standalone() -> bool {
 
 /// if this seal executable is standalone, returns its compiled bytecode;
 /// if it's not standalone, returns None
-pub fn extract_bytecode() -> Option<Vec<u8>> {
+pub fn extract_bytecode(bin: Option<PathBuf>) -> Option<Vec<u8>> {
     const MAGIC: &[u8] = b"ASEALB1N";
 
-    let current_executable = std::env::current_exe().ok()?;
-    let executable_bytes = fs::read(&current_executable).ok()?;
+    let executable_path = bin.unwrap_or(std::env::current_exe().ok()?);
+    let executable_bytes = fs::read(&executable_path).ok()?;
     let file_len = executable_bytes.len();
 
     // check the back of the file (last 12 bytes) to see if we're a standalone exe
@@ -100,7 +101,7 @@ pub fn standalone(src: &str) -> LuaResult<Vec<u8>> {
     let bytecode = match comp.compile(src) {
         Ok(bytecode) => bytecode,
         Err(err) => {
-           return wrap_err!("seal compile - unable to compile standalone due to err: {}", err);
+            return wrap_err!("seal compile - unable to compile standalone due to err: {}", err);
         }
     };
 

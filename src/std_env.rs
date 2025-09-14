@@ -194,7 +194,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         if index == 0 {
             continue; // skip 'seal' argument
         }
-        if compile::is_standalone() {
+        if compile::is_standalone(None) {
             let arg_bytes = arg.as_encoded_bytes();
             luau_args.raw_push(luau.create_string(arg_bytes)?)?;
         } else if index == 1 {
