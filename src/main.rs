@@ -83,6 +83,10 @@ enum SealCommand {
     /// not yet implemented
     Repl,
     ExecStandalone(Vec<u8>),
+    /// Compiles project codebase to standalone executable (or bundles to a .luau file)
+    /// seal compile ./myfile.luau sets ./myfile.luau as the entry point file (otherwise defaults to .seal/config.luau entry_path)
+    /// seal compile [path.luau] -o binname names the output executable 'binname'
+    /// seal compile [path.luau] -o filename.luau bundles the project's sourcecode into filename.luau without making a standalone executable
     Compile(Args),
 }
 
@@ -263,7 +267,8 @@ fn seal_compile(mut args: Args) -> LuauLoadResult {
     };
 
     // ugly asf we should probably be parsing these in SealCommand
-    let (entry_path, output_path): (String, String) = {
+    #[allow(unused_mut, reason = "needs to be mut on windows")]
+    let (entry_path, mut output_path): (String, String) = {
         if args.is_empty() {
             (default_entry_path.to_string_lossy().to_string(), default_output_path.to_string())
         } else if let Some(front) = args.front()
@@ -302,6 +307,19 @@ fn seal_compile(mut args: Args) -> LuauLoadResult {
     };
 
     let bundled_src = compile::bundle(&entry_path)?;
+
+    if output_path.ends_with(".luau") {
+        match fs::write(&output_path, bundled_src) {
+            Ok(_) => {
+                println!("{} - bundled project sourcecode to '{}'", function_name, &output_path);
+            },
+            Err(err) => {
+                return wrap_err!("{} - unable to write to file '{}' due to err: {}", function_name, &output_path, err);
+            }
+        }
+        return Ok(None);
+    };
+
     let compiled_standalone_bytes = compile::standalone(&bundled_src)?;
 
     let mut file = match OpenOptions::new()
@@ -316,12 +334,19 @@ fn seal_compile(mut args: Args) -> LuauLoadResult {
         }
     };
 
-    // Write the bytes
+    #[cfg(windows)]
+    {
+        if !output_path.ends_with(".exe") {
+            output_path.push_str(".exe");
+        }
+    }
+
+
     if let Err(err) = file.write_all(&compiled_standalone_bytes) {
         return wrap_err!("{} - error writing compiled program to file: {}", function_name, err);
     }
 
-    println!("{} - compiled standalone application to {}!", function_name, output_path);
+    println!("{} - compiled to standalone program '{}'!", function_name, output_path);
 
     #[cfg(unix)]
     {
@@ -349,7 +374,7 @@ fn seal_standalone(bytecode: Vec<u8>) -> LuauLoadResult {
 
 impl SealCommand {
     fn parse(mut args: Args) -> LuaResult<SealCommand> {
-        if let Some(bytecode) = compile::extract_bytecode() {
+        if let Some(bytecode) = compile::extract_bytecode(None) {
             return Ok(Self::ExecStandalone(bytecode))
         }
 
@@ -403,6 +428,7 @@ impl SealCommand {
             Self::Test => "test",
             Self::HelpCommandHelp => "help",
             Self::SealConfigHelp => "config",
+            Self::Compile(_) => "compile",
             other => {
                 return wrap_err!("help not yet implemented for command {:#?}", other);
             },

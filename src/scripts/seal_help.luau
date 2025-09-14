@@ -1,4 +1,5 @@
 local colors = require("@std/colors")
+local str = require("@std/str")
 local dim = colors.style.dim
 
 local help = {}
@@ -174,6 +175,45 @@ function help.config()
         colors.bold.white("Info:"),
         ` {DIM_DASH} found at {code "./.seal/config.luau"}`,
         ` {DIM_DASH} valid fields are located in the SealConfig typedef`,
+        END_LINE
+    )
+end
+
+function help.compile()
+    local example_module = str.unindent([[
+        ```luau
+        -- mod.luau
+        -- your requires
+        local mod = {}
+        function mod.idk()
+        end
+        -- other functions, local functions, and code
+        return mod
+        ```
+    ]], "Spaces", 6)
+
+    return format_lines(
+        TAGLINE,
+        colors.bold.white("Usage:") .. dim(" <angled> = required, [square] = optional"),
+        `  {colors.bold.blue("seal")} {colors.bold.red("compile")} {DIM_DASH} compile project at cwd into a binary named after the project folder's name`,
+        `  {colors.bold.blue("seal")} {colors.bold.red("compile")} {req "path/to/entry.luau"} {DIM_DASH} specify an entry path (defaults to project's entry_path)`,
+        `  {colors.bold.blue("seal")} {colors.bold.red("compile")} {opt "path/to/entry.luau"} -o {req "bin"} {DIM_DASH} compile the project into an executable named 'bin' (or 'bin.exe' on windows)`,
+        `  {colors.bold.blue("seal")} {colors.bold.red("compile")} {opt "path/to/entry.luau"} -o {req "output.luau"} {DIM_DASH} bundle the project into output.luau without creating a standalone executable`,
+        colors.bold.white("Docs:"),
+        "  Create a standalone executable (for your platform) from a seal project codebase.",
+        "  Files are bundled relative to the project's entry path (located in .seal/config.luau) unless otherwise specified.",
+        "  Bundling isn't perfect, is syntax dependent, and doesn't handle edge cases",
+        "      ...but it should work for simple project structures.",
+        "  Notes on bundling:",
+        `  {DIM_DASH} required files are inserted right above the line they'd be required from`,
+        `  {DIM_DASH} required files are only included once`,
+        `  {DIM_DASH} required files should return an identifier ({code "return module"})`,
+        `  {DIM_DASH} all comments are stripped (--!optimize 2 is added to the top though)`,
+        `  {DIM_DASH} for more control over bundling (optimizations, transformations, etc.), use an external tool like darklua or warmluau`,
+        "    (you can pass the bundled file to seal compile)",
+        "",
+        "  Example required file structure: ",
+        example_module,
         END_LINE
     )
 end
