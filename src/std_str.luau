@@ -266,6 +266,23 @@ local str_internal = (require)("@internal/str")
 ]=]
 str.split = str_internal.split :: (s: string, ...string) -> { string }
 
+
+--[=[
+	`str.splitkeep` follows the same semantics as `str.split`, except that it splits in front of and behind the separator strings,
+	keeping the separator strings in the final result.
+
+	Like `str.split`, `str.splitkeep` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
+
+	## Usage
+	
+	```luau
+	local line = `function Cat.meow(name: string, age: number)`
+	local tokens = str.splitkeep(line, " ", ".", "(", ":", ",", ")")
+	--> { "function", " ", "Cat", ".", "meow", "(", "name", ":", " ", "string", ",", " ", "age", ":", " ", "number", ")"}
+	```
+]=]
+str.splitkeep = str_internal.splitkeep :: (s: string, ...string) -> { string }
+
 --[=[
     Iterate over the human-readable characters (graphemes) of a string
 

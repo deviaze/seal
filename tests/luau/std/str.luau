@@ -81,3 +81,22 @@ local function strgraphemes()
 end
 
 strgraphemes()
+
+local function strkeep()
+	local line = `function Cat.meow(name: string, age: number)`
+	local tokens = str.splitkeep(line, " ", ".", "(", ":", ",", ")")
+	assert(tokens[1] == "function", "first token should be function")
+	assert(tokens[3] == "Cat", "third token should be Cat")
+	assert(tokens[9] == " ", "9th token should be whitespace ' '")
+	assert(tokens[#tokens] == ")", "last token should be )")
+end
+
+strkeep()
+
+local function strkeepunicode()
+	local keepy = "हाय मैं एक सील हूँ 🦭 (hi i am a seal 🦭)"
+	local sealed = str.splitkeep(keepy, "🦭")
+	assert(sealed[2] == "🦭", "2nd index should be 🦭")
+end
+
+strkeepunicode()
