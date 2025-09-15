@@ -9,6 +9,96 @@ use crate::prelude::*;
 
 const MAX_TABLE_SIZE: usize = 134_217_728;
 
+fn split_graphemes(luau: &Lua, s_bytes: &[u8]) -> LuaResult<LuaTable> {
+    // we want to assume most graphemes are normal ascii but some could be multibyte, and we want to error on the side
+    // of not preallocating more than we need, so 3/4th of the byte len is a good compromise
+    let good_prealloc_guess = std::cmp::min(s_bytes.len() * 3 / 4, MAX_TABLE_SIZE); // exceeding max table size causes abort
+    let result = luau.create_table_with_capacity(good_prealloc_guess, 0)?;
+    // check if whole string is valid utf-8
+    if let Ok(s_str) = std::str::from_utf8(s_bytes) {
+        for grapheme in s_str.graphemes(true) {
+            result.raw_push(luau.create_string(grapheme)?)?;
+        }
+    } else {
+        // uh oh we have a mix of graphemes and invalid utf8
+        for chunk in s_bytes.utf8_chunks() {
+            for grapheme in chunk.valid().graphemes(true) {
+                result.raw_push(luau.create_string(grapheme)?)?;
+            }
+            if !chunk.invalid().is_empty() {
+                result.raw_push(luau.create_string(chunk.invalid())?)?;
+            }
+        }
+    }
+    Ok(result)
+}
+
+fn split_separators(
+    luau: &Lua, 
+    s_bytes: &[u8], 
+    multivalue: LuaMultiValue, 
+    function_name: &'static str, 
+    keep: bool
+) -> LuaResult<LuaTable> {
+    let mut separators = Vec::new();
+    for (index, value) in multivalue.iter().enumerate() {
+        match value {
+            LuaValue::String(sep) => {
+                separators.push(sep.as_bytes().to_owned());
+            },
+            other => {
+                return wrap_err!("{}: separator at index {} is not a string; got: {:?}", function_name, index, other);
+            }
+        }
+    }
+    // if we're splitting by separators, it's probably a comma, \n, or something else
+    // we likely won't have as many results as we would when splitting by graphemes, so we preallocate less
+    let good_prealloc_guess = std::cmp::min(s_bytes.len() / 6, MAX_TABLE_SIZE); // exceeding MAX_TABLE_SIZE causes abort
+    let result = luau.create_table_with_capacity(good_prealloc_guess, 0)?;
+    let ac =  match AhoCorasick::new(separators) {
+        Ok(ac) => ac,
+        Err(err) => {
+            return wrap_err!("{}: can't initialize AhoCorasick matcher (with separators) due to err: {}", function_name, err);
+        }
+    };
+
+    let ac_iterator =  match ac.try_find_iter(s_bytes) {
+        Ok(iterator) => iterator,
+        Err(err) => {
+            return wrap_err!("{}: can't generate AhoCorasick iterator due to err: {}", function_name, err);
+        }
+    };
+
+    let mut prev_index = 0;
+    for mat in ac_iterator {
+        let mat_start = mat.start();
+        let mat_end = mat.end();
+
+        if mat_start >= prev_index {
+            let slice = &s_bytes[prev_index..mat_start];
+            if !slice.is_empty() {
+                result.raw_push(luau.create_string(slice)?)?;
+            }
+        }
+
+        if keep {
+            let sep = &s_bytes[mat_start..mat_end];
+            result.raw_push(luau.create_string(sep)?)?;
+        }
+
+        prev_index = mat_end;
+    }
+
+    let s_len = s_bytes.len();
+    if prev_index < s_len {
+        // final element excluded (between last match and end of string) so let's push it manually
+        result.raw_push(luau.create_string(&s_bytes[prev_index..s_len])?)?;
+    }
+
+    Ok(result)
+}
+
+
 /// str.split is an improvement on luau's string.split in that you can split on multiple different choices of characters/strings
 /// (not just a single string) and that the splitting is fully unicode grapheme aware
 /// by default, str.split splits the string by unicode characters (graphemes)
@@ -27,77 +117,32 @@ fn str_split(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     };
 
     let result = if multivalue.is_empty() {
-        // we want to assume most graphemes are normal ascii but some could be multibyte, and we want to error on the side
-        // of not preallocating more than we need, so 3/4th of the byte len is a good compromise
-        let good_prealloc_guess = std::cmp::min(s_bytes.len() * 3 / 4, MAX_TABLE_SIZE); // exceeding max table size causes abort
-        let result = luau.create_table_with_capacity(good_prealloc_guess, 0)?;
-        // check if whole string is valid utf-8
-        if let Ok(s_str) = std::str::from_utf8(&s_bytes) {
-            for grapheme in s_str.graphemes(true) {
-                result.raw_push(luau.create_string(grapheme)?)?;
-            }
-        } else {
-            // uh oh we have a mix of graphemes and invalid utf8
-            for chunk in s_bytes.utf8_chunks() {
-                for grapheme in chunk.valid().graphemes(true) {
-                    result.raw_push(luau.create_string(grapheme)?)?;
-                }
-                if !chunk.invalid().is_empty() {
-                    result.raw_push(luau.create_string(chunk.invalid())?)?;
-                }
-            }
-        }
-        result
+        split_graphemes(luau, &s_bytes)?
     } else {
-        let mut separators = Vec::new();
-        for (index, value) in multivalue.iter().enumerate() {
-            match value {
-                LuaValue::String(sep) => {
-                    separators.push(sep.as_bytes().to_owned());
-                },
-                other => {
-                    return wrap_err!("{}: separator at index {} is not a string; got: {:?}", function_name, index, other);
-                }
-            }
+        split_separators(luau, &s_bytes, multivalue, function_name, false)?
+    };
+    Ok(LuaValue::Table(result))
+}
+
+/// str.splitkeep has the same semantics as str.split except it keeps the separator strings (splitting in front and behind them)
+fn str_splitkeep(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "str.splitkeep(s: string, separators: ...string)";
+    let s_bytes = match multivalue.pop_front() {
+        Some(LuaValue::String(s)) => {
+            s.as_bytes().to_owned()
+        },
+        Some(other) => {
+            return wrap_err!("{} expected s to be a string, got: {:?}", function_name, other);
         }
-        // if we're splitting by separators, it's probably a comma, \n, or something else
-        // we likely won't have as many results as we would when splitting by graphemes, so we preallocate less
-        let good_prealloc_guess = std::cmp::min(s_bytes.len() / 6, MAX_TABLE_SIZE); // exceeding MAX_TABLE_SIZE causes abort
-        let result = luau.create_table_with_capacity(good_prealloc_guess, 0)?;
-        let ac =  match AhoCorasick::new(separators) {
-            Ok(ac) => ac,
-            Err(err) => {
-                return wrap_err!("{}: can't initialize AhoCorasick matcher (with separators) due to err: {}", function_name, err);
-            }
-        };
-
-        let ac_iterator =  match ac.try_find_iter(&s_bytes) {
-            Ok(iterator) => iterator,
-            Err(err) => {
-                return wrap_err!("{}: can't generate AhoCorasick iterator due to err: {}", function_name, err);
-            }
-        };
-
-        let mut prev_index = 0;
-        for mat in ac_iterator {
-            let mat_start = mat.start();
-            let mat_end = mat.end();
-            if mat_start >= prev_index {
-                let slice = &s_bytes[prev_index..mat_start];
-                if !slice.is_empty() {
-                    result.raw_push(luau.create_string(slice)?)?;
-                }
-            }
-            prev_index = mat_end;
+        None => {
+            return wrap_err!("{} expected a string s, but was incorrectly called with zero arguments", function_name);
         }
+    };
 
-        let s_len = s_bytes.len();
-        if prev_index < s_len {
-            // final element excluded (between last match and end of string) so let's push it manually
-            result.raw_push(luau.create_string(&s_bytes[prev_index..s_len])?)?;
-        }
-
-        result
+    let result = if multivalue.is_empty() {
+        split_graphemes(luau, &s_bytes)?
+    } else {
+        split_separators(luau, &s_bytes, multivalue, function_name, true)?
     };
     Ok(LuaValue::Table(result))
 }
@@ -174,6 +219,7 @@ fn str_graphemes(luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("split", str_split)?
+        .with_function("splitkeep", str_splitkeep)?
         .with_function("graphemes", str_graphemes)?
         .build_readonly()
 }
