@@ -85,6 +85,13 @@ local function extract_identifier_and_path(line: string, debug_path: string): (e
     return nil, nil
 end
 
+-- we keep track of all hot comments
+-- and put them at the top of the bundled file after bundling
+local hot_comments: { [string]: true } = {
+    ["--!optimize 2"] = true,
+    ["--!nolint LocalShadow"] = true,
+}
+
 --[=[
     Check if the line is a comment.
 
@@ -139,7 +146,13 @@ local function comment(line: string, current_comment_prefix: string?): (
         end
     end
 
-    if str.startswith(str.trimfront(line), "--") then
+    local trimmed_line = str.trimfront(line)
+
+    if str.startswith(trimmed_line, "--!") and not hot_comments[trimmed_line] then
+        hot_comments[trimmed_line] = true
+    end
+
+    if str.startswith(trimmed_line, "--") then
         -- single line comment
         return true, nil
     end
@@ -147,12 +160,62 @@ local function comment(line: string, current_comment_prefix: string?): (
     return false, nil
 end
 
+local function find_plain(s: string, n: string): boolean
+    return if string.find(s, n, 1, true) then true else false
+end
+
+--- We transform every usage of thread.spawn with a path into inlining the path's src
+local function transform_thread_spawn_path(
+    line: string,
+    line_number: number,
+    path: string,
+    --- recursive handle to function calling this function cause uh yeah
+    traverse: (path: string, depth: number?, seen_stdlibs: { [string]: boolean? }?) -> err.Result<{string}>,
+    depth: number
+): err.Result<{string}>
+    local relative_path = string.match(line, [=[path%s*=%s*["']([^"']+)["']]=])
+    if not relative_path then
+        return err.message(`{path}:{line_number}: unable to extract relative path in thread.spawn to transform from path to src...`)
+    end
+
+    local resolved = resolver.resolve(relative_path, path)
+    if not resolved.path then
+        return err.message(`{path}:{line_number}: unable to resolve relative path in thread.spawn to transform from path to src...`)
+    end
+
+    local resolved_lines = traverse(resolved.path, depth + 1, {}) -- pass an empty seen stdlibs otherwise we lose needed requires
+    if typeof(resolved_lines) == "error" then
+        return resolved_lines
+    end
+
+    local line_indent = 
+        if str.starts(line, " ", "\t") then
+            string.match(line, "^(%s*)") :: string
+        else 
+            ""
+
+    -- dynamic # of equal signs in case a file being thread.spawned also spawns another thread
+    -- if it does so recursively all bets are off however
+    local n_equal_signs = math.min(depth + 1, 12)
+    local src_line = line_indent .. "src = " .. "[===" .. string.rep("=", n_equal_signs) .. "["
+
+    local result: { string } = { src_line }
+    for _, l in resolved_lines do
+        table.insert(result, l)
+    end
+
+    table.insert(result, "]" .. string.rep("=", n_equal_signs) .. "===]")
+
+    return result
+end
+
 local anon_identifier = 0
 
 local seen: { [string]: string? } = {}
-local seen_stdlibs: { [string]: boolean? } = {}
+local default_seen_stdlibs: { [string]: boolean? } = {}
 
-local function traverse(path: string, depth: number?): err.Result<{string}>
+local function traverse(path: string, depth: number?, seen_stdlibs: { [string]: boolean? }?): err.Result<{string}>
+    seen_stdlibs = seen_stdlibs or default_seen_stdlibs
     depth = depth or 0
 
     if depth > 333 then
@@ -167,6 +230,20 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
 
     local is_comment = false
     local comment_prefix: string? = nil
+    local previous_line = ""
+
+    local function append(line: string)
+        previous_line = line
+        table.insert(transformed, line)
+    end
+
+    local function on_line_or_previous(line: string, first: string, second: string): boolean
+        return (
+            find_plain(previous_line, first) and find_plain(line, second)
+        ) or (
+            find_plain(line, first) and find_plain(line, second)
+        )
+    end
     
     for line_number, line in fs.readlines(path) do
         is_comment, comment_prefix = comment(line, comment_prefix)
@@ -181,7 +258,28 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
 
         -- if it's a normal line of code w/out any imports, add it and keep going
         if requested_require == nil then
-            table.insert(transformed, line)
+            if on_line_or_previous(line, "thread.spawn", "path =") then
+                -- we need to transform the path = into src = ... and transform the file
+                local inlined_src_lines = transform_thread_spawn_path(line, line_number, path, traverse, depth)
+                if typeof(inlined_src_lines) == "error" then
+                    return inlined_src_lines
+                end
+                for _, l in inlined_src_lines do
+                    append(l)
+                end
+                continue
+            elseif
+                (
+                    find_plain(line, "script:parent") or 
+                    find_plain(line, "script:path")
+                ) and
+                depth > 0
+            then
+                warn(`{path}:{line_number}: behavior of script:parent()/script:path() may change when compiled`)
+                append(line)
+            else
+                append(line)
+            end
             continue
         end
 
@@ -189,7 +287,7 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
         if str.starts(requested_require, table.unpack(reserved_aliases)) then
             if not seen_stdlibs[requested_require] then
                 seen_stdlibs[requested_require] = true
-                table.insert(transformed, line)
+                append(line)
             end
             continue
         end
@@ -214,7 +312,7 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
             local replace_string_call_pattern = 'require%s*["\']' .. requested_require .. '["\']'
             line = string.gsub(line, replace_string_call_pattern, seen_identifier)
 
-            table.insert(transformed, line)
+            append(line)
             continue
         end
 
@@ -259,7 +357,7 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
         -- and simply add all dependency lines to transformed
         table.insert(transformed, `-- START {resolved.path}`)
         for _, dependency_line in dependency_lines do
-            table.insert(transformed, dependency_line)
+            append(dependency_line)
         end
 
         -- replace the require call with the identifier name
@@ -269,7 +367,7 @@ local function traverse(path: string, depth: number?): err.Result<{string}>
         line = string.gsub(line, replace_string_call_pattern, identifier)
 
         -- add finally, put the original (transformed) line behind its dependency lines!
-        table.insert(transformed, line)
+        append(line)
     end
 
     return transformed
@@ -286,8 +384,9 @@ local function bundle(project_path: string): err.Result<string>
         return bundled_lines
     end
 
-    table.insert(bundled_lines, 1, `--!nolint LocalShadow`)
-    table.insert(bundled_lines, 1, `--!optimize 2`)
+    for hot_comment, _ in hot_comments do
+        table.insert(bundled_lines, 1, hot_comment)
+    end
 
     local bundled = table.concat(bundled_lines, "\n")
 
