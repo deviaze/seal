@@ -10,9 +10,9 @@ local format = require("@std/io/format")
 
 local project_path = 
 	if env.os == "Android" then 
-		fs.path.join(fs.path.home(), "sealproject")
-	else 
-		fs.path.join(fs.path.home(), "Documents", "sealproject")
+		fs.dir.home():join("sealproject")
+	else
+		fs.dir.home():join("Documents", "sealproject")
 
 fs.dir.try_remove(project_path)
 

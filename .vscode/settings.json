@@ -11,6 +11,9 @@
     "editor.tabSize": 4
   },
   "luau-lsp.fflags.enableByDefault": true,
+  // "luau-lsp.fflags.override": {
+  //   "LuauSubtypingReportGenericBoundMismatches": "false",
+  // },
   "luau-lsp.inlayHints.parameterNames": "literals",
   "luau-lsp.platform.type": "standard",
   "workbench.editor.customLabels.patterns": {

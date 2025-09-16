@@ -83,13 +83,13 @@ export type PathLib = {
 	--- to the current project instead of relying on the user's cwd.
 	cwd: () -> string,
 	--[=[
-		Returns the *seal* project directory `n` projects up, relative to the current `script:path()`.
+		Returns the *seal* project directory `n` projects up, relative to `script_path` or the current `script:path()` if unspecified.
 
 		To get the closest project directory to the current file, use `fs.path.project()`.
 
 		Returns the project directory if found, or `nil` if no project directory was found exactly `n` projects up.
 	]=]
-	project: (n: number?) -> string?
+	project: (n: number?, script_path: string?) -> string?
 }
 
 return {} :: PathLib

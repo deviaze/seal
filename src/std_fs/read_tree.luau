@@ -11,7 +11,7 @@ local function readtree(path: string): TreeResult
 	local directory_tree = {}
 	for p, entry in fs.entries(path) do 
 		if entry.type == "File" then
-			table.insert(directory_tree, {
+			(table.insert :: any)(directory_tree, { -- LUAU FIXME: table.insert confusion?
 				type = "File",
 				name = entry.name,
 				content = entry:read(),
@@ -19,7 +19,7 @@ local function readtree(path: string): TreeResult
 		elseif entry.type == "Directory" then
 			local result = readtree(p)
 			if (result :: any).tree then -- LUAU FIXME: doesn't realize it's a table refinement check
-				table.insert(directory_tree, {
+				(table.insert :: any)(directory_tree, {
 					type = "Directory",
 					name = entry.name,
 					children = result.tree,

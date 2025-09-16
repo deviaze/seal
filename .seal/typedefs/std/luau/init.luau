@@ -62,6 +62,23 @@ export type luau = {
         Compiles `src` to Luau bytecode.
     ]=]
     bytecode: (src: string) -> buffer | error,
+    --> luau.require_resolver()
+    --[=[
+        Returns *seal*'s require resolver implementation used internally.
+    ]=]
+    require_resolver: () -> {
+        --- Resolve a Luau require alias (`requested_path`) relative to `requiring_file_path` to find its location on the filesystem.
+        resolve: (requested_path: string, requiring_file_path: string) -> { err: string, path: nil } | { path: string, err: nil },
+        get_aliases: (requiring_file_path: string) -> ({ LuaurcAliases }?, string?),
+        expand_aliases: (requested_path: string, aliases_by_luaurc: { LuaurcAliases }) -> (string?, string?),
+    }
+}
+
+export type LuaurcAliases = {
+	path: string,
+	aliases: {
+		[string]: string
+	}
 }
 
 return {} :: luau

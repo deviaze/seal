@@ -1,3 +1,4 @@
+--!nonstrict
 -- note! although this library is implemented in luau, modifying its typedefs won't
 -- modify it in seal!
 
@@ -205,6 +206,8 @@ function semver.satisfies(self: Semver, semver_range: string): boolean
     return true
 end
 
+-- LUAU FIXME: in strict mode this completely blows up with wacky any/unknown inference
+-- and typestate going oof
 function semver.__eq(self: Semver, other: Semver): boolean
     if 
         self.major ~= other.major or
