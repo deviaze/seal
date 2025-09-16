@@ -124,9 +124,9 @@ fn str_split(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
     Ok(LuaValue::Table(result))
 }
 
-/// str.splitkeep has the same semantics as str.split except it keeps the separator strings (splitting in front and behind them)
-fn str_splitkeep(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let function_name = "str.splitkeep(s: string, separators: ...string)";
+/// str.splitar has the same semantics as str.split except it splits around the separator strings, keeping them in the final result
+fn str_splitar(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "str.splitar(s: string, separators: ...string)";
     let s_bytes = match multivalue.pop_front() {
         Some(LuaValue::String(s)) => {
             s.as_bytes().to_owned()
@@ -219,7 +219,7 @@ fn str_graphemes(luau: &Lua, value: LuaValue) -> LuaValueResult {
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
         .with_function("split", str_split)?
-        .with_function("splitkeep", str_splitkeep)?
+        .with_function("splitar", str_splitar)?
         .with_function("graphemes", str_graphemes)?
         .build_readonly()
 }
