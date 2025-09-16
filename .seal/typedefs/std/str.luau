@@ -261,6 +261,8 @@ local internal = (require)("@std/str_internal")
 	- Like with Luau's `string.split`, passing an empty separator string (`""`) to `str.split` will split the string by bytes instead of graphemes.
 	- splits that result in an empty string are not included in the returned array.
 	- `str.split` does not allow for overlapping splits when split with multiple separators.
+	- Separators are evaluated in left-to-right order, meaning that separators in front have higher priority than those in the back.
+
 
 	### Edge cases:
 	- Sometimes simple characters directly to the right of emojis don't render when printed (example `print[["🦭"]]`)
@@ -269,20 +271,24 @@ local internal = (require)("@std/str_internal")
 str.split = internal.split :: (s: string, ...string) -> { string }
 
 --[=[
-	`str.splitkeep` follows the same semantics as `str.split`, except that it splits in front of and behind the separator strings,
-	keeping the separator strings in the final result.
+	Splits string `s` *around* one or more separator strings, keeping the separators in the final result.
+	This is especially useful for parsing and tokenizing text.
 
-	Like `str.split`, `str.splitkeep` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
+	`str.splitar` otherwise follows the same semantics as `str.split`, including splitting by unicode graphemes when zero separators are provided.
+
+	Separators are evaluated in left-to-right order, meaning that separators in front have higher priority than those in the back.
+
+	Like `str.split`, `str.splitar` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
 
 	## Usage
 	
 	```luau
 	local line = `function Cat.meow(name: string, age: number)`
-	local tokens = str.splitkeep(line, " ", ".", "(", ":", ",", ")")
+	local tokens = str.splitar(line, " ", ".", "(", ":", ",", ")")
 	--> { "function", " ", "Cat", ".", "meow", "(", "name", ":", " ", "string", ",", " ", "age", ":", " ", "number", ")"}
 	```
 ]=]
-str.splitkeep = internal.splitkeep :: (s: string, ...string) -> { string }
+str.splitar = internal.splitar :: (s: string, ...string) -> { string }
 
 --[=[
 	Iterate over the human-readable characters (graphemes) of a string
