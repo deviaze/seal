@@ -338,7 +338,7 @@ fn fs_path_home(luau: &Lua, _value: LuaValue) -> LuaValueResult {
 }
 
 fn fs_path_project(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let function_name = "fs.path.project(n: number?)";
+    let function_name = "fs.path.project(n: number?, script_path: string?)";
     let projects_up = match multivalue.pop_front() {
         Some(LuaValue::Integer(i)) => int_to_usize(i, function_name, "n")?,
         Some(LuaValue::Number(f))=> float_to_usize(f, function_name, "n")?,
@@ -347,7 +347,13 @@ fn fs_path_project(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult 
             return wrap_err!("{} expected n, the number of projects up (default 1) to be a number or nil/unspecified, got: {:?}", function_name, other);
         }
     };
-    let script_path = globals::get_debug_name(luau)?;
+    let script_path = match multivalue.pop_front() {
+        Some(LuaValue::String(entry)) => entry.to_string_lossy(),
+        Some(LuaNil) | None => globals::get_debug_name(luau)?,
+        Some(other) => {
+            return wrap_err!("{} expected script_path to be a string or nil, got: {:?}", function_name, other);
+        }
+    };
     match globals::find_project(&script_path, projects_up) {
         Some(project) => ok_string(project.to_string_lossy().to_string(), luau),
         None => Ok(LuaNil)

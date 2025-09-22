@@ -2,7 +2,11 @@
 use crate::{prelude::*, setup::SetupOptions};
 use mluau::prelude::*;
 
-use std::{collections::VecDeque, env, ffi::OsString, fs};
+use std::env;
+use std::ffi::OsString;
+use std::collections::VecDeque;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
 
 pub mod prelude;
 mod std_env;
@@ -23,8 +27,10 @@ mod std_serde;
 mod std_str_internal;
 mod std_thread;
 mod std_luau;
+mod std_err;
 mod sealconfig;
 mod setup;
+mod compile;
 
 use err::display_error_and_exit;
 use sealconfig::SealConfig;
@@ -33,7 +39,7 @@ use globals::SEAL_VERSION;
 type LuauLoadResult = LuaResult<Option<LuauLoadInfo>>;
 struct LuauLoadInfo {
     luau: Lua,
-    src: String,
+    src: Vec<u8>,
     /// chunk_name is basically the entry_path except it's always an absolute path
     chunk_name: String,
 }
@@ -76,6 +82,12 @@ enum SealCommand {
     Version,
     /// not yet implemented
     Repl,
+    ExecStandalone(Vec<u8>),
+    /// Compiles project codebase to standalone executable (or bundles to a .luau file)
+    /// seal compile ./myfile.luau sets ./myfile.luau as the entry point file (otherwise defaults to .seal/config.luau entry_path)
+    /// seal compile [path.luau] -o binname names the output executable 'binname'
+    /// seal compile [path.luau] -o filename.luau bundles the project's sourcecode into filename.luau without making a standalone executable
+    Compile(Args),
 }
 
 impl SealCommand {
@@ -86,6 +98,7 @@ impl SealCommand {
             "project" | "sp" => Self::Setup(SetupOptions::Project),
             "script" | "ss" => Self::Setup(SetupOptions::Script),
             "custom" | "sc" => Self::Setup(SetupOptions::Custom),
+            "compile" => Self::Compile(args),
             "eval" | "e" => Self::Eval(args.clone()),
             "run" | "r" => Self::Run,
             "test" | "t" => Self::Test,
@@ -130,6 +143,8 @@ fn main() -> LuaResult<()> {
         SealCommand::Repl => {
             wrap_err!("seal repl coming SOON (tm)")
         },
+        SealCommand::Compile(args) => seal_compile(args),
+        SealCommand::ExecStandalone(bytecode) => seal_standalone(bytecode),
     };
 
     let LuauLoadInfo { luau, src, chunk_name } = match info_result {
@@ -171,7 +186,7 @@ fn resolve_file(requested_path: String, function_name: &'static str) -> LuauLoad
         src = src[first_newline_pos + 1..].to_string();
     }
 
-    Ok(Some(LuauLoadInfo { luau, src, chunk_name }))
+    Ok(Some(LuauLoadInfo { luau, src: src.as_bytes().to_owned(), chunk_name }))
 }
 
 fn seal_eval(mut args: Args) -> LuauLoadResult {
@@ -193,7 +208,7 @@ fn seal_eval(mut args: Args) -> LuauLoadResult {
 
     Ok(Some(LuauLoadInfo {
         luau,
-        src,
+        src: src.as_bytes().to_owned(),
         // relative require probs wont work atm
         chunk_name: std_env::get_cwd("seal eval")?
             .to_string_lossy()
@@ -238,46 +253,131 @@ fn seal_test() -> LuauLoadResult {
 fn seal_setup(options: SetupOptions) -> LuauLoadResult {
     setup::run(options)?;
     Ok(None)
-    // const DOT_SEAL_DIR: Dir = include_dir!("./.seal");
-    // let cwd = std_env::get_cwd("seal setup")?;
-    // let dot_seal_dir = cwd.join(".seal");
-    // let created_seal_dir = match fs::create_dir(&dot_seal_dir) {
-    //     Ok(_) => true,
-    //     Err(err) => match err.kind() {
-    //         io::ErrorKind::AlreadyExists => {
-    //             println!("seal setup - '.seal' already exists; not replacing it");
-    //             false
-    //         }
-    //         _ => {
-    //             return wrap_err!("seal setup = error creating .seal: {}", err);
-    //         }
-    //     },
-    // };
+}
 
-    // if created_seal_dir {
-    //     match DOT_SEAL_DIR.extract(dot_seal_dir) {
-    //         Ok(()) => {
-    //             println!("seal setup .seal in your current directory!");
-    //         }
-    //         Err(err) => {
-    //             return wrap_err!("seal setup - error extracting .seal directory: {}", err);
-    //         }
-    //     };
-    // }
+fn seal_compile(mut args: Args) -> LuauLoadResult {
+    let function_name = "seal compile";
 
-    // let seal_setup_settings = include_str!("./scripts/seal_setup_settings.luau");
-    // let temp_luau = Lua::new();
-    // globals::set_globals(&temp_luau, cwd.to_string_lossy().into_owned())?;
-    // match temp_luau.load(seal_setup_settings).exec() {
-    //     Ok(_) => Ok(None),
-    //     Err(err) => {
-    //         wrap_err!("Hit an error running seal_setup_settings.luau: {}", err)
-    //     }
-    // }
+    let default_entry_path = std_env::get_cwd(function_name)?;
+    let default_output_path = match default_entry_path.file_name() {
+        Some(basename) => basename.to_string_lossy(),
+        None => {
+            return wrap_err!("{} - why can't we figure out the basename of your cwd???", function_name);
+        }
+    };
+
+    // ugly asf we should probably be parsing these in SealCommand
+    #[allow(unused_mut, reason = "needs to be mut on windows")]
+    let (entry_path, mut output_path): (String, String) = {
+        if args.is_empty() {
+            (default_entry_path.to_string_lossy().to_string(), default_output_path.to_string())
+        } else if let Some(front) = args.front()
+            && let Some(front) = front.to_str()
+        {
+            if front == "-o" {
+                let _ = args.pop_front();
+                if let Some(exec_name) = args.front() {
+                    (default_entry_path.to_string_lossy().to_string(), exec_name.to_string_lossy().to_string())
+                } else {
+                    return wrap_err!("{} - output switch (-o) provided but missing output file name/path", function_name);
+                }
+            } else {
+                let entry_path = args.pop_front().unwrap(); // UNWRAP: args never empty here
+                if let Some(front) = args.front()
+                    && let Some(front) = front.to_str()
+                {
+                    if front == "-o" {
+                        let _ = args.pop_front();
+                        if let Some(exec_name) = args.front() {
+                            (entry_path.to_string_lossy().to_string(), exec_name.to_string_lossy().to_string())
+                        } else {
+                            return wrap_err!("{} - output switch (-o) provided but missing output file name/path", function_name);
+                        }
+                    } else {
+                        (entry_path.to_string_lossy().to_string(), default_output_path.to_string())
+                    }
+                } else {
+                    return wrap_err!("{} - bad utf8 :skull:", function_name);
+                }
+
+            }
+        } else {
+            return wrap_err!("{} - bad utf8 :skull:", function_name);
+        }
+    };
+
+    let bundled_src = compile::bundle(&entry_path)?;
+
+    if output_path.ends_with(".luau") {
+        match fs::write(&output_path, bundled_src) {
+            Ok(_) => {
+                println!("{} - bundled project sourcecode to '{}'", function_name, &output_path);
+            },
+            Err(err) => {
+                return wrap_err!("{} - unable to write to file '{}' due to err: {}", function_name, &output_path, err);
+            }
+        }
+        return Ok(None);
+    };
+
+    let compiled_standalone_bytes = compile::standalone(&bundled_src)?;
+
+    let mut file = match OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&*output_path)
+    {
+        Ok(f) => f,
+        Err(err) => {
+            return wrap_err!("{} - error creating output file: {}", function_name, err);
+        }
+    };
+
+    #[cfg(windows)]
+    {
+        if !output_path.ends_with(".exe") {
+            output_path.push_str(".exe");
+        }
+    }
+
+
+    if let Err(err) = file.write_all(&compiled_standalone_bytes) {
+        return wrap_err!("{} - error writing compiled program to file: {}", function_name, err);
+    }
+
+    println!("{} - compiled to standalone program '{}'!", function_name, output_path);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        // give it executable permissions on unix (chmod +x file) rwxr-xr-x (0o755)
+        if let Err(err) = file.set_permissions(PermissionsExt::from_mode(0o755)) {
+            return wrap_err!("{} - error setting executable permissions: {}", function_name, err);
+        }
+    }
+
+    Ok(None)
+}
+
+fn seal_standalone(bytecode: Vec<u8>) -> LuauLoadResult {
+    let luau = Lua::new();
+    let entry_path = std::env::current_exe().unwrap_or_default();
+    let entry_path = entry_path.to_string_lossy().into_owned();
+    globals::set_globals(&luau, &entry_path)?;
+    Ok(Some(LuauLoadInfo {
+        luau,
+        src: bytecode,
+        chunk_name: entry_path
+    }))
 }
 
 impl SealCommand {
     fn parse(mut args: Args) -> LuaResult<SealCommand> {
+        if let Some(bytecode) = compile::extract_bytecode(None) {
+            return Ok(Self::ExecStandalone(bytecode))
+        }
+
         // discard first arg (always "seal")
         let _ = args.pop_front();
 
@@ -328,6 +428,7 @@ impl SealCommand {
             Self::Test => "test",
             Self::HelpCommandHelp => "help",
             Self::SealConfigHelp => "config",
+            Self::Compile(_) => "compile",
             other => {
                 return wrap_err!("help not yet implemented for command {:#?}", other);
             },

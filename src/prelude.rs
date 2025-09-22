@@ -82,7 +82,7 @@ impl DebugInfo {
                 return wrap_err!("{}: expected line, got: {:?}", function_name, other);
             }
         };
-        let function_name = match info.raw_get("function_name")? {
+        let caller_function_name = match info.raw_get("function_name")? {
             LuaValue::String(s) => s.to_string_lossy(),
             LuaNil => String::from("<FUNCTION NAME NOT FOUND>"),
             other => {
@@ -90,7 +90,7 @@ impl DebugInfo {
             }
         };
 
-        Ok(Self { source, line, function_name })
+        Ok(Self { source, line, function_name: caller_function_name })
     }
 }
 

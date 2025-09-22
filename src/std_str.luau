@@ -21,6 +21,24 @@ function str.endswith(s: string, suffix: string): boolean
     return string.sub(s, -#suffix) == suffix
 end
 
+function str.starts(s: string, ...: string): boolean
+    for _, prefix in {...} do
+        if str.startswith(s, prefix) then
+            return true
+        end
+    end
+    return false
+end
+
+function str.ends(s: string, ...: string): boolean
+    for _, suffix in {...} do
+        if str.endswith(s, suffix) then
+            return true
+        end
+    end
+    return false
+end
+
 --- trims any of the provided strings/characters from the front of the string `s`
 ---
 --- if no strings provided as ..., `str.trimfront` will trim whitespace (" ", "\n", etc.)
