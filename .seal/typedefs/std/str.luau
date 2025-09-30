@@ -292,23 +292,23 @@ str.split = internal.split :: (s: string, ...string) -> { string }
 
 --[=[
 	Splits string `s` *around* one or more separator strings, keeping the separators in the final result.
-	This is especially useful for parsing and tokenizing text.
+	This is especially useful for parsing and tokenizing text!
 
-	`str.splitar` otherwise follows the same semantics as `str.split`, including splitting by unicode graphemes when zero separators are provided.
+	`str.splitaround` otherwise follows the same semantics as `str.split`.
 
 	Separators are evaluated in left-to-right order, meaning that separators in front have higher priority than those in the back.
 
-	Like `str.split`, `str.splitar` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
+	Like `str.split`, `str.splitaround` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
 
 	## Usage
 	
 	```luau
 	local line = `function Cat.meow(name: string, age: number)`
-	local tokens = str.splitar(line, " ", ".", "(", ":", ",", ")")
+	local tokens = str.splitaround(line, " ", ".", "(", ":", ",", ")")
 	--> { "function", " ", "Cat", ".", "meow", "(", "name", ":", " ", "string", ",", " ", "age", ":", " ", "number", ")"}
 	```
 ]=]
-str.splitar = internal.splitar :: (s: string, ...string) -> { string }
+str.splitaround = internal.splitaround :: (s: string, seps: string, ...string) -> { string }
 
 --[=[
 	Iterate over the human-readable characters (graphemes) of a string

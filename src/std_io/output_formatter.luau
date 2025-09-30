@@ -158,7 +158,7 @@ local function process_raw_values(
     elseif mlua.iserror(value) then
         local stringified_error = tostring(value)
         local errsplit = string.split(stringified_error, "\n")
-        local errmsglist = {}
+        local errmsglist: { string } = {}
         for _, m in errsplit do
             if string.find(m, "stack traceback") then
                 break

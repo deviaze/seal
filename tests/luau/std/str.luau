@@ -84,7 +84,7 @@ strgraphemes()
 
 local function splitar()
 	local line = `function Cat.meow(name: string, age: number)`
-	local tokens = str.splitar(line, " ", ".", "(", ":", ",", ")")
+	local tokens = str.splitaround(line, " ", ".", "(", ":", ",", ")")
 	assert(tokens[1] == "function", "first token should be function")
 	assert(tokens[3] == "Cat", "third token should be Cat")
 	assert(tokens[9] == " ", "9th token should be whitespace ' '")
@@ -95,7 +95,7 @@ splitar()
 
 local function strsplitarunicode()
 	local keepy = "हाय मैं एक सील हूँ 🦭 (hi i am a seal 🦭)"
-	local sealed = str.splitar(keepy, "🦭")
+	local sealed = str.splitaround(keepy, "🦭")
 	assert(sealed[2] == "🦭", "2nd index should be 🦭")
 end
 
