@@ -311,6 +311,45 @@ str.split = internal.split :: (s: string, ...string) -> { string }
 str.splitaround = internal.splitaround :: (s: string, seps: string, ...string) -> { string }
 
 --[=[
+	Splits `s` in front of any passed separator strings, keeping the separator in the subsequent element of the returned array.
+
+	Otherwise has the same semantics as `str.split`.
+
+	## Usage
+
+	```luau
+	local messages = "[INFO] message\nnext line of message\n[WARN] bad warning\n[ERROR] message\n stack traceback"
+	local splitted = str.splitbefore(messages, "[INFO]", "[WARN]", "[ERROR]")
+	print(splitted) --> 
+	{
+		"[INFO] message\nnext line of message\n",
+		"[WARN] bad warning\n",
+		"[ERROR] message\n stack traceback",
+	}
+	```
+]=]
+str.splitbefore = internal.splitbefore :: (s: string, seps: string, ...string) -> { string }
+
+--[=[
+	Splits `s` after every occurrence of a separator string, keeping the separator in the current element of the returned array.
+
+	Otherwise has the same semantics as `str.split`.
+
+	## Usage
+
+	```luau
+	local httpheaders = "Content-Type: text/html\r\nContent-Length: 123\r\nConnection: keep-alive\r\n"
+	local splitted = str.splitafter(httpheaders, "\r\n") --> 
+	{ 
+		"Content-Type: text/html\r\n", 
+		"Content-Length: 123\r\n", 
+		"Connection: keep-alive\r\n"
+	}
+	```
+]=]
+str.splitafter = internal.splitafter :: (s: string, seps: string, ...string) -> { string }
+
+--[=[
 	Iterate over the human-readable characters (graphemes) of a string
 
 	This function counts by 'characters', whereas `str.graphemes` provides byte indices for `string.sub`/`str.slice`

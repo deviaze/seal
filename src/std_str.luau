@@ -282,6 +282,10 @@ str.split = str_internal.split :: (s: string, ...string) -> { string }
 ]=]
 str.splitaround = str_internal.splitaround :: (s: string, separators: string, ...string) -> { string }
 
+str.splitbefore = str_internal.splitbefore :: (s: string, separators: string, ...string) -> { string }
+
+str.splitafter = str_internal.splitafter :: (s: string, separators: string, ...string) -> { string }
+
 --[=[
     Iterate over the human-readable characters (graphemes) of a string
 
