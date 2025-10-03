@@ -82,21 +82,59 @@ end
 
 strgraphemes()
 
-local function splitar()
+local function splitaround()
 	local line = `function Cat.meow(name: string, age: number)`
-	local tokens = str.splitar(line, " ", ".", "(", ":", ",", ")")
+	local tokens = str.splitaround(line, " ", ".", "(", ":", ",", ")")
 	assert(tokens[1] == "function", "first token should be function")
 	assert(tokens[3] == "Cat", "third token should be Cat")
 	assert(tokens[9] == " ", "9th token should be whitespace ' '")
 	assert(tokens[#tokens] == ")", "last token should be )")
 end
 
-splitar()
+splitaround()
 
-local function strsplitarunicode()
+local function splitaroundunicode()
 	local keepy = "हाय मैं एक सील हूँ 🦭 (hi i am a seal 🦭)"
-	local sealed = str.splitar(keepy, "🦭")
+	local sealed = str.splitaround(keepy, "🦭")
 	assert(sealed[2] == "🦭", "2nd index should be 🦭")
 end
 
-strsplitarunicode()
+splitaroundunicode()
+
+local function assertarray(got: { string }, expected: { string })
+	for index, value in expected do
+		assert(got[index] == value, `incorrect got[{index}]; expected '{value}', got: '{got[index]}'`)
+	end
+end
+
+local function splitbefore()
+	local text = "we, are, the, dead,"
+	local splitted = str.splitbefore(text, ", ", ",")
+	assertarray(splitted, {"we", ", are", ", the", ", dead", ","})
+end
+
+splitbefore()
+
+local function splitbeforemessages()
+	local messages = "[INFO] message\nnext line of message\n[WARN] bad warning\n[ERROR] message\n stack traceback"
+	local splitted = str.splitbefore(messages, "[INFO]", "[WARN]", "[ERROR]")
+	assertarray(splitted, {"[INFO] message\nnext line of message\n", "[WARN] bad warning\n", "[ERROR] message\n stack traceback"})
+end
+
+splitbeforemessages()
+
+local function splitafter()
+	local text = "we, are, the, dead"
+	local splitted = str.splitafter(text, ", ")
+	assertarray(splitted, {"we, ", "are, ", "the, ", "dead"})
+end
+
+splitafter()
+
+local function splitafterheaders()
+	local httpheaders = "Content-Type: text/html\r\nContent-Length: 123\r\nConnection: keep-alive\r\n"
+	local splitted = str.splitafter(httpheaders, "\r\n")
+	assertarray(splitted, {"Content-Type: text/html\r\n", "Content-Length: 123\r\n", "Connection: keep-alive\r\n"})
+end
+
+splitafterheaders()

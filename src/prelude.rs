@@ -1,6 +1,8 @@
 // pub use crate::{LuaValueResult, LuaEmptyResult, LuaMultiResult, colors, wrap_err};
 use mluau::prelude::*;
 
+pub const MAX_TABLE_SIZE: usize = 134_217_728;
+
 pub use crate::{std_io::colors as colors, wrap_err, table_helpers::TableBuilder};
 
 pub type LuaValueResult = LuaResult<LuaValue>;
@@ -154,4 +156,15 @@ pub fn float_to_u64(f: f64, function_name: &'static str, parameter_name: &'stati
     } else {
         wrap_err!("{} expected {} to be an integer, unexpectedly got a float: {}", function_name, parameter_name, f)
     }
+}
+
+/// Creates table with capacity, clamping upper capacity to `MAX_TABLE_SIZE` for safety
+pub fn create_table_with_capacity(luau: &Lua, n_array: usize, n_records: usize) -> LuaResult<LuaTable> {
+    let n_array = std::cmp::min(n_array, MAX_TABLE_SIZE);
+    let n_records = std::cmp::min(n_records, MAX_TABLE_SIZE);
+    // SAFETY: luau.create_table_with_capacity will abort if `capacity` exceeds MAX_TABLE_SIZE (throwing Rust cannot catch foreign exceptions)
+    // We clamp `good_prealloc_guess` to MAX_TABLE_SIZE to guarantee safety.
+    // This API should be marked unsafe... but isn't.. so we explicitly treat it as unsafe here.
+    #[allow(unused_unsafe)]
+    unsafe { luau.create_table_with_capacity(n_array, n_records) }
 }

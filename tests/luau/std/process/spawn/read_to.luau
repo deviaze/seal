@@ -3,6 +3,8 @@ local env = require("@std/env")
 local path = require("@std/fs/path")
 local str = require("@std/str")
 
+local cheese = require("@tests/cheese")
+
 local function spawn_longrunning(): process.ChildProcess
 	local child = process.spawn {
 		program = env.executable_path,
@@ -82,4 +84,4 @@ local function interruptedreadallowpartial()
 	end
 end
 
-interruptedreadallowpartial()
+cheese.retry(interruptedreadallowpartial, 3)

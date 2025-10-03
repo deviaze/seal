@@ -292,23 +292,62 @@ str.split = internal.split :: (s: string, ...string) -> { string }
 
 --[=[
 	Splits string `s` *around* one or more separator strings, keeping the separators in the final result.
-	This is especially useful for parsing and tokenizing text.
+	This is especially useful for parsing and tokenizing text!
 
-	`str.splitar` otherwise follows the same semantics as `str.split`, including splitting by unicode graphemes when zero separators are provided.
+	`str.splitaround` otherwise follows the same semantics as `str.split`.
 
 	Separators are evaluated in left-to-right order, meaning that separators in front have higher priority than those in the back.
 
-	Like `str.split`, `str.splitar` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
+	Like `str.split`, `str.splitaround` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
 
 	## Usage
 	
 	```luau
 	local line = `function Cat.meow(name: string, age: number)`
-	local tokens = str.splitar(line, " ", ".", "(", ":", ",", ")")
+	local tokens = str.splitaround(line, " ", ".", "(", ":", ",", ")")
 	--> { "function", " ", "Cat", ".", "meow", "(", "name", ":", " ", "string", ",", " ", "age", ":", " ", "number", ")"}
 	```
 ]=]
-str.splitar = internal.splitar :: (s: string, ...string) -> { string }
+str.splitaround = internal.splitaround :: (s: string, seps: string, ...string) -> { string }
+
+--[=[
+	Splits `s` in front of any passed separator strings, keeping the separator in the subsequent element of the returned array.
+
+	Otherwise has the same semantics as `str.split`.
+
+	## Usage
+
+	```luau
+	local messages = "[INFO] message\nnext line of message\n[WARN] bad warning\n[ERROR] message\n stack traceback"
+	local splitted = str.splitbefore(messages, "[INFO]", "[WARN]", "[ERROR]")
+	print(splitted) --> 
+	{
+		"[INFO] message\nnext line of message\n",
+		"[WARN] bad warning\n",
+		"[ERROR] message\n stack traceback",
+	}
+	```
+]=]
+str.splitbefore = internal.splitbefore :: (s: string, seps: string, ...string) -> { string }
+
+--[=[
+	Splits `s` after every occurrence of a separator string, keeping the separator in the current element of the returned array.
+
+	Otherwise has the same semantics as `str.split`.
+
+	## Usage
+
+	```luau
+	local httpheaders = "Content-Type: text/html\r\nContent-Length: 123\r\nConnection: keep-alive\r\n"
+	local splitted = str.splitafter(httpheaders, "\r\n") --> 
+	{ 
+		"Content-Type: text/html\r\n", 
+		"Content-Length: 123\r\n", 
+		"Connection: keep-alive\r\n"
+	}
+	```
+]=]
+str.splitafter = internal.splitafter :: (s: string, seps: string, ...string) -> { string }
 
 --[=[
 	Iterate over the human-readable characters (graphemes) of a string

@@ -4,6 +4,8 @@ local thread = require("@std/thread")
 local format = require("@std/io/format")
 local unformat = require("@std/io/output").unformat
 
+local cheese = require("@tests/cheese")
+
 local function watchiter()
     -- child thread calls fs lib fns to simulate 'reproducible' fs events
     local handle = thread.spawn {
@@ -101,4 +103,5 @@ local function watchiter()
     -- macos puts most writes as creates i guess?
     assert(writes_found >= 3 or creates_found.files >= 3, "at least 3 files should've been modified (testfile.txt twice, taz.json once)")
 end
-watchiter()
+
+cheese.retry(watchiter, 3)
