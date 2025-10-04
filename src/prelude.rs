@@ -100,7 +100,7 @@ impl DebugInfo {
 /// safely convert i64 to usize while handling common problems like negatives and out of ranges
 pub fn int_to_usize(i: i64, function_name: &str, parameter_name: &'static str) -> LuaResult<usize> {
     if i.is_negative() {
-        return wrap_err!("{}: {} represents a byte offset and cannot be negative (got {})", function_name, parameter_name, i);
+        return wrap_err!("{}: {} represents a byte offset or countable number and cannot be negative (got {})", function_name, parameter_name, i);
     }
     match usize::try_from(i) {
         Ok(u) => Ok(u),
