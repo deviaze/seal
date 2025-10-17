@@ -122,7 +122,38 @@ local function setup(config: SetupConfig?)
                 :add_file("settings.json", json.encode(vscode_defaults))
         end
     elseif config.editor == "zed" then
-        err("zed support not yet implemented")
+        local zed_defaults = {
+            ["lsp"] = {
+                ["luau-lsp"] = {
+                    ["settings"] = {
+                        ["luau-lsp"] = {
+                            ["inlayHints"] = {
+                                ["parameterNames"] = "literals",
+                            },
+                        },
+                        ["roblox"] = {
+                            ["enabled"] = false,
+                        },
+                        ["fflags"] = {
+                            ["enable_by_default"] = true,
+                            ["enable_new_solver"] = true,
+                        },
+                        ["definitions"] = { globals_path },
+                        ["documentation"] = { global_docs_path },
+                    }
+                }
+            }
+        }
+        
+        local settings_path = cwd:join(".zed", "settings.json")
+        if fs.path.exists(settings_path) and read_jsonc then
+            local updated = get_updated_zed_settings(read_jsonc(settings_path), zed_defaults)
+            json.writefile(settings_path, updated)
+            print(`Updated .zed/settings.json at '{settings_path}'`)
+        else
+            fs.dir.ensure(cwd:join(".zed"))
+                :add_file("settings.json", json.encode(zed_defaults))
+        end
     end
 
     -- extract typedefs and extra
@@ -243,6 +274,34 @@ function get_updated_vscode_settings(existing: json.JsonData, default: json.Json
             end
         end
     end
+    return existing
+end
+
+function get_updated_zed_settings(existing: json.JsonData, default: json.JsonData): json.JsonData
+    local force = {
+        ["enabled"] = true, -- roblox.enabled
+        ["enable_by_default"] = true, -- fflags.enable_by_default
+        ["enable_new_solver"] = true, -- fflags.enable_new_solver
+    }
+    local function update(existing: json.JsonData, default: json.JsonData)
+        for default_key, default_value in default do
+            local existing_value = existing[default_key]
+            if existing_value == nil or force[default_key] then
+                existing[default_key] = default_value
+            elseif typeof(existing_value) == "table" then
+                if default_key == "definitions" or default_key == "documentation" then
+                    for _, element in default_value do
+                        if not table.find(existing_value, element) then
+                            table.insert(existing_value, element)
+                        end
+                    end
+                else
+                    update(existing_value, default_value)
+                end
+            end
+        end  
+    end
+    update(existing, default)
     return existing
 end
 
@@ -420,6 +479,7 @@ function custom_setup_from_args(): SetupConfig
         local git_response = retry_prompt(git_prompt, {"y", "n", ""})
         git = git_response == "" or git_response == "y"
     else
+        table.remove(args, 1) -- FIXME: please review 🦉 ʰᵒᵒᵗ ʰᵒᵒᵗ
         for index, arg in args do
             if index % 2 == 0 then continue end
             local value = args[index + 1]
