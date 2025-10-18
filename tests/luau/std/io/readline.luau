@@ -13,14 +13,15 @@ local function runsealwithprompt(prompt: string)
         print(`{typeof(result)}: {tostring(result)}`)
     end
     ]], "PROMPT", prompt)
-    local p = fs.dir.home():expect_dir("Downloads"):join("promptsrc.luau")
-    fs.writefile(p, src)
+    local dir = fs.dir.ensure(fs.path.join(fs.path.home(), "Downloads"))
+    local path = dir:join("promptsrc.luau")
+    fs.writefile(path, src)
     local child = process.spawn {
         program = env.executable_path,
-        args = { p }
+        args = { path }
     }
     time.wait(0.125)
-    fs.file.try_remove(p)
+    fs.file.try_remove(path)
     return child
 end
 
