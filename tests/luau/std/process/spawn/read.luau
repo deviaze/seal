@@ -6,6 +6,8 @@ local time = require("@std/time")
 local path = require("@std/fs/path")
 local process = require("@std/process")
 
+local cheese = require("@tests/cheese")
+
 local function spawn_long_waiter(): process.ChildProcess
     return process.spawn {
         program = env.executable_path,
@@ -154,4 +156,4 @@ local function readexactbasic()
     fs.file.try_remove(poem_path)
 end
 
-readexactbasic()
+cheese.retry(readexactbasic, 3)

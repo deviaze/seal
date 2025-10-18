@@ -151,9 +151,9 @@ impl LuaUserData for TimeDuration {
             Ok(round_4_decimals(this.inner.as_secs_f64() / 60.0))
         });
         fields.add_field_method_get("seconds", |_, this| Ok(this.inner.as_secs_f64()));
-        fields.add_field_method_get("milliseconds", |_, this| Ok(this.inner.as_secs_f64() * 1_000.0));
-        fields.add_field_method_get("microseconds", |_, this| Ok(this.inner.as_secs_f64() * 1_000_000.0));
-        fields.add_field_method_get("nanoseconds", |_, this| Ok(this.inner.as_secs_f64() * 1_000_000_000.0));
+        fields.add_field_method_get("milliseconds", |_, this| Ok(this.inner.as_millis_f64()));
+        fields.add_field_method_get("microseconds", |_, this| Ok(this.inner.as_micros()));
+        fields.add_field_method_get("nanoseconds", |_, this| Ok(this.inner.as_nanos()));
     }
 
     fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {

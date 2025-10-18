@@ -2,7 +2,6 @@ local fs = require("@std/fs")
 local env = require("@std/env")
 local thread = require("@std/thread")
 local format = require("@std/io/format")
-local unformat = require("@std/io/output").unformat
 
 local cheese = require("@tests/cheese")
 
@@ -93,7 +92,7 @@ local function watchiter()
 
     handle:join()
 
-    local formatted_events = unformat(format(event_categories))
+    local formatted_events = format.simple(event_categories)
 
     assert(creates_found.files >= 2, `at least 2 files should be created (testfile.txt and taz.json), got: {format(creates_found)} | events {formatted_events}`)
     -- looks like macos makes multiple create calls per dir ?? or something

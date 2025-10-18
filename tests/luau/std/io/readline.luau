@@ -1,0 +1,48 @@
+local fs = require("@std/fs")
+local env = require("@std/env")
+local process = require("@std/process")
+local time = require("@std/time")
+
+local function runsealwithprompt(prompt: string)
+    local src = string.gsub([[
+    local input = require("@std/io/input")
+    local result = input.readline("PROMPT")
+    if typeof(result) == "string" then
+        print(result)
+    else
+        print(`{typeof(result)}: {tostring(result)}`)
+    end
+    ]], "PROMPT", prompt)
+    local p = fs.dir.home():expect_dir("Downloads"):join("promptsrc.luau")
+    fs.writefile(p, src)
+    local child = process.spawn {
+        program = env.executable_path,
+        args = { p }
+    }
+    time.wait(0.125)
+    fs.file.try_remove(p)
+    return child
+end
+
+local function rawlinefallback()
+    local child = runsealwithprompt("how are you?: ")
+    
+    while time.wait(0.12) and child:alive() do
+        local res = child.stdout:read(nil, 0)
+        if res and res == "how are you?: " then
+            child.stdin:write("good!!\n")
+        elseif res and res == "good!!" then
+            return
+        end
+        local err = child.stderr:read(nil, 0)
+        if err then
+            warn(`stderr: {err}`)
+        end
+    end
+
+    print("child died")
+    local good = child.stdout:read()
+    assert(good and good:match("good!!"), `should be good here? got: {good}`)
+end
+
+rawlinefallback()

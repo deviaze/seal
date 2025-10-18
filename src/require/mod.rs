@@ -67,7 +67,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
         "@std/io/output" => ok_table(std_io::output::create(luau)),
         "@std/io/colors" => ok_table(colors::create(luau)),
         "@std/io/clear" => ok_function(std_io::output::clear, luau),
-        "@std/io/format" => ok_function(std_io::output::format, luau),
+        "@std/io/format" => ok_table(std_io::format::create(luau)),
+        "@std/io/prompt" => ok_table(std_io::prompt::create(luau)),
         "@std/colors" => ok_table(colors::create(luau)),
 
         "@std/time" => ok_table(std_time::create(luau)),
@@ -104,6 +105,8 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
 
         "@std/luau" => ok_table(std_luau::create(luau)),
 
+        "@std/cli" => ok_table(std_cli::create(luau)),
+
         "@std" => {
             ok_table(TableBuilder::create(luau)?
                 .with_value("fs", std_fs::create(luau)?)?
@@ -112,7 +115,7 @@ fn get_standard_library(luau: &Lua, path: String) -> LuaValueResult {
                 .with_value("env", std_env::create(luau)?)?
                 .with_value("io", std_io::create(luau)?)?
                 .with_value("colors", colors::create(luau)?)?
-                .with_function("format", std_io::output::format)?
+                .with_value("format", std_io::format::create(luau)?)?
                 .with_value("time", std_time::create(luau)?)?
                 .with_value("datetime", std_time::datetime::create(luau)?)?
                 .with_value("process", std_process::create(luau)?)?

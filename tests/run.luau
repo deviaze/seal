@@ -45,13 +45,18 @@ local function new_test_queue(): { string }
         -- the below are not test files but are required by/imported by other tests
         "./tests/luau/std/thread/get-threads/send_request.luau",
         "./tests/luau/std/net/server/client.luau",
+        "./tests/luau/std/io/raw.luau", -- rawmode messes with everything
+        "./tests/luau/std/io/events.luau", -- rawmode messes with everything
         "./tests/luau/std/thread/conc_1.luau",
         "./tests/luau/errors/another_module.luau",
-        "./tests/luau/std/process.spawn/ception.luau",
+        "./tests/luau/std/process/spawn/ception.luau",
         "./tests/luau/globals/require/basic-requires/relative_data.luau",
     }
     local file_list = fs.listdir(fs.path.join(".", "tests", "luau"), true, function(path: string)
-        return str.endswith(path, ".luau") and not table.find(ignore_files, path)
+        return 
+            str.endswith(path, ".luau") 
+            and not table.find(ignore_files, path)
+            and not str.startswith(path, "./tests/luau/std/io/prompts") -- all of these require rawmode or smth
     end)
     table.insert(file_list, "./tests/scripts/seal_setup_test.luau")
     return file_list
@@ -132,7 +137,7 @@ local test_pool: { [string]: process.ChildProcess } = {} do
 end
 
 local start_time = os.clock()
-local tests_with_stdin = {"io/init", "stdin", "input"}
+local tests_with_stdin = {"io/init", "stdin", "input", "prompt"}
 
 while (os.clock() - start_time) < 20 do
     for test_path, child in test_pool do
@@ -144,7 +149,7 @@ while (os.clock() - start_time) < 20 do
                 and fs.path.child(test_path) ~= "err.luau" -- err.luau should write to stderr
             then
                 local err = child.stderr:read()
-                if err and err:match("ERR") or err and err:match("PANIC") then
+                if err and err:match("ERR") or err and err:match("PANIC") or err and err:match("WARN") then
                     print(` ❌ {colors.red("test failed")}: {test_path}`)
                     table.insert(tests.failed, {
                         path = test_path,
@@ -168,7 +173,11 @@ while (os.clock() - start_time) < 20 do
             -- some tests need user input
             for _, p in tests_with_stdin do
                 if test_path:match(p) then
-                    child.stdin:write(`{math.random(1, 223)}\n`)
+                    if str.endswith(test_path, "simple_prompts.luau") then
+                        child.stdin:write("y\n")
+                    else
+                        child.stdin:write(`{math.random(1, 223)}\n`)
+                    end
                 end
             end
         end

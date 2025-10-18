@@ -10,12 +10,7 @@ local thing = {
 	}
 }
 
-print(output.format(thing))
-
-local dformatted = output["debug-format"](thing)
-
-output["debug-print"](thing)
-
+print("meow")
 output.clear()
 
 print("hi")
@@ -28,4 +23,4 @@ output.write("stasrtfwa")
 
 output.clear()
 
-output.sprint("hi")
+p("hi")

@@ -8,7 +8,7 @@
 
 local mlua = require("@interop/mlua")
 local colors = require("@std/colors")
-local output = require("@std/io/output")
+local format = require("@std/io/format")
 
 local VECTOR_FOUR_WIDE_MODE = (function()
     local s, f = pcall(function()
@@ -166,7 +166,7 @@ local function process_raw_values(
                 table.insert(errmsglist, m)
             end
         end
-        return "error<" .. output.unformat(table.concat(errmsglist)) .. ">"
+        return "error<" .. format.uncolor(table.concat(errmsglist)) .. ">"
     elseif type(value) == "userdata" then
         local typeof_value = typeof(value)
         if typeof_value ~= "userdata" then

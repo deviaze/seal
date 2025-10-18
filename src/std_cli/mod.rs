@@ -1,4 +1,8 @@
 use mluau::prelude::*;
 use crate::prelude::*;
 
-mod prompt;
+pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
+    TableBuilder::create(luau)?
+        // .with_value("prompt", prompt::create(luau)?)?
+        .build_readonly()
+}
