@@ -1,15 +1,6 @@
 {
-  "@roblox/globaltype/DateTime": {
-    "keys": {
-      "timespan": "@roblox/globaltype/DateTime.timespan",
-      "to": "@roblox/globaltype/DateTime.to",
-      "unix_timestamp": "@roblox/globaltype/DateTime.unix_timestamp",
-      "timezone": "@roblox/globaltype/DateTime.timezone",
-      "in_timezone": "@roblox/globaltype/DateTime.in_timezone",
-      "format": "@roblox/globaltype/DateTime.format",
-      "since": "@roblox/globaltype/DateTime.since"
-    },
-    "documentation": "Represents a Timezone-aware moment in date and time.\n\n- To make a new `DateTime`, use `@std/time/datetime`'s `now` or `parse` functions.\n- Use `DateTime:format` to format a datetime by passing in a strftime format string or COMMON_FORMAT.\n- To do arithmetic on a `DateTime`, add or subtract a `TimeSpan` from it.\n- Use `DateTime:since`, `DateTime:to`, and `DateTime:timespan` to get `TimeSpan`s between two `DateTime`s.\n- You can also compare `DateTime`s using the standard `>`, `<`, `<=`, `>=`, and `==` operators.\n## Usage\n\n```luau\nlocal datetime = require(\"@std/time/datetime\")\nlocal yesterday = datetime.now() - datetime.days(1)\nprint(yesterday:format(\"ISO_8601\"))\n```\n"
+  "@roblox/globaltype/interrupt.code": {
+    "documentation": "What caused this interrupt (either CtrlC or CtrlD)"
   },
   "@roblox/globaltype/TimeSpan.duration": {
     "documentation": "Convert this `TimeSpan` into a `Duration` so you can easily get total number of years/months/etc. in the `TimeSpan`."
@@ -20,6 +11,13 @@
   "@roblox/global/dp": {
     "keys": {},
     "documentation": "Debug print; use this to investigate pesky non-utf8 codes in strings, see the source/line/function of\nthings causing trouble, etc. Also returns what it prints.\n<br>\nAdd a `__dp` function to your custom type's metatable to customize its debug print output.\n"
+  },
+  "@luau/global/table": {
+    "keys": {
+      "concat": "@luau/global/table.concat",
+      "remove": "@luau/global/table.remove"
+    },
+    "documentation": "Luau's builtin table library, mostly focused on array-like table manipulation.\n\n- Use `table.insert` to append or insert elements,\n- `table.find` to check if/where an element exists in an array,\n- `table.remove` to remove elements (watch the footgun w/ `table.find`),\n- `table.concat` to concatenate `{ string }`s into strings. This is the fastest way to concat strings.\n"
   },
   "@roblox/globaltype/TimeSpan": {
     "keys": {
@@ -51,7 +49,11 @@
   },
   "@roblox/globaltype/error": {
     "keys": {},
-    "documentation": "A wrapped error returned by mluau's `pcall`, can be tostringed.\n## Usage\n```luau\nlocal success, result = pcall(myfn)\nif typeof(result) == \"error\" then\n    print(tostring(result)) -- result is an error message\nelse\n    -- result should be narrowed to the return type of myfn\nend\n```\n"
+    "documentation": "A wrapped error returned by mluau's `pcall` or seal, can be tostringed.\nTo interact with errors (and make your own), use `@std/err`\n## Usage\n```luau\nlocal success, result = pcall(myfn)\nif typeof(result) == \"error\" then\n    print(tostring(result)) -- result is an error message\nelse\n    -- result should be narrowed to the return type of myfn\nend\n```\n"
+  },
+  "@roblox/global/pcall": {
+    "keys": {},
+    "documentation": "Call `protected_callback` safely without blowing up if it errors.\n<br>\nUnlike base Luau, seal returns an `error` type when `pcall` fails, allowing for slightly better error handling.\n## Usage\n```luau\nlocal success, result = pcall(function(): string -- return type when it succeeds\n    return maybestringmaybekaboom()\nend)\nif typeof(result) == \"error\" then\n    print(`got error: {result}`)\nelse\n    -- result should be narrowed to `string` here\nend\n```\n### I don't want to return anything\n- Set the return type to `nil` instead of `()`\n### Multirets\n- Should be supported at runtime, but you probably want to cast `pcall` to `any` to appease the typechecker.\n"
   },
   "@roblox/global/script.parent": {
     "documentation": "Path to this file's parent in the filesystem. Very useful if you want to write a script that saves something right next to it (tests!!)\n## Usage\n\n```luau\nlocal fs = require(\"@std/fs\")\nfs.writefile(fs.path.join(script:parent(), \"meow.txt\"), \"meow\")\n```\n"
@@ -62,35 +64,40 @@
   "@roblox/globaltype/DateTime.to": {
     "documentation": "Get the `TimeSpan` between this DateTime and another (preferably in the future).\n## Usage\n```luau\nlocal datetime = require(\"@std/time/datetime\")\nlocal now = datetime.now()\nlocal jan_01 = datetime.parse(`{now.year + 1}-01-01 00:00`, \"ISO_8601\", \"UTC\")\nprint(`Days until next year: {math.round(now:to(jan_01):duration().days}`))\n```\n"
   },
-  "@luau/global/table": {
-    "keys": {
-      "concat": "@luau/global/table.concat",
-      "remove": "@luau/global/table.remove"
-    },
-    "documentation": "Luau's builtin table library, mostly focused on array-like table manipulation.\n\n- Use `table.insert` to append or insert elements,\n- `table.find` to check if/where an element exists in an array,\n- `table.remove` to remove elements (watch the footgun w/ `table.find`),\n- `table.concat` to concatenate `{ string }`s into strings. This is the fastest way to concat strings.\n"
-  },
-  "@roblox/global/pcall": {
-    "keys": {},
-    "documentation": "Call `protected_callback` safely without blowing up if it errors.\n<br>\nUnlike base Luau, seal returns an `error` type when `pcall` fails, allowing for slightly better error handling.\n## Usage\n```luau\nlocal success, result = pcall(function(): string -- return type when it succeeds\n    return maybestringmaybekaboom()\nend)\nif typeof(result) == \"error\" then\n    print(`got error: {result}`)\nelse\n    -- result should be narrowed to `string` here\nend\n```\n### I don't want to return anything\n- Set the return type to `nil` instead of `()`\n### Multirets\n- Should be supported at runtime, but you probably want to cast `pcall` to `any` to appease the typechecker.\n"
-  },
   "@roblox/globaltype/DateTime.timezone": {
     "documentation": "The IANA timezone for this DateTime. All DateTimes *must* have a timezone!"
   },
-  "@roblox/globaltype/DateTime.since": {
-    "documentation": "Get the `TimeSpan` between this DateTime and another (preferably in the past).\n## Usage\n```luau\nlocal datetime = require(\"@std/time/datetime\")\nlocal now = datetime.now()\nlocal jan_01 = datetime.parse(`{now.year}-01-01 00:00`, \"ISO_8601\", \"UTC\")\nprint(`Days in year to date: {math.round(now:since(jan_01):duration().days}`))\n```\n"
-  },
   "@roblox/global/script.entry_path": {
     "documentation": "Path to the file or executable the user ran with seal ./myfile.luau, seal run, etc."
-  },
-  "@roblox/globaltype/TimeSpan.relative_to": {
-    "documentation": "The `DateTime` this `TimeSpan` is relative to, or nil if it's not relative to any."
   },
   "@roblox/global/_VERSION": {
     "keys": {},
     "documentation": "version of both Luau (best that we know, since luau doesn't officially publish _VERSION at runtime) and seal"
   },
-  "@roblox/globaltype/DateTime.in_timezone": {
-    "documentation": "Returns a new `DateTime` representing the same instant in time but in a different timezone."
+  "@roblox/globaltype/DateTime.since": {
+    "documentation": "Get the `TimeSpan` between this DateTime and another (preferably in the past).\n## Usage\n```luau\nlocal datetime = require(\"@std/time/datetime\")\nlocal now = datetime.now()\nlocal jan_01 = datetime.parse(`{now.year}-01-01 00:00`, \"ISO_8601\", \"UTC\")\nprint(`Days in year to date: {math.round(now:since(jan_01):duration().days}`))\n```\n"
+  },
+  "@roblox/globaltype/DateTime.format": {
+    "documentation": "Format this `DateTime` with strftime format strings or COMMON_FORMATs.\n## Usage\n```luau\nlocal datetime = require(\"@std/time/datetime\")\nlocal now = datetime.now()\nprint(now:format(\"ISO_8601\")) --> 2025-08-23 14:57\nprint(now:format(\"%A\")) --> Saturday\n```\n## Valid strftime format specifiers (Rust Jiff-compatible):\n- %a  - Abbreviated weekday name (e.g., Sun)\n- %A  - Full weekday name (e.g., Saturday)\n- %b  - Abbreviated month name (e.g., Aug)\n- %B  - Full month name (e.g., August)\n- %c  - Locale-specific date and time (e.g., Sat Aug 23 15:01:00 2025)\n- %d  - Day of the month (01-31)\n- %H  - Hour in 24h format (00-23)\n- %I  - Hour in 12h format (01-12)\n- %j  - Day of the year (001-366)\n- %m  - Month as a number (01-12)\n- %M  - Minute (00-59)\n- %p  - AM or PM\n- %Q  - IANA time zone name (e.g., America/Chicago)\n- %S  - Second (00-59)\n- %U  - Week number of the year (Sunday as first day of week)\n- %w  - Weekday as a number (0-6, Sunday is 0)\n- %W  - Week number of the year (Monday as first day of week)\n- %x  - Locale-specific date (e.g., 08/23/25)\n- %X  - Locale-specific time (e.g., 15:01:00)\n- %y  - Year without century (00-99)\n- %Y  - Year with century (e.g., 2025)\n- %%  - Literal percent sign\n"
+  },
+  "@roblox/globaltype/TimeSpan.relative_to": {
+    "documentation": "The `DateTime` this `TimeSpan` is relative to, or nil if it's not relative to any."
+  },
+  "@roblox/globaltype/DateTime": {
+    "keys": {
+      "timespan": "@roblox/globaltype/DateTime.timespan",
+      "to": "@roblox/globaltype/DateTime.to",
+      "unix_timestamp": "@roblox/globaltype/DateTime.unix_timestamp",
+      "timezone": "@roblox/globaltype/DateTime.timezone",
+      "in_timezone": "@roblox/globaltype/DateTime.in_timezone",
+      "format": "@roblox/globaltype/DateTime.format",
+      "since": "@roblox/globaltype/DateTime.since"
+    },
+    "documentation": "Represents a Timezone-aware moment in date and time.\n\n- To make a new `DateTime`, use `@std/time/datetime`'s `now` or `parse` functions.\n- Use `DateTime:format` to format a datetime by passing in a strftime format string or COMMON_FORMAT.\n- To do arithmetic on a `DateTime`, add or subtract a `TimeSpan` from it.\n- Use `DateTime:since`, `DateTime:to`, and `DateTime:timespan` to get `TimeSpan`s between two `DateTime`s.\n- You can also compare `DateTime`s using the standard `>`, `<`, `<=`, `>=`, and `==` operators.\n## Usage\n\n```luau\nlocal datetime = require(\"@std/time/datetime\")\nlocal yesterday = datetime.now() - datetime.days(1)\nprint(yesterday:format(\"ISO_8601\"))\n```\n"
+  },
+  "@roblox/global/p": {
+    "keys": {},
+    "documentation": "Simple print (no colors, less formatting) and returns."
   },
   "@roblox/global/warn": {
     "keys": {},
@@ -104,16 +111,18 @@
     },
     "documentation": "The file you're currently working on. Has the extremely useful method `:parent()`\nwhich you can use to get the directory your file resides in.\n"
   },
-  "@roblox/global/p": {
-    "keys": {},
-    "documentation": "Simple print (no colors, less formatting) and returns."
+  "@roblox/globaltype/DateTime.in_timezone": {
+    "documentation": "Returns a new `DateTime` representing the same instant in time but in a different timezone."
   },
   "@roblox/global/_SEAL_VERSION": {
     "keys": {},
     "documentation": "seal's version"
   },
-  "@roblox/globaltype/DateTime.format": {
-    "documentation": "Format this `DateTime` with strftime format strings or COMMON_FORMATs.\n## Usage\n```luau\nlocal datetime = require(\"@std/time/datetime\")\nlocal now = datetime.now()\nprint(now:format(\"ISO_8601\")) --> 2025-08-23 14:57\nprint(now:format(\"%A\")) --> Saturday\n```\n## Valid strftime format specifiers (Rust Jiff-compatible):\n- %a  - Abbreviated weekday name (e.g., Sun)\n- %A  - Full weekday name (e.g., Saturday)\n- %b  - Abbreviated month name (e.g., Aug)\n- %B  - Full month name (e.g., August)\n- %c  - Locale-specific date and time (e.g., Sat Aug 23 15:01:00 2025)\n- %d  - Day of the month (01-31)\n- %H  - Hour in 24h format (00-23)\n- %I  - Hour in 12h format (01-12)\n- %j  - Day of the year (001-366)\n- %m  - Month as a number (01-12)\n- %M  - Minute (00-59)\n- %p  - AM or PM\n- %Q  - IANA time zone name (e.g., America/Chicago)\n- %S  - Second (00-59)\n- %U  - Week number of the year (Sunday as first day of week)\n- %w  - Weekday as a number (0-6, Sunday is 0)\n- %W  - Week number of the year (Monday as first day of week)\n- %x  - Locale-specific date (e.g., 08/23/25)\n- %X  - Locale-specific time (e.g., 15:01:00)\n- %y  - Year without century (00-99)\n- %Y  - Year with century (e.g., 2025)\n- %%  - Literal percent sign\n"
+  "@roblox/globaltype/interrupt": {
+    "keys": {
+      "code": "@roblox/globaltype/interrupt.code"
+    },
+    "documentation": "An intercepted user interrupt, either Ctrl-C or Ctrl-D.\n"
   },
   "@roblox/globaltype/Duration": {
     "keys": {},

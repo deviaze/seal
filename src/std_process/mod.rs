@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command, Output, Stdio};
 use std::rc::Rc;
 
-use crate::prelude::*;
+use crate::{prelude::*, std_err};
 use crate::std_env;
 use mluau::prelude::*;
 
@@ -497,7 +497,7 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
 
         let stdin_handle = TableBuilder::create(luau)?
             .with_function_mut("write", {
-                move |_luau: &Lua, mut multivalue: LuaMultiValue| -> LuaEmptyResult {
+                move |luau: &Lua, mut multivalue: LuaMultiValue| -> LuaValueResult {
                     let function_name = "child.stdin:write(data: string)";
                     pop_self(&mut multivalue, function_name)?;
                     let data_to_write = match multivalue.pop_front() {
@@ -512,9 +512,9 @@ fn process_spawn(luau: &Lua, spawn_options: LuaValue) -> LuaValueResult {
                     };
 
                     match stdin.write_all(&data_to_write) {
-                        Ok(_) => Ok(()),
+                        Ok(_) => Ok(LuaNil),
                         Err(err) => {
-                            wrap_err!("{} can't write to stdin due to err: {}", function_name, err)
+                            std_err::WrappedError::from_message(format!("{} can't write to stdin due to err: {}", function_name, err)).get_userdata(luau)
                         }
                     }
                 }

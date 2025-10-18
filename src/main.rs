@@ -31,6 +31,7 @@ mod std_err;
 mod sealconfig;
 mod setup;
 mod compile;
+mod std_cli;
 
 use err::display_error_and_exit;
 use sealconfig::SealConfig;

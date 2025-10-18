@@ -18,6 +18,10 @@ pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaVa
     Ok(LuaValue::Function(luau.create_function(f)?))
 }
 
+pub fn ok_function_multi(f: fn(&Lua, LuaMultiValue) -> LuaMultiResult, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::Function(luau.create_function(f)?))
+}
+
 pub fn ok_function_mut<F, I, Fn>(f: Fn, luau: &Lua) -> LuaValueResult
 where
     F: FromLuaMulti + 'static,
