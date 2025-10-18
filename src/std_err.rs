@@ -47,6 +47,29 @@ impl LuaUserData for WrappedError {
     }
 }
 
+pub fn ecall(luau: &Lua, f: LuaFunction) -> LuaValueResult {
+    let result = luau.create_function(move |_: &Lua, multivalue: LuaMultiValue| {
+        let result = f.call::<LuaMultiValue>(multivalue)?;
+        if !result.is_empty()
+            && let Some(front) = result.front() 
+        {
+            match front {
+                LuaValue::UserData(ud) => {
+                    if let Ok(err) = ud.borrow::<WrappedError>() {
+                        return wrap_err!("{}", err.message);
+                    }
+                },
+                LuaValue::Error(err) => {
+                    return wrap_err!("{}", err.to_string());
+                },
+                _ => {},
+            }
+        }
+        Ok(result)
+    })?;
+    Ok(LuaValue::Function(result))
+}
+
 fn err_message(luau: &Lua, value: LuaValue) -> LuaValueResult {
     let function_name = "err.message(m: string)";
     let message = match value {

@@ -1,57 +1,18 @@
 use std::process::Command;
 use std::io::{self, Write};
 
-use regex::Regex;
+use crate::prelude::*;
 use mluau::prelude::*;
 
-use crate::prelude::*;
-
-fn process_debug_values(value: LuaValue, result: &mut String, depth: usize) -> LuaResult<()> {
-    let left_padding = " ".repeat(2 * depth);
-    match value {
-        LuaValue::Table(t) => {
-            if depth < 10 {
-                result.push_str("{\n");
-                for pair in t.pairs::<LuaValue, LuaValue>() {
-                    let (k, v) = pair?;
-                    result.push_str(&format!("  {left_padding}{:#?} = ", k));
-                    process_debug_values(v, result, depth + 1)?;
-                    result.push('\n');
-                }
-                result.push_str(&format!("{left_padding}}}"));
-            }
-        },
-        LuaValue::String(s) => {
-            let formatted_string = format!("{:?}", s);
-            result.push_str(&formatted_string);
-        },
-        LuaValue::UserData(data) => {
-            match data.call_method::<LuaString>("__dp", ()) {
-                Ok(dp_output) => {
-                    result.push_str(&dp_output.to_string_lossy());
-                },
-                Err(_) => {
-                    // __dp isn't defined or fails
-                    result.push_str(&format!("{:?}", data));
-                }
-            }
-        },
-        _ => {
-            result.push_str(&format!("{:?}", value));
-        }
-    }
-    if depth > 0 {
-        result.push(',');
-    }
-    Ok(())
-}
+use super::format;
+use crate::std_err::WrappedError;
 
 pub fn debug_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<LuaString> {
     let function_name = "dp(...: any)";
     let mut result = String::from("");
 
     while let Some(value) = multivalue.pop_front() {
-        process_debug_values(value, &mut result, 0)?;
+        format::process_debug_values(value, &mut result, 0)?;
         if !multivalue.is_empty() {
             result.push_str(", ");
         }
@@ -66,24 +27,10 @@ pub fn debug_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<LuaSt
     luau.create_string(&result)
 }
 
-fn format_debug(luau: &Lua, stuff: LuaMultiValue) -> LuaResult<LuaString> {
-    let mut result = String::from("");
-    let mut multi_values = stuff.clone();
-
-    while let Some(value) = multi_values.pop_front() {
-        process_debug_values(value, &mut result, 0)?;
-        if !multi_values.is_empty() {
-            result += ", ";
-        }
-    }
-
-    luau.create_string(&result)
-}
-
-const OUTPUT_PROCESS_VALUES: &str = include_str!("./output_formatter.luau");
+const OUTPUT_FORMATTER_SRC: &str = include_str!("./output_formatter.luau");
 
 pub fn simple_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
-    let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
+    let r: LuaTable = luau.load(OUTPUT_FORMATTER_SRC).eval()?;
     let format_simple: LuaFunction = r.raw_get("simple")?;
     let mut result = String::from("");
     
@@ -107,22 +54,8 @@ pub fn simple_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> Lua
     Ok(LuaValue::String(result))
 }
 
-pub fn simple_format(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_simple: LuaFunction = r.raw_get("simple")?;
-    let result = match format_simple.call::<LuaString>(value) {
-        Ok(text) => text.to_string_lossy(),
-        Err(err) => {
-            return wrap_err!("sformat: error formatting: {}", err);
-        }
-    };
-
-    let result = luau.create_string(&result)?;
-    Ok(LuaValue::String(result))
-}
-
 pub fn pretty_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<()> {
-    let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
+    let r: LuaTable = luau.load(OUTPUT_FORMATTER_SRC).eval()?;
     let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let mut result = String::from("");
 
@@ -145,7 +78,7 @@ pub fn pretty_print(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<()> 
 }
 
 pub fn pretty_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaResult<String> {
-    let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
+    let r: LuaTable = luau.load(OUTPUT_FORMATTER_SRC).eval()?;
     let format_pretty: LuaFunction = r.raw_get("pretty")?;
     let mut result = String::from("");
 
@@ -165,42 +98,6 @@ pub fn pretty_print_and_return(luau: &Lua, mut multivalue: LuaMultiValue) -> Lua
     }
     println!("{}", &result);
     Ok(result)
-}
-
-pub fn format_output(luau: &Lua, value: LuaValue) -> LuaResult<String> {
-    let r: LuaTable = luau.load(OUTPUT_PROCESS_VALUES).eval()?;
-    let format_pretty: LuaFunction = r.raw_get("pretty")?;
-    let result = match format_pretty.call::<LuaString>(value) {
-        Ok(text) => text.to_string_lossy(),
-        Err(err) => {
-            return wrap_err!("format: error formatting: {}", err);
-        }
-    };
-    Ok(result)
-}
-
-pub fn format(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let formatted = format_output(luau, value)?;
-    Ok(LuaValue::String(luau.create_string(formatted)?))
-}
-
-pub fn strip_newlines_and_colors(input: &str) -> String {
-    let re_colors = Regex::new(r"\x1b\[[0-9;]*m").unwrap();
-    let without_colors = re_colors.replace_all(input, "");
-    without_colors.to_string()
-}
-
-fn output_unformat(luau: &Lua, value: LuaValue) -> LuaValueResult {
-    let input = match value {
-        LuaValue::String(s) => s.to_string_lossy(),
-        other => {
-            return wrap_err!("expected string to strip formatting of, got: {:#?}", other)
-        }
-    };
-    let input = strip_newlines_and_colors(&input);
-    Ok(LuaValue::String(
-        luau.create_string(input.as_str())?
-    ))
 }
 
 pub fn clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
@@ -226,53 +123,77 @@ pub fn clear(_luau: &Lua, _value: LuaValue) -> LuaValueResult {
     }
 }
 
-pub fn output_write(_luau: &Lua, value: LuaValue) -> LuaValueResult {
-    match value {
+pub fn output_write(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "output.write(contents: string | buffer)";
+    let contents = match value {
         LuaValue::String(text) => {
-            io::stdout().write_all(&text.as_bytes()).unwrap();
-            io::stdout().flush().unwrap();
-            Ok(LuaNil)
+            text.as_bytes().to_owned()
         },
         LuaValue::Buffer(buffy) => {
-            io::stdout().write_all(&buffy.to_vec()).unwrap();
-            io::stdout().flush().unwrap();
-            Ok(LuaNil)
-        }
+            buffy.to_vec()
+        },
+        LuaNil => {
+            return wrap_err!("{} expected contents to be a string or buffer, got nothing or nil", function_name);
+        },
         other => {
-            wrap_err!("io.output.write: expected string or buffer, got: {:#?}", other)
+            return wrap_err!("{} expected contents to be a string or buffer, got {:?}", function_name, other);
         }
+    };
+
+    // we can't give users explicit flush control because stdout/stderr flushes anyway
+    // when it goes out of scope and it's not worth it to keep stdout/stderr around for multiple calls
+    let should_flush = !contents.ends_with(b"\n");
+
+    let mut stdout = io::stdout();
+    if let Err(err) = stdout.write_all(&contents) {
+        return WrappedError::from_message(err.to_string()).get_userdata(luau);
     }
+
+    if should_flush && let Err(err) = stdout.flush() {
+        return WrappedError::from_message(err.to_string()).get_userdata(luau);
+    }
+
+    Ok(LuaNil)
 }
 
-pub fn output_ewrite(_luau: &Lua, value: LuaValue) -> LuaValueResult {
-    match value {
+pub fn output_ewrite(luau: &Lua, value: LuaValue) -> LuaValueResult {
+    let function_name = "output.ewrite(contents: string | buffer)";
+    let contents = match value {
         LuaValue::String(text) => {
-            io::stderr().write_all(&text.as_bytes()).unwrap();
-            io::stderr().flush().unwrap();
-            Ok(LuaNil)
+            text.as_bytes().to_owned()
         },
         LuaValue::Buffer(buffy) => {
-            io::stderr().write_all(&buffy.to_vec()).unwrap();
-            io::stderr().flush().unwrap();
-            Ok(LuaNil)
-        }
+            buffy.to_vec()
+        },
+        LuaNil => {
+            return wrap_err!("{} expected contents to be a string or buffer, got nothing or nil", function_name);
+        },
         other => {
-            wrap_err!("io.output.ewrite: expected string or buffer, got: {:#?}", other)
+            return wrap_err!("{} expected contents to be a string or buffer, got {:?}", function_name, other);
         }
+    };
+
+    // we can't give users explicit flush control because stdout/stderr flushes anyway
+    // when it goes out of scope and it's not worth it to keep stdout/stderr around for multiple calls
+    let should_flush = !contents.ends_with(b"\n");
+
+    let mut stderr = io::stderr();
+    if let Err(err) = stderr.write_all(&contents) {
+        return WrappedError::from_message(err.to_string()).get_userdata(luau);
     }
+
+    if should_flush && let Err(err) = stderr.flush() {
+        return WrappedError::from_message(err.to_string()).get_userdata(luau);
+    }
+
+    Ok(LuaNil)
 }
 
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     TableBuilder::create(luau)?
-        .with_function("format", format)?
         .with_function("clear", clear)?
         .with_function("write", output_write)?
         .with_function("ewrite", output_ewrite)?
-        .with_function("unformat", output_unformat)?
         .with_function("sprint", simple_print_and_return)?
-        .with_function("sformat", simple_format)?
-        .with_function("print-and-return", pretty_print_and_return)?
-        .with_function("debug-print", debug_print)?
-        .with_function("debug-format", format_debug)?
         .build_readonly()
 }

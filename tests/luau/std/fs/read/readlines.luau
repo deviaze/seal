@@ -1,7 +1,4 @@
 local fs = require("@std/fs")
-local output = require("@std/io/output")
-
-local _dp = output["debug-print"]
 
 local server_views = fs.dir.from("./tests/data/server-views")
 local index_file = server_views:expect_file("index.html")

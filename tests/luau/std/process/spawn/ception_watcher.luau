@@ -1,6 +1,7 @@
 local fs = require("@std/fs")
 local env = require("@std/env")
 local process = require("@std/process")
+local cheese = require("@tests/cheese")
 
 local function watchception()
     local ception_path = fs.path.join(script:parent(), "ception.luau")
@@ -40,4 +41,5 @@ local function watchception()
     end    
 end
 
-watchception()
+cheese.retry(watchception, 2)
+

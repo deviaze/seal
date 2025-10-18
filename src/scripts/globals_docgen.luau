@@ -40,7 +40,9 @@ type ExternTypeDocs = {
 local extern_types: ExternTypeDocs = {
     ["error"] = {
         documentation = un3 [[
-            A wrapped error returned by mluau's `pcall`, can be tostringed.
+            A wrapped error returned by mluau's `pcall` or seal, can be tostringed.
+
+            To interact with errors (and make your own), use `@std/err`
 
             ## Usage
 
@@ -53,6 +55,16 @@ local extern_types: ExternTypeDocs = {
             end
             ```
         ]]
+    },
+    interrupt = {
+        documentation = un3 [[
+            An intercepted user interrupt, either Ctrl-C or Ctrl-D.
+        ]],
+        keys = {
+            code = {
+                documentation = "What caused this interrupt (either CtrlC or CtrlD)",
+            }
+        },
     },
     DateTime = {
         documentation = un3 [[
