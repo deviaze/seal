@@ -290,13 +290,14 @@ function get_updated_zed_settings(existing: json.JsonData, default: json.JsonDat
                 existing[default_key] = default_value
             elseif typeof(existing_value) == "table" then
                 if default_key == "definitions" or default_key == "documentation" then
-                    for _, element in default_value do
+                    existing_value = existing_value :: { string }
+                    for _, element in default_value :: { string } do
                         if not table.find(existing_value, element) then
                             table.insert(existing_value, element)
                         end
                     end
                 else
-                    update(existing_value, default_value)
+                    update(existing_value :: json.JsonData, default_value)
                 end
             end
         end  
