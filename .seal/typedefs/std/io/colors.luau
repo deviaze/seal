@@ -33,6 +33,7 @@ export type colors = {
     style: {
         dim: (text: string) -> string,
         bold: (text: string) -> string,
+        underline: (text: string) -> string,
     },
 
     codes: {
@@ -79,6 +80,7 @@ export type colors = {
         BRIGHT_WHITE_BG: "\x1b[107m",
         BOLD: "\x1b[1m",
         DIM: "\x1b[2m",
+        UNDERLINE: "\x1b[4m",
     }
 }
 
@@ -304,6 +306,8 @@ colors.style = {
     dim = function(text: string): string return nil :: any end,
     --- bold style
     bold = function(text: string): string return nil :: any end,
+    --- underline your text
+    underline = function(text: string): string return nil :: any end,
 }
 
 --[=[
@@ -362,5 +366,6 @@ colors.codes = {
 	BRIGHT_WHITE_BG = "\x1b[107m",
     BOLD = "\x1b[1m",
     DIM = "\x1b[2m",
+    UNDERLINE = "\x1b[4m",
 }
 return colors
