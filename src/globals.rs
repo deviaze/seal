@@ -6,7 +6,7 @@ use crate::std_err::ecall;
 use crate::{require, std_io};
 
 pub fn error(_luau: &Lua, error_value: LuaValue) -> LuaValueResult {
-    wrap_err!("message: {:?}", error_value.to_string()?)
+    wrap_err!("{}", error_value.to_string()?)
 }
 
 pub fn warn(luau: &Lua, warn_value: LuaValue) -> LuaValueResult {

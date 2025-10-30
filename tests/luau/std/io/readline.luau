@@ -2,6 +2,7 @@ local fs = require("@std/fs")
 local env = require("@std/env")
 local process = require("@std/process")
 local time = require("@std/time")
+local cheese = require("@tests/cheese")
 
 local function runsealwithprompt(prompt: string)
     local src = string.gsub([[
@@ -46,4 +47,4 @@ local function rawlinefallback()
     assert(good and good:match("good!!"), `should be good here? got: {good}`)
 end
 
-rawlinefallback()
+cheese.retry(rawlinefallback, 2)

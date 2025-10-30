@@ -110,6 +110,8 @@ filenotfound()
 local function filethaterrors()
 	local iwillbreakpath = script:parent() .. "/iwillbreak.luau"
 
+	fs.file.try_remove(iwillbreakpath)
+
 	fs.writefile(iwillbreakpath, 'error("hi")')
 	
 	local s, f = pcall(function()
@@ -118,7 +120,10 @@ local function filethaterrors()
 	end)
 
 	assert(s == false, "iwillbreak.luau did not actually break?")
-	assert(tostring(f):match('message: "hi"'), "iwillbreak broke with an unexpected error message")
+	assert(
+		tostring(f):match("hi"), 
+		`iwillbreak broke with an unexpected error message {tostring(f)}`
+	)
 	
 	if fs.file(iwillbreakpath) then
 		fs.removefile(iwillbreakpath)

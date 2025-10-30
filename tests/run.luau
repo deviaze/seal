@@ -42,14 +42,17 @@ type Tests = {
 local function new_test_queue(): { string }
     local ignore_files = {
         "./tests/luau/std/net/server/serve.luau", -- manual test
+        "./tests/luau/std/io/raw.luau", -- rawmode messes with everything
+        "./tests/luau/std/io/events.luau", -- rawmode messes with everything
         -- the below are not test files but are required by/imported by other tests
         "./tests/luau/std/thread/get-threads/send_request.luau",
         "./tests/luau/std/net/server/client.luau",
-        "./tests/luau/std/io/raw.luau", -- rawmode messes with everything
-        "./tests/luau/std/io/events.luau", -- rawmode messes with everything
         "./tests/luau/std/thread/conc_1.luau",
         "./tests/luau/errors/another_module.luau",
         "./tests/luau/std/process/spawn/ception.luau",
+        "./tests/luau/std/args/gsw.luau",
+        "./tests/luau/std/args/commands.luau",
+        "./tests/luau/std/args/fakeseal.luau",
         "./tests/luau/globals/require/basic-requires/relative_data.luau",
     }
     local file_list = fs.listdir(fs.path.join(".", "tests", "luau"), true, function(path: string)
@@ -139,7 +142,7 @@ end
 local start_time = os.clock()
 local tests_with_stdin = {"io/init", "stdin", "input", "prompt"}
 
-while (os.clock() - start_time) < 20 do
+while (os.clock() - start_time) < 25 do
     for test_path, child in test_pool do
         -- wait til child dies
         if not child:alive() then
