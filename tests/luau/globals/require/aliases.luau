@@ -1,9 +1,9 @@
 -- requiring std libraries works (it's an alias ig)
 local fs = require("@std/fs")
-local output = require("@std/io/output")
+local format = require("@std/io/format")
 
 local function aliased()
-	local relative_but_not_relatively = (require :: any)("@tests/globals/require/basic-requires/relative_data")
+	local relative_but_not_relatively = (require :: any)("@tests/luau/globals/require/basic-requires/relative_data")
 	assert(relative_but_not_relatively.relative == "yes very", "alias required file returned unexpected result")
 end
 
@@ -26,7 +26,7 @@ local function nonexistentalias()
 		return nil
 	end)
 	assert(s == false, "requiring nonexisting alias was not supposed to succeed")
-	assert(output.unformat(tostring(f)):match("alias 'hi' not found in the %.luaurc"), "unexpected alias not found message")
+	assert(format.uncolor(tostring(f)):match("alias 'hi' not found in the %.luaurc"), "unexpected alias not found message")
 end
 
 nonexistentalias()

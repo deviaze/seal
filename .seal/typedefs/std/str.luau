@@ -20,6 +20,26 @@ function str.endswith(s: string, suffix: string): boolean
 	return nil :: any
 end
 
+--- like str.startswith, but accepts multiple prefixes
+function str.starts(s: string, ...: string): boolean
+    for _, prefix in {...} do
+        if str.startswith(s, prefix) then
+            return true
+        end
+    end
+    return false
+end
+
+--- like str.endswith, but accepts multiple suffixes
+function str.ends(s: string, ...: string): boolean
+    for _, suffix in {...} do
+        if str.endswith(s, suffix) then
+            return true
+        end
+    end
+    return false
+end
+
 --- trims any of the provided strings/characters from the front of the string `s`
 ---
 --- if no strings provided as ..., `str.trimfront` will trim whitespace (" ", "\n", etc.)
@@ -261,12 +281,73 @@ local internal = (require)("@std/str_internal")
 	- Like with Luau's `string.split`, passing an empty separator string (`""`) to `str.split` will split the string by bytes instead of graphemes.
 	- splits that result in an empty string are not included in the returned array.
 	- `str.split` does not allow for overlapping splits when split with multiple separators.
+	- Separators are evaluated in left-to-right order, meaning that separators in front have higher priority than those in the back.
+
 
 	### Edge cases:
 	- Sometimes simple characters directly to the right of emojis don't render when printed (example `print[["🦭"]]`)
 	- Some Hindi graphemes (like हा) don't render properly in terminals :(
 ]=]
 str.split = internal.split :: (s: string, ...string) -> { string }
+
+--[=[
+	Splits string `s` *around* one or more separator strings, keeping the separators in the final result.
+	This is especially useful for parsing and tokenizing text!
+
+	`str.splitaround` otherwise follows the same semantics as `str.split`.
+
+	Separators are evaluated in left-to-right order, meaning that separators in front have higher priority than those in the back.
+
+	Like `str.split`, `str.splitaround` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
+
+	## Usage
+	
+	```luau
+	local line = `function Cat.meow(name: string, age: number)`
+	local tokens = str.splitaround(line, " ", ".", "(", ":", ",", ")")
+	--> { "function", " ", "Cat", ".", "meow", "(", "name", ":", " ", "string", ",", " ", "age", ":", " ", "number", ")"}
+	```
+]=]
+str.splitaround = internal.splitaround :: (s: string, seps: string, ...string) -> { string }
+
+--[=[
+	Splits `s` in front of any passed separator strings, keeping the separator in the subsequent element of the returned array.
+
+	Otherwise has the same semantics as `str.split`.
+
+	## Usage
+
+	```luau
+	local messages = "[INFO] message\nnext line of message\n[WARN] bad warning\n[ERROR] message\n stack traceback"
+	local splitted = str.splitbefore(messages, "[INFO]", "[WARN]", "[ERROR]")
+	print(splitted) --> 
+	{
+		"[INFO] message\nnext line of message\n",
+		"[WARN] bad warning\n",
+		"[ERROR] message\n stack traceback",
+	}
+	```
+]=]
+str.splitbefore = internal.splitbefore :: (s: string, seps: string, ...string) -> { string }
+
+--[=[
+	Splits `s` after every occurrence of a separator string, keeping the separator in the current element of the returned array.
+
+	Otherwise has the same semantics as `str.split`.
+
+	## Usage
+
+	```luau
+	local httpheaders = "Content-Type: text/html\r\nContent-Length: 123\r\nConnection: keep-alive\r\n"
+	local splitted = str.splitafter(httpheaders, "\r\n") --> 
+	{ 
+		"Content-Type: text/html\r\n", 
+		"Content-Length: 123\r\n", 
+		"Connection: keep-alive\r\n"
+	}
+	```
+]=]
+str.splitafter = internal.splitafter :: (s: string, seps: string, ...string) -> { string }
 
 --[=[
 	Iterate over the human-readable characters (graphemes) of a string

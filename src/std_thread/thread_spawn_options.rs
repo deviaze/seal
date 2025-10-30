@@ -88,14 +88,14 @@ impl ThreadSpawnOptions {
             LuaValue::Table(capacity_table) => {
                 let regular: usize = match capacity_table.raw_get("regular")? {
                     LuaNil => 12,
-                    LuaValue::Integer(i) => i as usize,
+                    LuaValue::Integer(i) => int_to_usize(i, function_name, "capacity.regular")?,
                     other => {
                         return wrap_err!("{}: ThreadSpawnOptions.capacity.regular expected to be a number (integer) or nil, got: {:?}", function_name, other);
                     }
                 };
                 let bytes: usize = match capacity_table.raw_get("bytes")? {
                     LuaNil => 24,
-                    LuaValue::Integer(i) => i as usize,
+                    LuaValue::Integer(i) => int_to_usize(i, function_name, "capacity.bytes")?,
                     other => {
                         return wrap_err!("{}: ThreadSpawnOptions.capacity.bytes expected to be a number (integer) or nil, got: {:?}", function_name, other);
                     }

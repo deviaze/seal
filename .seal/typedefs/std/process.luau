@@ -312,7 +312,10 @@ export type ChildProcessStream = setmetatable<{
 }>
 
 type ChildProcessStdin = {
-	write: (self: ChildProcessStdin, data: string) -> nil
+	--[=[
+		Attempts to write to the child process' stdin; if an error occurs (usually a broken pipe), returns a seal `error` userdata.
+	]=]
+	write: (self: ChildProcessStdin, data: string) -> error?
 }
 
 export type ChildProcess = {

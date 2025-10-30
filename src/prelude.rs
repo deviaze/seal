@@ -1,6 +1,8 @@
 // pub use crate::{LuaValueResult, LuaEmptyResult, LuaMultiResult, colors, wrap_err};
 use mluau::prelude::*;
 
+pub const MAX_TABLE_SIZE: usize = 134_217_728;
+
 pub use crate::{std_io::colors as colors, wrap_err, table_helpers::TableBuilder};
 
 pub type LuaValueResult = LuaResult<LuaValue>;
@@ -13,6 +15,10 @@ pub fn ok_table(t: LuaResult<LuaTable>) -> LuaValueResult {
 }
 
 pub fn ok_function(f: fn(&Lua, LuaValue) -> LuaValueResult, luau: &Lua) -> LuaValueResult {
+    Ok(LuaValue::Function(luau.create_function(f)?))
+}
+
+pub fn ok_function_multi(f: fn(&Lua, LuaMultiValue) -> LuaMultiResult, luau: &Lua) -> LuaValueResult {
     Ok(LuaValue::Function(luau.create_function(f)?))
 }
 
@@ -82,7 +88,7 @@ impl DebugInfo {
                 return wrap_err!("{}: expected line, got: {:?}", function_name, other);
             }
         };
-        let function_name = match info.raw_get("function_name")? {
+        let caller_function_name = match info.raw_get("function_name")? {
             LuaValue::String(s) => s.to_string_lossy(),
             LuaNil => String::from("<FUNCTION NAME NOT FOUND>"),
             other => {
@@ -90,7 +96,7 @@ impl DebugInfo {
             }
         };
 
-        Ok(Self { source, line, function_name })
+        Ok(Self { source, line, function_name: caller_function_name })
     }
 }
 
@@ -98,7 +104,7 @@ impl DebugInfo {
 /// safely convert i64 to usize while handling common problems like negatives and out of ranges
 pub fn int_to_usize(i: i64, function_name: &str, parameter_name: &'static str) -> LuaResult<usize> {
     if i.is_negative() {
-        return wrap_err!("{}: {} represents a byte offset and cannot be negative (got {})", function_name, parameter_name, i);
+        return wrap_err!("{}: {} represents a byte offset or countable number and cannot be negative (got {})", function_name, parameter_name, i);
     }
     match usize::try_from(i) {
         Ok(u) => Ok(u),
@@ -154,4 +160,15 @@ pub fn float_to_u64(f: f64, function_name: &'static str, parameter_name: &'stati
     } else {
         wrap_err!("{} expected {} to be an integer, unexpectedly got a float: {}", function_name, parameter_name, f)
     }
+}
+
+/// Creates table with capacity, clamping upper capacity to `MAX_TABLE_SIZE` for safety
+pub fn create_table_with_capacity(luau: &Lua, n_array: usize, n_records: usize) -> LuaResult<LuaTable> {
+    let n_array = std::cmp::min(n_array, MAX_TABLE_SIZE);
+    let n_records = std::cmp::min(n_records, MAX_TABLE_SIZE);
+    // SAFETY: luau.create_table_with_capacity will abort if `capacity` exceeds MAX_TABLE_SIZE (throwing Rust cannot catch foreign exceptions)
+    // We clamp `good_prealloc_guess` to MAX_TABLE_SIZE to guarantee safety.
+    // This API should be marked unsafe... but isn't.. so we explicitly treat it as unsafe here.
+    #[allow(unused_unsafe)]
+    unsafe { luau.create_table_with_capacity(n_array, n_records) }
 }

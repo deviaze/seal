@@ -8,7 +8,7 @@
     "interop": "./.seal/typedefs/interop/",
     "output_formatter": "./src/std_io/output_formatter.luau",
     "extra": "./.seal/extra/",
-    "tests": "./tests/luau/",
+    "tests": "./tests/",
     "data": "./tests/data/"
   }
 }

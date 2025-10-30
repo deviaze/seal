@@ -1,4 +1,6 @@
-declare function pcall<T>(protected_callback: (any) -> T): (boolean, T | error)
+declare function pcall<T, Args...>(protected_callback: (any) -> T, ...: Args...): (boolean, T | error)
+
+declare function ecall<T, A...>(f: (A...) -> T | error): (A...) -> T
 
 declare function p<T...>(...: T...): T...
 
@@ -15,6 +17,7 @@ declare script: {
 	context: string?,
 	path: (self: any) -> string,
 	parent: (self: any) -> string,
+    project: (self: any) -> string,
 }
 
 declare channel: {
@@ -29,6 +32,10 @@ declare channel: {
 
 --- an error returned from mluau, can be tostringed
 declare class error end
+
+declare class interrupt
+    code: "CtrlC" | "CtrlD"
+end
 
 type COMMON_FORMATS =
 	| "ISO_8601"

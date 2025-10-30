@@ -51,6 +51,7 @@ pub const BRIGHT_WHITE_BG: &str = "\x1b[107m";
 
 pub const BOLD: &str = "\x1b[1m";
 pub const DIM: &str = "\x1b[2m";
+pub const UNDERLINE: &str = "\x1b[4m";
 
 type LuaValueResult = LuaResult<LuaValue>;
 
@@ -131,6 +132,10 @@ fn style_dim(luau: &Lua, text: String) -> LuaValueResult {
     colorize(luau, text, DIM)
 }
 
+fn style_underline(luau: &Lua, text: String) -> LuaValueResult {
+    colorize(luau, text, UNDERLINE)
+}
+
 pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let bold_colors = TableBuilder::create(luau)?
         .with_function("black", colorize_bold_black)?
@@ -146,6 +151,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
     let styles = TableBuilder::create(luau)?
         .with_function("bold", style_bold)?
         .with_function("dim", style_dim)?
+        .with_function("underline", style_underline)?
         .build_readonly()?;
 
     let codes = TableBuilder::create(luau)?
@@ -192,6 +198,7 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_value("BRIGHT_WHITE_BG", BRIGHT_WHITE_BG)?
         .with_value("BOLD", BOLD)?
         .with_value("DIM", DIM)?
+        .with_value("UNDERLINE", UNDERLINE)?
         .build_readonly()?;
 
     TableBuilder::create(luau)?

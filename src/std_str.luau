@@ -21,6 +21,24 @@ function str.endswith(s: string, suffix: string): boolean
     return string.sub(s, -#suffix) == suffix
 end
 
+function str.starts(s: string, ...: string): boolean
+    for _, prefix in {...} do
+        if str.startswith(s, prefix) then
+            return true
+        end
+    end
+    return false
+end
+
+function str.ends(s: string, ...: string): boolean
+    for _, suffix in {...} do
+        if str.endswith(s, suffix) then
+            return true
+        end
+    end
+    return false
+end
+
 --- trims any of the provided strings/characters from the front of the string `s`
 ---
 --- if no strings provided as ..., `str.trimfront` will trim whitespace (" ", "\n", etc.)
@@ -247,6 +265,26 @@ local str_internal = (require)("@internal/str")
     by default, str.split splits the string by unicode characters (graphemes)
 ]=]
 str.split = str_internal.split :: (s: string, ...string) -> { string }
+
+--[=[
+	`str.splitaround` follows the same semantics as `str.split`, except that it splits in front of and behind the separator strings,
+	keeping the separator strings in the final result.
+
+	Like `str.split`, `str.splitaround` is fully unicode grapheme-aware and can operate on full strings (instead of just characters).
+
+	## Usage
+	
+	```luau
+	local line = `function Cat.meow(name: string, age: number)`
+	local tokens = str.splitaround(line, " ", ".", "(", ":", ",", ")")
+	--> { "function", " ", "Cat", ".", "meow", "(", "name", ":", " ", "string", ",", " ", "age", ":", " ", "number", ")"}
+	```
+]=]
+str.splitaround = str_internal.splitaround :: (s: string, separators: string, ...string) -> { string }
+
+str.splitbefore = str_internal.splitbefore :: (s: string, separators: string, ...string) -> { string }
+
+str.splitafter = str_internal.splitafter :: (s: string, separators: string, ...string) -> { string }
 
 --[=[
     Iterate over the human-readable characters (graphemes) of a string

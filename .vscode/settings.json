@@ -10,21 +10,24 @@
     "editor.insertSpaces": true,
     "editor.tabSize": 4
   },
-  "luau-lsp.fflags.enableByDefault": true,
   "luau-lsp.inlayHints.parameterNames": "literals",
   "luau-lsp.platform.type": "standard",
   "workbench.editor.customLabels.patterns": {
     "**/mod.rs": "${dirname}",
     "**/init.luau": "${dirname}",
     "**/init.client.luau": "${dirname}",
-    "**/init.server.luau": "${dirname}"
+    "**/init.server.luau": "${dirname}",
+    "**/tests/**/init.luau": "tests/${dirname}",
+    "**/tests/**": "tests/${dirname}/${filename}",
+    "**/typedefs/**/init.luau": "defs/${dirname}",
+    "**/typedefs/**": "defs/${dirname}/${filename}"
   },
   "luau-lsp.types.definitionFiles": [
     "./.seal/typedefs/globals.d.luau"
   ],
   "luau-lsp.types.documentationFiles": ["./.seal/typedefs/docs.json"],
   "luau-lsp.fflags.enableNewSolver": true,
+  "luau-lsp.fflags.enableByDefault": true,
   "luau-lsp.inlayHints.variableTypes": false,
   "luau-lsp.plugin.enabled": false,
-  "stylua.targetReleaseVersion": "latest"
 }

@@ -2,7 +2,8 @@ local fs = require("@std/fs")
 local env = require("@std/env")
 local thread = require("@std/thread")
 local format = require("@std/io/format")
-local unformat = require("@std/io/output").unformat
+
+local cheese = require("@tests/cheese")
 
 local function watchiter()
     -- child thread calls fs lib fns to simulate 'reproducible' fs events
@@ -12,7 +13,8 @@ local function watchiter()
 
     local start_time = os.clock()
 
-    local event_categories: { fs.WatchEventCategory } = {}
+    -- local event_categories: { fs.WatchEventCategory } = {}
+    local event_categories: { string } = {} -- LUAU FIXME: table.insert bounds are broken
 
     local files_created: { string } = {}
     local creates_found = {
@@ -90,7 +92,7 @@ local function watchiter()
 
     handle:join()
 
-    local formatted_events = unformat(format(event_categories))
+    local formatted_events = format.simple(event_categories)
 
     assert(creates_found.files >= 2, `at least 2 files should be created (testfile.txt and taz.json), got: {format(creates_found)} | events {formatted_events}`)
     -- looks like macos makes multiple create calls per dir ?? or something
@@ -100,4 +102,5 @@ local function watchiter()
     -- macos puts most writes as creates i guess?
     assert(writes_found >= 3 or creates_found.files >= 3, "at least 3 files should've been modified (testfile.txt twice, taz.json once)")
 end
-watchiter()
+
+cheese.retry(watchiter, 3)

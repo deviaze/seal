@@ -1,76 +1,51 @@
 --[=[
-Standard library for formatting and dealing with terminal output.
-
-Usage:
-```lua
-local output = require("@std/io/output")
-
--- format a table with colors
-local formatted = output.format({
-	m = 2,
-	d = 3
-})
-
-print(formatted)
-
--- use `p` after it got shadowed for some reason  
-local p = getpvalue()
--- oh no i can't use debug print `p` anymore? debug-print to the rescue.
-output["debug-print"]({
-	p = p,
-})
-```
+    Write to the terminal's stdout/stderr.
 ]=]
-local output = {}
+export type output = {
+    --[=[
+        Writes `contents` to stdout without any intermediate utf-8 validation, flushing the stream immediately.
 
---- prettifies and colorizes any Luau value in the same way as `print`
-function output.format(v: any): ...string
-	return nil :: any
-end
+        ## Windows Portability Concerns
 
---- reverts output.format or colorizing from print/pp
-function output.unformat(v: any): string
-	return nil :: any
-end
+        On Windows, this function may return an error if `contents` is invalid utf-8.
 
---- simple print and return; equivalent to `p`
-function output.sprint<T>(v: T): T
-	return nil :: any
-end
+        Additionally, on Windows it may fail silently when used in a child process.
+        
+        ## Returns
 
---- formats any value in simple format style (equivalent to `p`)
-function output.sformat(v: any): string
-	return nil :: any
-end
+        - An `error` instance if either writing to the stream failed or flushing the stream failed.
 
---- an uncolorized print for debugging that returns the printed values
-output["debug-print"] = function(...: any): ...string
-	return nil :: any
-end
+        ## Usage
 
---- like `debug-print` but doesn't print the passed values (just formats them)
-output["debug-format"] = function(...: any): ...string
-	return nil :: any
-end
+        ```luau
+        local err = output.write("idk")
+        if err then
+            warn(`error writing to stdout: {err}`)
+        end
+        ```
+    ]=]
+    write: (contents: string | buffer, flush: boolean?) -> error?,
+    --[=[
+        Writes `contents` to stderr without any intermediate utf-8 validation, flushing the stream immediately.
 
---- regular colorized `print()` but it returns; same as included global `pp`
-output["print-and-return"] = function(...: any): ...string
-	return nil :: any
-end
+        ## Windows Portability Concerns
 
---- clears the terminal stdout, aka `cls` or `clear`
-function output.clear(): nil
-	return nil :: any
-end
+        On Windows, this function may return an error if `contents` is invalid utf-8.
 
---- writes contents to stdout
-function output.write(contents: string | buffer): nil
-	return nil :: any
-end
+        Additionally, on Windows it may fail silently when used in a child process.
 
---- writes contents to stderr
-function output.ewrite(contents: string | buffer): nil
-	return nil :: any
-end
+        ## Returns
 
-return output
+        - An `error` instance if either writing to the stream failed or flushing the stream failed.
+
+        ## Usage
+
+        ```luau
+        local err = output.ewrite("error message\n")
+        ```
+    ]=]
+    ewrite: (contents: string | buffer, flush: boolean?) -> error?,
+    --- clears stdout akin to `cls` or `clear`.
+    clear: () -> (),
+}
+return {} :: output

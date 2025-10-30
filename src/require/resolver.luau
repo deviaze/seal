@@ -103,7 +103,7 @@ local function get_aliases_by_luaurc(requiring_file_path: string): ({LuaurcAlias
 			aliases = {
 				self = fs.path.parent(requiring_file_path) :: string
 			}
-		})
+		} :: LuaurcAliases)
 	end
 	
 	return aliases_by_luaurc, nil
@@ -201,7 +201,11 @@ local debug_name: string = override_debug_name or debug.info(3, "s") --[[
 	debug name (set by luau.load().set_name) for the chunk that called require(),
 	in the format `[string "./src/somewhere.luau"]`
 	]]
-	local requiring_file_path = string.sub(debug_name, 10, -3) -- grabs the part between `[string "` and `"]`
+	local requiring_file_path = 
+		if str.startswith(debug_name, "[") then 
+			string.sub(debug_name, 10, -3) -- grabs the part between `[string "` and `"]`
+		else
+			debug_name
 
 	local try_new_init_luau_semantics = -- luau lsp has updated, so let's use new semantics by default
 		if try_new_init_luau_semantics == nil or try_new_init_luau_semantics == true then true else false

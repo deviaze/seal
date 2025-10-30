@@ -46,7 +46,6 @@ if env.os ~= "Windows" and env.os ~= "Android" then -- returns NotFound on Windo
 	tryremovepermissiondenied()
 end
 
-
 local function tryremovenotfound()
 	local not_found_path = fs.path.join(data_dir.path, "notfounddir")
 	local success, result = fs.dir.try_remove(not_found_path)
@@ -54,3 +53,31 @@ local function tryremovenotfound()
 end
 
 tryremovenotfound()
+
+local function thisproject()
+	local src_files = fs.dir.project():expect_dir("src"):list(true, function(path: string)
+		return if string.match(path, "%.rs$") then true else false
+	end)
+	local tt = require("@extra/tt")
+	src_files = tt.arraymap(src_files, function(_, v)
+		return fs.path.child(v) :: string
+	end)
+	assert(
+		table.find(src_files, "main.rs") ~= nil,
+		"shoouild be able to find main.rs in the project src"
+	)
+end
+
+thisproject()
+
+local function dirhome()
+	fs.dir.home():list(false)
+end
+
+dirhome()
+
+local function cwd()
+	fs.dir.cwd():expect_dir("src")
+end
+
+cwd()

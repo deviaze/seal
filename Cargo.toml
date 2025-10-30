@@ -1,6 +1,6 @@
 [package]
 name = "seal"
-version = "0.0.6-rc.1"
+version = "0.0.6-rc.2"
 edition = "2024"
 
 [dependencies]
@@ -35,15 +35,28 @@ rand = "0.8.5"
 simple_crypt = "0.2.3"
 hex = "0.4.3"
 unicode-segmentation = "1.12.0"
-# used for very fast string pattern searches (str.split)
+# used for very fast string pattern searches (str.split*)
 aho-corasick = "1.1.3"
 # necessary to loop over graphemes without storing the whole string into memory, 
 # unicode-segmentation's iterators are literally allergic to being stored in a struct
 unicode_reader = "1.0.2"
+# needed for "cutest luau runtime" claim in README.md
+# very good for providing random-ish human readable/rememberable names
 petname = { version = "2.0.2", features = ["default-rng", "default-words"] }
+# needed to handle sigabrts on *nix (see main.rs and err.rs)
 libc = "0.2.174"
+# fs.watch
 notify = { version = "8.2.0", features = ["crossbeam-channel"] }
+# based datetime library and much better than chrono
 jiff = "0.2.15"
+# manual terminal stuff and manual astrick password
+crossterm = "0.29.0"
+# determines if we should fallback to stdin handling in @std/io/input and @std/cli
+atty = "0.2.14"
+# sane cli input handling in @std/cli
+rustyline = "17.0.2"
+# hidden password handling so i dont have to implement it myself with crossterm
+rpassword = "7.4.0"
 
 [profile.dev.package.num-bigint-dig]
 opt-level = 3 # otherwise rsa keygen takes forever

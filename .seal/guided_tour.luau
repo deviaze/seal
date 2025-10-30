@@ -96,9 +96,8 @@ type HttpRequests = {}; local back: TableOfContents do
 		success = "false",
 	})
 	
-	local output = require("@std/io/output")
-	
-	print(`Your dog of the day is: {output.format(dog_result)}`)
+	local format = require("@std/io/format")
+	print(`Your dog of the day is: {format(dog_result)}`)
 end
 
 --- to read command line arguments and access the current process's environment, use @std/env!

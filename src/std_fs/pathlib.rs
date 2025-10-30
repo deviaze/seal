@@ -3,6 +3,7 @@ use std::collections::VecDeque;
 use std::io;
 use std::fs;
 use std::path::{self, Path};
+use crate::globals;
 use crate::prelude::*;
 
 use super::validate_path_without_checking_fs;
@@ -18,8 +19,8 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
     // absolute paths on windows
     // but if a user passes ".\" as their first component they obviously want \ paths
     let path_sep = match first_component.as_str() {
-        "./" | "../" | "." | "" | "/" => "/", // unix style '/' (default) that works on windows, linux, unix, macos, etc.
-        ".\\" | "..\\" => "\\", // windows style '\' for windows absolute paths
+        "./" | "../" | "." | "" | "/" | "~/" => "/", // unix style '/' (default) that works on windows, linux, unix, macos, etc.
+        ".\\" | "..\\" | "~\\" => "\\", // windows style '\' for windows absolute paths
         // stupid windows absolute path edge cases
         component if component.ends_with(':') => "\\", // handle drive letters like "C:"
         component if component.starts_with(r"\\") => "\\", // absolute paths starting with backslash (\\wsl\\)
@@ -29,19 +30,22 @@ pub fn path_join(mut components: VecDeque<String>) -> String {
 
     let mut result = String::new();
 
-    // Avoid stripping unix root `/` on first component
-    result.push_str(if first_component.starts_with('/') {
-        if first_component.len() > 1 {
-            first_component.trim_end_matches(['/', '\\'])
-        } else {
-            "/"
+    // handle absolute paths/roots
+    match first_component.as_str() {
+        "/" => {},
+        r"\\" => {
+            // push first \ of \\ unc path; for loop pushes the next \ so unc path ends up starting with \\
+            result.push('\\');
+        },
+        first if first.starts_with("/") || first.starts_with(r"\\") => {
+            // prevent stripping leading unix root / or windows unc root \\
+            // if component contains either but isn't exactly either
+            result.push_str(first.trim_end_matches(['/', '\\']));
+        },
+        other => {
+            result.push_str(trim_path(other));
         }
-    } else if first_component.starts_with(r"\\") {
-        // avoid stripping windows root `\\` (unc paths like \\?\C:\Users\sealey...) on first component
-        first_component.trim_end_matches(['/', '\\'])
-    } else {
-        trim_path(&first_component)
-    });
+    };
 
     for component in components {
         let trimmed_component = trim_path(&component);
@@ -196,7 +200,7 @@ fn fs_path_join(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
         components.push_back(component_string);
     }
     let result = path_join(components);
-    Ok(LuaValue::String(luau.create_string(&result)?))
+    ok_string(result, luau)
 }
 
 fn fs_path_normalize(luau: &Lua, value: LuaValue) -> LuaValueResult {
@@ -284,8 +288,8 @@ fn fs_path_parent(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
             }
         }
     }
-    
-    Ok(LuaValue::String(luau.create_string(current_path.to_string_lossy().to_string())?))
+
+    ok_string(current_path.to_string_lossy().to_string(), luau)
 }
 
 fn fs_path_child(luau: &Lua, path: LuaValue) -> LuaValueResult {
@@ -300,7 +304,7 @@ fn fs_path_child(luau: &Lua, path: LuaValue) -> LuaValueResult {
     match path.file_name() {
         Some(name) => {
             let name = name.to_string_lossy().to_string();
-            Ok(LuaValue::String(luau.create_string(&name)?))
+            ok_string(name, luau)
         },
         None => {
             Ok(LuaNil)
@@ -313,7 +317,7 @@ fn fs_path_cwd(luau: &Lua, _value: LuaValue) -> LuaValueResult {
     match std::env::current_dir() {
         Ok(cwd) => {
             if let Some(cwd) = cwd.to_str() {
-                Ok(LuaValue::String(luau.create_string(cwd)?))
+                ok_string(cwd, luau)
             } else {
                 wrap_err!("{}: cwd is not valid utf-8", function_name)
             }
@@ -325,12 +329,34 @@ fn fs_path_cwd(luau: &Lua, _value: LuaValue) -> LuaValueResult {
 }
 
 fn fs_path_home(luau: &Lua, _value: LuaValue) -> LuaValueResult {
-    #[allow(deprecated)] // env::home_dir() is undeprecated now
     if let Some(home_dir) = std::env::home_dir() {
         let home_dir = home_dir.to_string_lossy().to_string();
-        Ok(LuaValue::String(luau.create_string(&home_dir)?))
+        ok_string(home_dir, luau)
     } else {
         Ok(LuaNil)
+    }
+}
+
+fn fs_path_project(luau: &Lua, mut multivalue: LuaMultiValue) -> LuaValueResult {
+    let function_name = "fs.path.project(n: number?, script_path: string?)";
+    let projects_up = match multivalue.pop_front() {
+        Some(LuaValue::Integer(i)) => int_to_usize(i, function_name, "n")?,
+        Some(LuaValue::Number(f))=> float_to_usize(f, function_name, "n")?,
+        Some(LuaNil) | None => 1,
+        Some(other) => {
+            return wrap_err!("{} expected n, the number of projects up (default 1) to be a number or nil/unspecified, got: {:?}", function_name, other);
+        }
+    };
+    let script_path = match multivalue.pop_front() {
+        Some(LuaValue::String(entry)) => entry.to_string_lossy(),
+        Some(LuaNil) | None => globals::get_debug_name(luau)?,
+        Some(other) => {
+            return wrap_err!("{} expected script_path to be a string or nil, got: {:?}", function_name, other);
+        }
+    };
+    match globals::find_project(&script_path, projects_up) {
+        Some(project) => ok_string(project.to_string_lossy().to_string(), luau),
+        None => Ok(LuaNil)
     }
 }
 
@@ -345,5 +371,6 @@ pub fn create(luau: &Lua) -> LuaResult<LuaTable> {
         .with_function("child", fs_path_child)?
         .with_function("home", fs_path_home)?
         .with_function("cwd", fs_path_cwd)?
+        .with_function("project", fs_path_project)?
         .build_readonly()
 }

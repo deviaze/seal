@@ -1,5 +1,4 @@
 local fs = require("@std/fs")
-local io = require("@std/io")
 local str = require("@std/str")
 local env = require("@std/env")
 local json = require("@std/json")
@@ -7,6 +6,7 @@ local luau = require("@std/luau")
 local colors = require("@std/colors")
 local semver = require("@std/semver")
 local process = require("@std/process")
+local prompt = require("@std/io/prompt")
 
 local seal_setup = (require :: any)("@internal/setup") :: {
     extract_typedefs: (path: string) -> (),
@@ -122,7 +122,38 @@ local function setup(config: SetupConfig?)
                 :add_file("settings.json", json.encode(vscode_defaults))
         end
     elseif config.editor == "zed" then
-        err("zed support not yet implemented")
+        local zed_defaults = {
+            ["lsp"] = {
+                ["luau-lsp"] = {
+                    ["settings"] = {
+                        ["luau-lsp"] = {
+                            ["inlayHints"] = {
+                                ["parameterNames"] = "literals",
+                            },
+                        },
+                        ["roblox"] = {
+                            ["enabled"] = false,
+                        },
+                        ["fflags"] = {
+                            ["enable_by_default"] = true,
+                            ["enable_new_solver"] = true,
+                        },
+                        ["definitions"] = { globals_path },
+                        ["documentation"] = { global_docs_path },
+                    }
+                }
+            }
+        }
+        
+        local settings_path = cwd:join(".zed", "settings.json")
+        if fs.path.exists(settings_path) and read_jsonc then
+            local updated = get_updated_zed_settings(read_jsonc(settings_path), zed_defaults)
+            json.writefile(settings_path, updated)
+            print(`Updated .zed/settings.json at '{settings_path}'`)
+        else
+            fs.dir.ensure(cwd:join(".zed"))
+                :add_file("settings.json", json.encode(zed_defaults))
+        end
     end
 
     -- extract typedefs and extra
@@ -246,6 +277,35 @@ function get_updated_vscode_settings(existing: json.JsonData, default: json.Json
     return existing
 end
 
+function get_updated_zed_settings(existing: json.JsonData, default: json.JsonData): json.JsonData
+    local force = {
+        ["enabled"] = true, -- roblox.enabled
+        ["enable_by_default"] = true, -- fflags.enable_by_default
+        ["enable_new_solver"] = true, -- fflags.enable_new_solver
+    }
+    local function update(existing: json.JsonData, default: json.JsonData)
+        for default_key, default_value in default do
+            local existing_value = existing[default_key]
+            if existing_value == nil or force[default_key] then
+                existing[default_key] = default_value
+            elseif typeof(existing_value) == "table" then
+                if default_key == "definitions" or default_key == "documentation" then
+                    existing_value = existing_value :: { string }
+                    for _, element in default_value :: { string } do
+                        if not table.find(existing_value, element) then
+                            table.insert(existing_value, element)
+                        end
+                    end
+                else
+                    update(existing_value :: json.JsonData, default_value)
+                end
+            end
+        end  
+    end
+    update(existing, default)
+    return existing
+end
+
 function extract(seal_folder: fs.DirectoryEntry): boolean
     local typedefs_path = seal_folder:join("typedefs")
     if not fs.path.exists(typedefs_path) then
@@ -331,11 +391,10 @@ function should_replace_typedefs(config_luau: fs.FileEntry)
                 should_replace = false
             end
         else
-            local response = str.trim(
-                io.input.get(`Update ~/.seal/typedefs from {existing_semver} -> {seal_semver}? \z
-                This might break your existing linked typedefs if seal made breaking changes. (y/N)`)
-            ):lower()
-            should_replace = if response == "y" then true else false
+            should_replace = prompt.confirm(
+                `Update ~/.seal/typedefs from {existing_semver} -> {seal_semver}?\n\z
+                This might break your existing linked typedefs if seal made breaking changes. (y/N)`
+            )
         end
     else
         should_replace = true
@@ -390,35 +449,22 @@ function custom_setup_from_args(): SetupConfig
     local git = true
     local tour = false
 
+    if args[1] == "custom" then
+        table.remove(args, 1)
+    end
+
     if #args == 0 then
-        local function retry_prompt(prompt: string, valid_options: { string }): string
-            local resp = str.trim(io.input.get(prompt .. ": ")):lower()
-            -- allow numerical option corresponding to table index
-            if tonumber(resp) then
-                resp = valid_options[tonumber(resp) :: number]
-            end
-            if not table.find(valid_options, resp) then
-                print(`{colors.red("Invalid option!")} Options: {table.concat(valid_options, " | ")}`)
-                return retry_prompt(prompt, valid_options)
-            else
-                return resp
-            end
-        end
+        print("Custom seal setup options:")
+        local editor_response = prompt.pick("Choose a text editor", { colors.blue("vscode"), colors.red("zed"), "none" }, 1)
+        editor = if editor_response == 1 then "vscode" elseif editor_response == 2 then "zed" else "none"
 
-        print("Custom setup options:")
+        local codebase_response = prompt.pick("Choose a codebase style", { colors.yellow("project"), colors.magenta("script") }, 1)
+        codebase = if codebase_response == 1 then "project" else "script"
 
-        local editor_prompt = `Choose an editor ({colors.blue("1: vscode")} | {colors.red("2: zed")}| 3: none)`
-        editor = retry_prompt(editor_prompt, {"vscode", "code", "zed", "none"})
+        local typedefs_response = prompt.pick("Generate typedefs locally or link to them?", { "Generate in this repository", "Link to ~/.seal/typedefs" })
+        typedefs = if typedefs_response == 1 then "gen" else "link"
 
-        local codebase_prompt = `Choose a codebase style ({colors.yellow("1: project")} | {colors.magenta("2: script")})`
-        codebase = retry_prompt(codebase_prompt, {"project", "script"})
-
-        local typedefs_prompt = `Generate typedefs or link to them? ({colors.green("1: gen")} | {colors.red("2: link")})`
-        typedefs = retry_prompt(typedefs_prompt, {"gen", "link"})
-
-        local git_prompt = `Make a git repository? (Y | n)`
-        local git_response = retry_prompt(git_prompt, {"y", "n", ""})
-        git = git_response == "" or git_response == "y"
+        git = prompt.confirm("Make this a git repository?")
     else
         for index, arg in args do
             if index % 2 == 0 then continue end
@@ -531,8 +577,7 @@ function check_confirm_comment_removal(content: string, name: string): boolean
     end
 
     if has_comments(content) then
-        local response = str.trim(io.input.get(`All comments in {name} will be stripped; continue? (Y/n)`)):lower()
-        return response == "y" or response == ""
+        return prompt.confirm(`All comments in '{name}' will be stripped; continue?`)
     else
         return true
     end

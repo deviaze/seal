@@ -8,7 +8,7 @@
 
 local mlua = require("@interop/mlua")
 local colors = require("@std/colors")
-local output = require("@std/io/output")
+local format = require("@std/io/format")
 
 local VECTOR_FOUR_WIDE_MODE = (function()
     local s, f = pcall(function()
@@ -122,8 +122,8 @@ local function process_raw_values(
         -- result ..= current_indent ..  "}"
         table.insert(result, current_indent ..  "}")
     elseif typeof(value) == "string" then
-        -- result ..= if depth == 0 then value else  '"' .. value .. '"'
-        table.insert(result, if depth == 0 then value else  '"' .. value .. '"')
+        -- LUAU FIXME: need to cast to string here to fix error type
+        table.insert(result, (if depth == 0 then value else  '"' .. value .. '"') :: string)
     elseif typeof(value) == "boolean" then
         -- result ..= tostring(value)
         table.insert(result, tostring(value))
@@ -158,7 +158,7 @@ local function process_raw_values(
     elseif mlua.iserror(value) then
         local stringified_error = tostring(value)
         local errsplit = string.split(stringified_error, "\n")
-        local errmsglist = {}
+        local errmsglist: { string } = {}
         for _, m in errsplit do
             if string.find(m, "stack traceback") then
                 break
@@ -166,7 +166,7 @@ local function process_raw_values(
                 table.insert(errmsglist, m)
             end
         end
-        return "error<" .. output.unformat(table.concat(errmsglist)) .. ">"
+        return "error<" .. format.uncolor(table.concat(errmsglist)) .. ">"
     elseif type(value) == "userdata" then
         local typeof_value = typeof(value)
         if typeof_value ~= "userdata" then
@@ -243,7 +243,7 @@ local function stringify_simple_type(value: any): string
         local last_five = string.sub(buffer_id, #buffer_id - 4, # buffer_id)
         local first_part = string.sub(buffer_id, 1, #buffer_id - 5)
         return BOLD_MAGENTA .. "buffer" .. RESET .. LEFT_ANGLED .. MAGENTA .. "0x" .. first_part .. colors.bold.magenta(last_five) .. RESET .. MAGENTA .. RIGHT_ANGLED
-    elseif mlua.iserror(value) then
+    elseif mlua.iserror(value) or typeof(value) == "error" then
         local stringified_error = tostring(value)
         local errsplit = string.split(stringified_error, "\n")
         local errmsglist = {}
@@ -390,11 +390,13 @@ local function process_pretty_values(
         local value_meta = getmetatable(value :: any) :: { [any]: any }?
         if value_meta then
             for k, v in pairs(value) do -- use pairs to avoid unexpectedly calling __call on tables w/ metatable
-                table.insert(unsorted_pairs, { key = k, val = v }) 
+                -- LUAU FIXME: table.insert horribly broken
+                (table.insert :: any)(unsorted_pairs, { key = k, val = v }) 
             end
         else
             for k, v in value do
-                table.insert(unsorted_pairs, { key = k, val = v }) 
+                -- LUAU FIXME: table.insert horribly broken
+                (table.insert :: any)(unsorted_pairs, { key = k, val = v }) 
             end
         end
 
