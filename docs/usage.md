@@ -18,7 +18,7 @@ For help, use `seal --help` or `seal help <command>`
 
 *seal* codebases can be either *Projects*, *Scripts*, or single files.
 
-The general setup for a codease should follow:
+The general setup for a codebase should follow:
 
 1. Open a terminal
 2. `mkdir/md ProjectName`
@@ -30,7 +30,7 @@ The general setup for a codease should follow:
 
 Use a **Project** codebase when you want to use *seal* as the primary runtime for your project.
 
-This option will generates `.seal` directory, all typedefs locally for easy portability (and soon, compilation), a `src` dir, a `.luaurc`, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
+This option will generate a `.seal` directory containing seal's configuration and all typedefs locally for easy portability and standalone compilation, a `src` dir, a `.luaurc` Luau configuration file, a `.vscode/settings.json`, and will start a new `git` repository if one doesn't already exist.
 
 ### Scripts
 
@@ -38,7 +38,7 @@ Use a **Script** codebase when you want to add *seal* to an existing project to 
 
 This option generates a `.seal` directory locally for seal configuration, but will otherwise link to user-wide typedefs in `~/.seal/typedefs/*`.
 
-Locally, `.vscode/settings.json` and `.luaurc`s will also be created or updated to include *seal*'s typedefs and default config.
+Additionally, the project's `.vscode/settings.json` and `.luaurc` will also be created or updated to include *seal*'s typedefs and default config.
 
 #### Configuring codebases
 
@@ -66,8 +66,6 @@ export type SealConfig = {
 return config :: SealConfig
 
 ```
-
-Automatic setup for Zed is not fully ready yet, but all the other settings are available for config when you run `seal setup custom`.
 
 ### Running single files
 

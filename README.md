@@ -1,4 +1,4 @@
-# seal - a cute cross-platform scripting runtime
+# seal - a cute scripting runtime
 
 Use *seal* to write fun, maintainable, and easily-deployable programs in [Luau](https://luau.org), a simple, dependable, and extremely fast scripting language with good typechecking and tooling support.
 
@@ -12,11 +12,13 @@ Check out the [standard library reference](docs/standard-library/index.md) for a
 
 ## Install
 
-See the [install instructions](docs/install.md) for a detailed walkthrough of getting *seal* on your system. Basically you just need a text editor (VSCode, Zed, or nvim), [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp) installed in your text editor, and the [latest release](<https://github.com/deviaze/seal/releases/latest>) of *seal* in your `PATH`.
+See the [install instructions](docs/install.md) for a detailed walkthrough of getting *seal* on your system. Basically you just need a text editor (VSCode, Zed, or nvim), [Luau Language Server](https://github.com/JohnnyMorganz/luau-lsp) installed in your text editor, and the [latest release](<https://github.com/deviaze/seal/releases/latest>) of *seal* in your `$PATH`.
 
 ## Usage
 
-To start a new project with *seal*, make a new directory, run `seal setup project` inside it, and open it up with `code .`. The codebase's entry point should be at `./src/main.luau`. To use Zed instead of VSCode, run `seal setup custom` instead and follow the prompts.
+To start a new project with *seal*, make a new directory, run `seal setup project` inside it, and open it up with `code .`
+
+The codebase's entry point should be at `./src/main.luau`. To use Zed instead of VSCode, run `seal setup custom` instead and follow the prompts.
 
 *seal* codebases can be either projects or scripts; use a *project* codebase if the entire project will be written with *seal* and/or will be compiled to a standalone program, and use a *script* codebase if you want to use *seal* scripts in an existing or primarily not-*seal* project.
 
@@ -24,3 +26,6 @@ To start a new project with *seal*, make a new directory, run `seal setup projec
 - `seal run` runs the project at your current working directory.
 
 Check out the full [usage instructions](docs/usage.md) for more.
+
+## Programming and Standard Library
+

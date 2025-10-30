@@ -3,7 +3,7 @@
 ## Windows
 
 1. Download the [latest release](<https://github.com/deviaze/seal/releases/latest>) of *seal* for your system, or if you want the most up-to-date beta, download the newest [build artifact from GitHub Actions](https://github.com/deviaze/seal/actions).
-2. Move *seal* somewhere you typically keep your locally-installed programs; I recommend `C:\Users\<USERNAME>\.local\bin\seal.exe`. To add this directory to your PowerShell profile `$PATH`, open your PowerShell profile in VSCode by running `code $PROFILE` and then add `$env:Path += ";C:\Users\<USERNAME>\.local\bin"` somewhere near the bottom of the file.
+2. Move *seal* somewhere permanent; I recommend `C:\Users\<USERNAME>\.local\bin\seal.exe`. To add this directory to `$PATH`, open your PowerShell profile in VSCode by running `code $PROFILE` and then add `$env:Path += ";C:\Users\<USERNAME>\.local\bin"` somewhere near the bottom of the file.
 3. Close and reopen your Windows Terminal and make sure running `seal --help` displays *seal*'s help message. This should ensure *seal* is available in your `$PATH`.
 4. Webview dependencies (for GUI programs, when implemented) should already be installed via Microsoft Edge.
 
